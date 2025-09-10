@@ -1,0 +1,35 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Secrets
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Caches
+.cache/
+*.cache
+
+# Node
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Data (large files) - do NOT push large datasets to git
+data/
+data/*
+
+# OS files
+.DS_Store
+Thumbs.db
