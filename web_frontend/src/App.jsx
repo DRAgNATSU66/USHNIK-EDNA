@@ -338,7 +338,8 @@ const App = () => {
     let speciesList = [];
     if (Array.isArray(data)) {
       speciesList = data.map((d, i) => ({
-        id: d.id || `${i + 1}`,
+        // FIX: Use sequence_id from the backend, as 'id' may not exist.
+        id: d.id || d.sequence_id || `${i + 1}`,
         name: d.predicted_species || d.label || "Unknown",
         confidence: d.confidence || d.score || 0,
       }));
