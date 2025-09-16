@@ -1,21 +1,25 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import axios from "axios";
+import { analyzeFastaFile } from "./api"; // keep api helper
 
-// This component is the main application file for the eDNA Analysis platform.
-// It handles UI state, backend communication, and THREE.js visualizations.
+// Full App.jsx — replace your current file with this exact content.
 const App = () => {
   // === State Management ===
   const [selectedFile, setSelectedFile] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false); // controls loading overlay/buffer
+  const [vizActive, setVizActive] = useState(false); // NEW: keeps throbbing/spin active after analysis
+  const [isFastSpin, setIsFastSpin] = useState(false); // controls faster spin (kept while vizActive if desired)
   const [metrics, setMetrics] = useState({ totalReads: 0, totalSpecies: 0 });
   const [results, setResults] = useState([]);
   const [previousResults, setPreviousResults] = useState([]); // To track for new species
   const [errorMessage, setErrorMessage] = useState("");
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
   const [newSpeciesMessage, setNewSpeciesMessage] = useState("");
-  const [isFastSpin, setIsFastSpin] = useState(false);
   const [showSecondBgHelix, setShowSecondBgHelix] = useState(false);
+
+  // NEW: Blue helix glow toggle (faint fluorescent overlay on blue helix)
+  const [blueGlowActive, setBlueGlowActive] = useState(false);
 
   // === Refs for DOM elements and THREE.js objects ===
   const bgCanvasRef = useRef(null);
@@ -26,8 +30,9 @@ const App = () => {
   const bgSceneRef = useRef(null);
   const bgCameraRef = useRef(null);
   const bgRendererRef = useRef(null);
-  const bgGroupRef = useRef(null); // The blue helix
-  const secondBgGroupRef = useRef(null); // The new helix that appears
+  const bgGroupRef = useRef(null); // The blue helix (base)
+  const blueGlowRef = useRef(null); // NEW: glow overlay for blue helix
+  const secondBgGroupRef = useRef(null); // The new helix that appears (red)
   const particlesRef = useRef(null);
 
   // THREE.js refs for metrics scene
@@ -35,6 +40,12 @@ const App = () => {
   const metricsCameraRef = useRef(null);
   const metricsRendererRef = useRef(null);
   const helixRef = useRef(null); // The small helix
+
+  // store metric strand refs & their glow overlays for dynamic brightness control
+  const metricsGreenRef = useRef(null);
+  const metricsRedRef = useRef(null);
+  const metricsGreenGlowRef = useRef(null);
+  const metricsRedGlowRef = useRef(null);
 
   // === Backend Endpoints ===
   const BASE_URL = "http://127.0.0.1:8000";
@@ -119,6 +130,8 @@ const App = () => {
           transparent: true,
           opacity: 0.8,
         });
+        // store base values for throbbing effect
+        material.userData = { baseSize: 0.02, baseOpacity: 0.8 };
         return new THREE.Points(geometry, material);
       };
 
@@ -174,7 +187,7 @@ const App = () => {
       const helixRadius = 0.5;
       const helixHeight = 1.6;
 
-      // Green strand
+      // Green strand — increased contrast: slightly larger, more saturated, full opacity
       const greenPoints = [];
       for (let i = 0; i < numPoints; i++) {
         const t = (i / (numPoints - 1)) * Math.PI * 6;
@@ -185,16 +198,41 @@ const App = () => {
       }
       const greenGeometry = new THREE.BufferGeometry().setFromPoints(greenPoints);
       const greenMaterial = new THREE.PointsMaterial({
-        color: 0x00ff88,
-        size: 0.055,
+        color: 0x00e65a, // richer green for stronger contrast
+        size: 0.065,     // slightly larger
         blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: 0.95,
+        opacity: 1.0,    // stronger, solid look
+        sizeAttenuation: true,
+        depthTest: false,   // <--- Prevent depth sorting popping
+        depthWrite: false,  // <--- Prevent depth buffer writes (keeps additive blending stable)
       });
+      greenMaterial.userData = { baseSize: 0.065, baseOpacity: 1.0 };
       const greenStrand = new THREE.Points(greenGeometry, greenMaterial);
+      // ensure consistent draw order relative to glow
+      greenStrand.renderOrder = 2;
       helixGroup.add(greenStrand);
+      metricsGreenRef.current = greenStrand;
 
-      // Red strand
+      // green glow overlay (larger, faint) — slightly stronger glow
+      const greenGlowGeom = new THREE.BufferGeometry().setFromPoints(greenPoints);
+      const greenGlowMat = new THREE.PointsMaterial({
+        color: 0x00e65a,
+        size: 0.12,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        opacity: 0.18,
+        sizeAttenuation: true,
+        depthTest: false,  // <--- keep glow always visible / not occluded in odd frames
+        depthWrite: false,
+      });
+      greenGlowMat.userData = { baseSize: 0.12, baseOpacity: 0.18 };
+      const greenGlow = new THREE.Points(greenGlowGeom, greenGlowMat);
+      greenGlow.renderOrder = 1; // draw glow before the main strand or keep consistent
+      helixGroup.add(greenGlow);
+      metricsGreenGlowRef.current = greenGlow;
+
+      // Red strand — increased contrast: richer red, larger size, full opacity
       const redPoints = [];
       for (let i = 0; i < numPoints; i++) {
         const t = (i / (numPoints - 1)) * Math.PI * 6;
@@ -205,14 +243,38 @@ const App = () => {
       }
       const redGeometry = new THREE.BufferGeometry().setFromPoints(redPoints);
       const redMaterial = new THREE.PointsMaterial({
-        color: 0xff6b6b,
-        size: 0.052,
+        color: 0xff3b3b, // brighter, punchier red
+        size: 0.06,
         blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: 0.95,
+        opacity: 1.0,
+        sizeAttenuation: true,
+        depthTest: false, // <--- same fix for red strand
+        depthWrite: false,
       });
+      redMaterial.userData = { baseSize: 0.06, baseOpacity: 1.0 };
       const redStrand = new THREE.Points(redGeometry, redMaterial);
+      redStrand.renderOrder = 2;
       helixGroup.add(redStrand);
+      metricsRedRef.current = redStrand;
+
+      // red glow overlay — slightly stronger glow
+      const redGlowGeom = new THREE.BufferGeometry().setFromPoints(redPoints);
+      const redGlowMat = new THREE.PointsMaterial({
+        color: 0xff3b3b,
+        size: 0.12,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        opacity: 0.18,
+        sizeAttenuation: true,
+        depthTest: false,
+        depthWrite: false,
+      });
+      redGlowMat.userData = { baseSize: 0.12, baseOpacity: 0.18 };
+      const redGlow = new THREE.Points(redGlowGeom, redGlowMat);
+      redGlow.renderOrder = 1;
+      helixGroup.add(redGlow);
+      metricsRedGlowRef.current = redGlow;
 
       helixRef.current = helixGroup;
       metricsSceneRef.current.add(helixRef.current);
@@ -250,6 +312,130 @@ const App = () => {
           secondBgGroupRef.current.rotation.x -= 0.002;
           secondBgGroupRef.current.rotation.y += 0.006;
         }
+
+        // If blue glow overlay exists, match its rotation to the base helix
+        if (blueGlowRef.current) {
+          blueGlowRef.current.rotation.x = bgGroupRef.current.rotation.x;
+          blueGlowRef.current.rotation.y = bgGroupRef.current.rotation.y;
+        }
+
+        // Throbbing (pulse) effect for all relevant glow materials when vizActive
+        const now = performance.now() * 0.001; // seconds
+
+        // === THROBBING frequency adjustments:
+        // base 3.0; previous multipliers (0.7 * 0.85 * 0.8) kept; final multiplier unchanged
+        const THROB_FREQ = 3.0 * 0.7 * 0.85 * 0.8; // ≈ 1.428
+
+        if (vizActive) {
+          const freq = THROB_FREQ;
+          // Keep original amplitude for main bg and blueGlow but increase throbbing by +25%
+          // original main amplitude was 0.5 -> now 0.5 * 1.25 = 0.625
+          const mainAmp = 0.5 * 1.25; // 0.625
+          const mainFactor = 1 + mainAmp * Math.sin(now * Math.PI * 2 * freq); // ±62.5% for bg & blueGlow
+
+          // Reduced throbbing for color-changing helix: previous reduced amplitude was 0.15
+          // increase that by +25% -> 0.15 * 1.25 = 0.1875
+          const colorHelixAmp = 0.5 * 0.3 * 1.25; // 0.1875
+          const colorFactor = 1 + colorHelixAmp * Math.sin(now * Math.PI * 2 * freq); // ±18.75%
+
+          // BG group main points (smaller pulse) — original 0.2 -> increased by 25% -> 0.25
+          const smallAmp = 0.2 * 1.25; // 0.25
+
+          // Blue glow
+          if (blueGlowRef.current && blueGlowRef.current.material && blueGlowRef.current.material.userData) {
+            const ud = blueGlowRef.current.material.userData;
+            blueGlowRef.current.material.size = ud.baseSize * mainFactor * 1.0;
+            blueGlowRef.current.material.opacity = Math.min(ud.baseOpacity * mainFactor * 1.2, 0.95);
+          }
+          // BG group main points (smaller pulse updated)
+          if (bgGroupRef.current && bgGroupRef.current.material && bgGroupRef.current.material.userData) {
+            const ud = bgGroupRef.current.material.userData;
+            bgGroupRef.current.material.size = ud.baseSize * (1 + smallAmp * Math.sin(now * Math.PI * 2 * freq)); // smaller pulse increased
+            bgGroupRef.current.material.opacity = Math.min(ud.baseOpacity * (1 + smallAmp * Math.sin(now * Math.PI * 2 * freq)), 0.95);
+          }
+          // Red second background helix (if present) throbbing — reduced amplitude but slightly stronger now
+          if (secondBgGroupRef.current) {
+            secondBgGroupRef.current.traverse((obj) => {
+              if (obj instanceof THREE.Points && obj.material && obj.material.userData) {
+                const ud = obj.material.userData;
+                // use colorFactor (reduced throbbing) for size/opacity adjustments
+                obj.material.size = (ud.baseSize || obj.material.size) * colorFactor * 1.0;
+                obj.material.opacity = Math.min((ud.baseOpacity || obj.material.opacity) * colorFactor * 1.2, 0.95);
+              }
+            });
+          }
+        } else {
+          // revert to base
+          if (blueGlowRef.current && blueGlowRef.current.material && blueGlowRef.current.material.userData) {
+            const ud = blueGlowRef.current.material.userData;
+            blueGlowRef.current.material.size = ud.baseSize;
+            blueGlowRef.current.material.opacity = ud.baseOpacity;
+          }
+          if (bgGroupRef.current && bgGroupRef.current.material && bgGroupRef.current.material.userData) {
+            const ud = bgGroupRef.current.material.userData;
+            bgGroupRef.current.material.size = ud.baseSize;
+            bgGroupRef.current.material.opacity = ud.baseOpacity;
+          }
+          if (secondBgGroupRef.current) {
+            secondBgGroupRef.current.traverse((obj) => {
+              if (obj instanceof THREE.Points && obj.material && obj.material.userData) {
+                const ud = obj.material.userData;
+                obj.material.size = ud.baseSize;
+                obj.material.opacity = ud.baseOpacity;
+              }
+            });
+          }
+        }
+
+        // ===== Animated color cycling for the red helix (if present) =====
+        // New behavior: blue hold 4s -> 0.5s transition -> red hold 5s -> 0.5s transition -> loop (total 10s)
+        if (secondBgGroupRef.current) {
+          const BLUE_HOLD = 4.0;
+          const TRANS = 0.5; // <-- changed from 0.25 to 0.5s per your request
+          const RED_HOLD = 5.0;
+          const LOOP = BLUE_HOLD + TRANS + RED_HOLD + TRANS; // 10.0s
+          const tLoop = (now % LOOP); // 0 .. LOOP
+          const redColor = new THREE.Color(0xff2b4b);
+          const blueColor = new THREE.Color(0x00d4ff);
+
+          let currentColor = new THREE.Color();
+          if (tLoop < BLUE_HOLD) {
+            // solid blue
+            currentColor.copy(blueColor);
+          } else if (tLoop < BLUE_HOLD + TRANS) {
+            // blue -> red transition (0 .. TRANS)
+            const p = (tLoop - BLUE_HOLD) / TRANS; // 0..1
+            currentColor.lerpColors(blueColor, redColor, p);
+          } else if (tLoop < BLUE_HOLD + TRANS + RED_HOLD) {
+            // solid red
+            currentColor.copy(redColor);
+          } else {
+            // red -> blue transition
+            const p = (tLoop - (BLUE_HOLD + TRANS + RED_HOLD)) / TRANS; // 0..1
+            currentColor.lerpColors(redColor, blueColor, p);
+          }
+
+          // apply color to materials (and keep small subtle opacity nudge)
+          secondBgGroupRef.current.traverse((obj) => {
+            if (obj instanceof THREE.Points && obj.material) {
+              try {
+                if (!obj.material._tmpColor) obj.material._tmpColor = new THREE.Color();
+                obj.material._tmpColor.copy(currentColor);
+                obj.material.color.copy(obj.material._tmpColor);
+
+                if (obj.material.userData && obj.material.userData.baseOpacity !== undefined) {
+                  const base = obj.material.userData.baseOpacity;
+                  // tiny breathing on opacity synced with hold phases (very subtle)
+                  const breath = 0.02 * Math.sin((now % LOOP) * Math.PI * 2 / LOOP);
+                  obj.material.opacity = Math.min(Math.max(base + breath, 0), 1);
+                }
+              } catch (e) {
+                // ignore color application errors
+              }
+            }
+          });
+        }
+
         if (particlesRef.current) particlesRef.current.rotation.y += 0.0008;
         bgRendererRef.current.render(bgSceneRef.current, bgCameraRef.current);
       }
@@ -260,9 +446,32 @@ const App = () => {
     const animateMetrics = () => {
       metricsRafId = requestAnimationFrame(animateMetrics);
       if (helixRef.current && metricsRendererRef.current) {
-        const speed = isFastSpin ? 0.08 : 0.004;
-        helixRef.current.rotation.x += 0.002;
+        // base small rotation speeds
+        const baseSpeed = isFastSpin ? 0.08 : 0.004;
+        // If vizActive, front helix spins 50% faster
+        let speed = vizActive ? baseSpeed * 1.5 : baseSpeed;
+
+        // === Slow the metrics helix by 25% (kept from original) ===
+        speed *= 0.75;
+
+        // === Increase y axis movement by 10% (applied after existing multipliers) ===
+        speed *= 1.10; // new: +10%
+
+        // === Increase x axis movement by additional +30% (on top of previous multipliers) ===
+        // previous x multiplier chain was: 0.002 * 1.2 * 1.3 = 0.00312
+        // apply an extra *1.3 to get +30% more => 0.00312 * 1.3 = 0.004056
+        const xSpeed = 0.002 * 1.2 * 1.3 * 1.3; // = 0.004056
+
+        // === OMIT z-axis movement entirely (per request) ===
+
+        // Apply rotations
+        helixRef.current.rotation.x += xSpeed;
         helixRef.current.rotation.y += speed;
+
+        // NOTE: throbbing/pulse for metrics strands intentionally REMOVED per request.
+        // We still respect vizActive for overall spinning but do not manipulate
+        // material sizes/opacities for metrics strands anymore.
+
         metricsRendererRef.current.render(metricsSceneRef.current, metricsCameraRef.current);
       }
     };
@@ -280,7 +489,123 @@ const App = () => {
       cancelAnimationFrame(bgRafId);
       cancelAnimationFrame(metricsRafId);
     };
-  }, [isFastSpin, showSecondBgHelix]);
+  }, [isFastSpin, showSecondBgHelix, vizActive]); // depend on vizActive instead of isAnalyzing
+
+  // ---------------------------
+  // Manage red second helix (unchanged creation but glow intensity reacts to vizActive)
+  // ---------------------------
+  useEffect(() => {
+    if (showSecondBgHelix && bgSceneRef.current && !secondBgGroupRef.current) {
+        // create a red, fluorescent-looking helix for the SECOND helix
+        const createRedGlowingHelix = (reverse = false) => {
+            const points = [];
+            const numPoints = 300;
+            const helixRadius = 1;
+            const helixHeight = 3;
+            for (let i = 0; i < numPoints; i++) {
+                const t = (i / (numPoints - 1)) * Math.PI * 4;
+                const x = reverse ? -helixRadius * Math.cos(t) : helixRadius * Math.cos(t);
+                const y = helixHeight * (i / numPoints) - helixHeight / 2;
+                const z = reverse ? -helixRadius * Math.sin(t) : helixRadius * Math.sin(t);
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+            // Use a brighter red hex and larger point size to make it pop.
+            // AdditiveBlending + higher opacity gives a fluorescent effect.
+            const material = new THREE.PointsMaterial({
+                color: 0xff2b4b, // bright red initial
+                size: 0.03,     // slightly larger than the blue helix points
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.95,
+            });
+            material.userData = { baseSize: 0.03, baseOpacity: 0.95 };
+
+            const pointsMesh = new THREE.Points(geometry, material);
+
+            // subtle emissive glow can be simulated by adding a faint, slightly larger
+            // copy with even higher transparency and same color
+            const glowGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const glowMaterial = new THREE.PointsMaterial({
+                color: 0xff2b4b,
+                size: 0.06,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.12,
+              });
+            glowMaterial.userData = { baseSize: 0.06, baseOpacity: 0.12 };
+            const glowMesh = new THREE.Points(glowGeometry, glowMaterial);
+
+            const group = new THREE.Group();
+            group.add(pointsMesh);
+            group.add(glowMesh);
+
+            return group;
+        };
+
+        secondBgGroupRef.current = createRedGlowingHelix(true);
+        bgSceneRef.current.add(secondBgGroupRef.current);
+    } else if (!showSecondBgHelix && secondBgGroupRef.current) {
+        bgSceneRef.current.remove(secondBgGroupRef.current);
+        secondBgGroupRef.current.traverse((obj) => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach((m) => m.dispose && m.dispose());
+                } else {
+                    obj.material.dispose && obj.material.dispose();
+                }
+            }
+        });
+        secondBgGroupRef.current = null;
+    }
+  }, [showSecondBgHelix]);
+
+  // ---------------------------
+  // Manage blue helix glow overlay (NEW)
+  // ---------------------------
+  useEffect(() => {
+    // Add a faint glowing overlay when blueGlowActive is true.
+    try {
+      if (blueGlowActive && bgSceneRef.current && bgGroupRef.current && !blueGlowRef.current) {
+        // Copy position buffer to avoid sharing same typed array
+        const posAttr = bgGroupRef.current.geometry.attributes.position;
+        const copy = new Float32Array(posAttr.array.length);
+        copy.set(posAttr.array);
+
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.BufferAttribute(copy, 3));
+
+        // translucent larger points for glow
+        const mat = new THREE.PointsMaterial({
+          color: 0x00d4ff,
+          size: 0.06,
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          opacity: 0.15,
+        });
+        mat.userData = { baseSize: 0.06, baseOpacity: 0.15 };
+
+        blueGlowRef.current = new THREE.Points(geom, mat);
+        // place behind slightly (optional subtlety); keep same position so rotation sync looks correct
+        bgSceneRef.current.add(blueGlowRef.current);
+      }
+
+      if (!blueGlowActive && blueGlowRef.current && bgSceneRef.current) {
+        bgSceneRef.current.remove(blueGlowRef.current);
+        // dispose
+        try {
+          if (blueGlowRef.current.geometry) blueGlowRef.current.geometry.dispose();
+          if (blueGlowRef.current.material) blueGlowRef.current.material.dispose();
+        } catch (e) {}
+        blueGlowRef.current = null;
+      }
+    } catch (e) {
+      // don't block UI on glow errors
+      console.error("Blue glow error:", e);
+    }
+  }, [blueGlowActive]);
 
   // === UI & Backend Logic ===
   const runAnalysis = async (isDemo = false) => {
@@ -290,12 +615,19 @@ const App = () => {
     }
 
     setIsAnalyzing(true);
-    setIsFastSpin(true);
+    // activate visuals immediately so user sees response even during buffering
+    setVizActive(true);
+    setIsFastSpin(true); // keep fast spin while vizActive
     setShowSecondBgHelix(false); // Hide second helix at the start
     setErrorMessage("");
     setMetrics({ totalReads: 0, totalSpecies: 0 });
     setResults([]);
     setNewSpeciesMessage("");
+
+    // NEW: enable blue helix glow when an analysis is triggered
+    setBlueGlowActive(true);
+
+    // Also intensify all helix glows (we trigger vizActive to drive the useEffect adjustments)
 
     let data;
     if (isDemo) {
@@ -312,13 +644,8 @@ const App = () => {
       };
     } else {
       try {
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        const resp = await axios.post(BACKEND_URL, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: 120000,
-        });
-        data = resp.data;
+        // ✅ Use helper instead of inline axios.post
+        data = await analyzeFastaFile(selectedFile);
       } catch (err) {
         console.error("Backend error:", err);
         setErrorMessage(
@@ -365,8 +692,15 @@ const App = () => {
       totalReads: speciesList.length
     }));
     
+    // hide loading overlay, but KEEP vizActive (so throbbing/spin remain)
     setIsAnalyzing(false);
-    setIsFastSpin(false);
+
+    // ensure visuals persist after analysis - vizActive stays true (user requested this)
+    // we keep isFastSpin true while vizActive is true; user can reset to turn them off
+    setVizActive(true);
+    setIsFastSpin(true);
+    // Note: we intentionally keep the blue glow active after analysis until user resets,
+    // as you requested it glows after analyze. Reset will turn it off.
   };
 
   const handleFileChange = (e) => {
@@ -405,6 +739,11 @@ const App = () => {
     setNewSpeciesMessage("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setShowSecondBgHelix(false);
+    // NEW: remove blue glow on reset
+    setBlueGlowActive(false);
+    // turn visual persistence off
+    setVizActive(false);
+    setIsFastSpin(false);
   };
 
   // UI helper: ConfidenceBar
@@ -434,7 +773,8 @@ const App = () => {
 
   useEffect(() => {
     if (showSecondBgHelix && bgSceneRef.current && !secondBgGroupRef.current) {
-        const createHelix = (color, reverse = false) => {
+        // create a red, fluorescent-looking helix for the SECOND helix
+        const createRedGlowingHelix = (reverse = false) => {
             const points = [];
             const numPoints = 300;
             const helixRadius = 1;
@@ -447,25 +787,57 @@ const App = () => {
                 points.push(new THREE.Vector3(x, y, z));
             }
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+            // Use a brighter red hex and larger point size to make it pop.
+            // AdditiveBlending + higher opacity gives a fluorescent effect.
             const material = new THREE.PointsMaterial({
-                color: color,
-                size: 0.02,
+                color: 0xff2b4b, // bright red
+                size: 0.03,     // slightly larger than the blue helix points
                 blending: THREE.AdditiveBlending,
                 transparent: true,
-                opacity: 0.8,
+                opacity: 0.95,
             });
-            return new THREE.Points(geometry, material);
+            material.userData = { baseSize: 0.03, baseOpacity: 0.95 };
+
+            const pointsMesh = new THREE.Points(geometry, material);
+
+            // subtle emissive glow can be simulated by adding a faint, slightly larger
+            // copy with even higher transparency and same color
+            const glowGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const glowMaterial = new THREE.PointsMaterial({
+                color: 0xff2b4b,
+                size: 0.06,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.12,
+              });
+            glowMaterial.userData = { baseSize: 0.06, baseOpacity: 0.12 };
+            const glowMesh = new THREE.Points(glowGeometry, glowMaterial);
+
+            const group = new THREE.Group();
+            group.add(pointsMesh);
+            group.add(glowMesh);
+
+            return group;
         };
-        secondBgGroupRef.current = createHelix(0x00d4ff, true);
+
+        secondBgGroupRef.current = createRedGlowingHelix(true);
         bgSceneRef.current.add(secondBgGroupRef.current);
     } else if (!showSecondBgHelix && secondBgGroupRef.current) {
         bgSceneRef.current.remove(secondBgGroupRef.current);
-        secondBgGroupRef.current.geometry.dispose();
-        secondBgGroupRef.current.material.dispose();
+        secondBgGroupRef.current.traverse((obj) => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach((m) => m.dispose && m.dispose());
+                } else {
+                    obj.material.dispose && obj.material.dispose();
+                }
+            }
+        });
         secondBgGroupRef.current = null;
     }
   }, [showSecondBgHelix]);
-
 
   return (
     <>
@@ -575,7 +947,7 @@ const App = () => {
 
         <header className="header">
           <h1 className="logo">eDNA Biodiversity Analyzer</h1>
-          <p className="tagline">Smart India Hackathon 2024</p>
+          <p className="tagline">Smart India Hackathon 2025</p>
           <p className="subtitle">
             Advanced AI-driven platform for environmental DNA analysis,
             species identification, and biodiversity assessment from deep-sea
@@ -707,8 +1079,8 @@ const App = () => {
 
         <footer className="footer">
           <div className="footer-content">
-            <div className="footer-text">Built for Smart India Hackathon 2024 — Advanced eDNA Analysis Platform</div>
-            <div className="footer-brand">Frontend by 6-Bit Coders</div>
+            <div className="footer-text">Built for Smart India Hackathon 2025 — Advanced eDNA Analysis Platform</div>
+            <div className="footer-brand">By 6-Bit Coders</div>
           </div>
         </footer>
       </div>
