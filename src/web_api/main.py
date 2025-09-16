@@ -1,262 +1,291 @@
-﻿# src/web_api/main.py
+﻿"""
+FastAPI app for eDNA analysis.
+
+Features:
+- Lifespan handler instead of deprecated @app.on_event.
+- Lazy/priority model loader: tries to use src.species_identification.model_wrapper.get_best_model()
+  if available, otherwise falls back to a dummy predictor or sklearn model if present.
+- /health and /analyze endpoints.
+- FASTA parsing via Biopython with a simple fallback parser.
+- CORS middleware enabled for dev (allow_origins=["*"]).
+"""
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Dict, Any
 import os
 import io
-import logging
+import asyncio
+import time
 import traceback
-from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
-from fastapi.middleware.cors import CORSMiddleware
+# Load environment variables from .env
 from dotenv import load_dotenv
-from Bio import SeqIO
-
-# load .env (if present)
 load_dotenv()
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("edna_api")
-
-# Attempt to import a model manager abstraction (optional, recommended)
-# MODEL_MANAGER is an object that implements:
-#   - get_status() -> dict
-#   - predict(sequences: List[dict], metadata: dict) -> List[dict]  (can be async)
-#   - set_custom_pipeline(path: str) -> bool
-MODEL_MANAGER = None
+# Try to import Biopython SeqIO; if missing, we'll use fallback
 try:
-    # This is optional: a separate module that handles HF loading, local models, and custom packages
-    from src.pipelines.model_manager import MODEL_MANAGER  # type: ignore
-    logger.info("Loaded src.pipelines.model_manager.MODEL_MANAGER")
-except Exception as e:
-    MODEL_MANAGER = None
-    logger.info("No external MODEL_MANAGER found (this is ok). Import error: %s", e)
+    from Bio import SeqIO  # type: ignore
+    BIOPYTHON_AVAILABLE = True
+except Exception:
+    BIOPYTHON_AVAILABLE = False
 
-app = FastAPI(title="eDNA API - Robust")
 
-# Development CORS (allow everything). Lock down for prod.
+# ---------------------------
+# Simple model fallback logic
+# ---------------------------
+def _load_model_safe():
+    """
+    Try to import get_best_model() from model_wrapper. If not present,
+    fall back to:
+      - models/species_clf.pkl (sklearn) if exists
+      - Dummy model that returns "Unknown"
+    """
+    # Try preferred model_wrapper if present
+    try:
+        from src.species_identification.model_wrapper import get_best_model  # type: ignore
+        return get_best_model()
+    except Exception:
+        # continue to other fallbacks
+        pass
+
+    # Try to load sklearn model if available at models/species_clf.pkl
+    try:
+        import joblib  # type: ignore
+        p = os.path.join("models", "species_clf.pkl")
+        if os.path.exists(p):
+            obj = joblib.load(p)
+            # If saved as dict, get model and optional vectorizer
+            model = obj.get("model") if isinstance(obj, dict) else obj
+            vectorizer = obj.get("vectorizer") if isinstance(obj, dict) else None
+
+            class SklearnAdapter:
+                def __init__(self, model, vectorizer):
+                    self.model = model
+                    self.vectorizer = vectorizer
+
+                def predict_batch(self, sequences: List[Dict]) -> List[Dict]:
+                    texts = [s["sequence"] for s in sequences]
+                    try:
+                        X = self.vectorizer.transform(texts) if self.vectorizer else texts
+                    except Exception:
+                        X = texts
+                    try:
+                        preds = self.model.predict(X)
+                    except Exception:
+                        preds = ["Unknown"] * len(texts)
+                    probs = None
+                    try:
+                        if hasattr(self.model, "predict_proba"):
+                            probs = self.model.predict_proba(X)
+                    except Exception:
+                        probs = None
+                    out = []
+                    for i, s in enumerate(sequences):
+                        predicted = str(preds[i])
+                        confidence = float(max(probs[i]) if probs is not None else 0.0)
+                        out.append({
+                            "sequence_id": s.get("sequence_id"),
+                            "sequence": s.get("sequence"),
+                            "predicted_species": predicted,
+                            "confidence": confidence,
+                            "source": "sklearn_local",
+                        })
+                    return out
+
+            return SklearnAdapter(model, vectorizer)
+    except Exception:
+        pass
+
+    # Dummy fallback model
+    class DummyModel:
+        def predict_batch(self, sequences: List[Dict]) -> List[Dict]:
+            out = []
+            for s in sequences:
+                out.append({
+                    "sequence_id": s.get("sequence_id"),
+                    "sequence": s.get("sequence"),
+                    "predicted_species": "Unknown",
+                    "confidence": 0.0,
+                    "source": "none",
+                })
+            return out
+
+    return DummyModel()
+
+
+# ---------------------------
+# FASTA parsing utilities
+# ---------------------------
+def parse_fasta_bytes(content: bytes) -> List[Dict[str, str]]:
+    """
+    Parse FASTA content into a list of dicts: {'sequence_id': id, 'sequence': seq}
+    Uses Biopython SeqIO if available; otherwise uses a tiny fallback parser.
+    """
+    text = content.decode("utf-8", errors="ignore")
+    sequences = []
+    if BIOPYTHON_AVAILABLE:
+        try:
+            fh = io.StringIO(text)
+            for rec in SeqIO.parse(fh, "fasta"):
+                seq = str(rec.seq).strip()
+                seqid = str(rec.id)
+                if seq:
+                    sequences.append({"sequence_id": seqid, "sequence": seq})
+            return sequences
+        except Exception:
+            # fallthrough to fallback parser
+            pass
+
+    # Simple fallback parser (not as robust as Biopython)
+    current_id = None
+    current_seq_lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(">"):
+            if current_id is not None:
+                sequences.append({"sequence_id": current_id, "sequence": "".join(current_seq_lines)})
+            current_id = line[1:].split()[0] if len(line) > 1 else "unknown"
+            current_seq_lines = []
+        else:
+            current_seq_lines.append(line.strip())
+    if current_id is not None:
+        sequences.append({"sequence_id": current_id, "sequence": "".join(current_seq_lines)})
+    # Remove empty sequences
+    sequences = [s for s in sequences if s.get("sequence")]
+    return sequences
+
+
+# ---------------------------
+# App and lifespan
+# ---------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Run once at startup: load best model (safe).
+    Store it on app.state.model for handlers to use.
+    """
+    print("Starting app - initializing model (safe load).")
+    start = time.time()
+    try:
+        app.state.model = _load_model_safe()
+        elapsed = time.time() - start
+        print(f"Model loader finished in {elapsed:.2f}s. Model: {type(app.state.model).__name__}")
+    except Exception as e:
+        traceback.print_exc()
+        app.state.model = _load_model_safe()
+    try:
+        yield
+    finally:
+        # If model has cleanup close/dispose attributes, call them
+        try:
+            model = getattr(app.state, "model", None)
+            if model is not None and hasattr(model, "close"):
+                try:
+                    model.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        print("Shutting down app.")
+
+
+app = FastAPI(lifespan=lifespan, title="SIH eDNA Analysis API")
+
+# CORS (dev). Narrow origins for production.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("ALLOW_ORIGINS", "*").split(",") if os.getenv("ALLOW_ORIGINS") else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-def parse_fasta_bytes(file_bytes: bytes) -> List[Dict[str, Any]]:
-    """
-    Parse FASTA bytes using Biopython with a compact robust fallback parser.
-
-    Returns list of dicts: { 'id': <id>, 'sequence': <sequence str> }
-    """
-    records: List[Dict[str, Any]] = []
-    # Try Biopython FASTA parsing first
-    try:
-        fh = io.BytesIO(file_bytes)
-        for rec in SeqIO.parse(fh, "fasta"):
-            seq = str(rec.seq).strip()
-            if seq:
-                records.append({"id": rec.id, "sequence": seq})
-    except Exception:
-        # ignore and fallback below
-        pass
-
-    if records:
-        return records
-
-    # Fallback simple parsing (robust)
-    try:
-        text = file_bytes.decode("utf-8", errors="ignore").strip()
-    except Exception:
-        text = file_bytes.decode("latin-1", errors="ignore").strip()
-
-    if not text:
-        return []
-
-    if ">" in text:
-        parts = [p.strip() for p in text.split(">") if p.strip()]
-        for p in parts:
-            lines = [l.strip() for l in p.splitlines() if l.strip()]
-            if not lines:
-                continue
-            header = lines[0].split()[0] if lines[0] else f"seq{len(records)+1}"
-            seq = "".join(lines[1:]).replace(" ", "").replace("\r", "").replace("\n", "")
-            if seq:
-                records.append({"id": header, "sequence": seq})
-    else:
-        # no headers -> each non-empty line is a sequence
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
-        for i, l in enumerate(lines, 1):
-            records.append({"id": f"seq{i}", "sequence": l.replace(" ", "")})
-    return records
-
-
-@app.on_event("startup")
-def startup_event():
-    logger.info("Application startup complete. MODEL_MANAGER present: %s", MODEL_MANAGER is not None)
-
-
+# ---------------------------
+# Simple health endpoint
+# ---------------------------
 @app.get("/health")
-def health():
+async def health():
+    # Can expand to include model info, uptime, etc.
+    model_name = getattr(getattr(app.state, "model", None), "__class__", None)
+    model_name = model_name.__name__ if model_name else None
+    return {"status": "ok", "model": model_name}
+
+
+# ---------------------------
+# Analyze endpoint
+# ---------------------------
+class AnalyzeResult(BaseModel):
+    sequence_id: str
+    sequence: str
+    predicted_species: str
+    confidence: float
+    source: str
+
+
+@app.post("/analyze", response_model=List[AnalyzeResult])
+async def analyze(request: Request, file: UploadFile = File(...)):
     """
-    Returns overall API health and model manager status.
-    """
-    mm_status: Dict[str, Any] = {"loaded": False}
-    if MODEL_MANAGER is None:
-        mm_status = {"loaded": False, "error": "MODEL_MANAGER not available"}
-    else:
-        try:
-            # MODEL_MANAGER.get_status may raise; catch and return error details
-            mm_status = MODEL_MANAGER.get_status()
-        except Exception as e:
-            mm_status = {"loaded": False, "error": str(e)}
-            logger.exception("MODEL_MANAGER.get_status failed: %s", e)
-
-    return {"status": "ok", "model_manager": mm_status}
-
-
-@app.post("/admin/load_custom")
-def load_custom_model_package(path: str = Body(..., embed=True)):
-    """
-    Admin endpoint to load a custom model package (Sandipan/Arya).
-    `path` should be a filesystem path accessible to the server containing a
-    model_interface.py and the packaged models.
-
-    Example JSON body:
-      { "path": "/home/ubuntu/sandipan_models" }
-    """
-    if MODEL_MANAGER is None:
-        raise HTTPException(status_code=500, detail="Model manager not available on server")
-
-    if not os.path.exists(path):
-        raise HTTPException(status_code=400, detail=f"Path not found: {path}")
-
-    try:
-        ok = MODEL_MANAGER.set_custom_pipeline(path)
-    except Exception as e:
-        logger.exception("MODEL_MANAGER.set_custom_pipeline failed: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to load custom model package. Check server logs.")
-
-    if not ok:
-        raise HTTPException(status_code=500, detail="MODEL_MANAGER reported failure loading the package")
-
-    return {"status": "ok", "message": "Custom model package loaded", "path": path}
-
-
-@app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    """
-    Accept a FASTA file upload and return predictions:
+    Accept a multipart/form-data upload with a FASTA file named 'file'.
+    Returns a list of results for each sequence:
       [{sequence_id, sequence, predicted_species, confidence, source}, ...]
-    Source values: "custom" | "nucleotide" | "esm2" | "sklearn_local" | "unknown" | "error"
     """
-    content = await file.read()
+    # read bytes (safe for small-to-medium files)
+    try:
+        content = await file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read uploaded file")
+
+    # parse FASTA
     sequences = parse_fasta_bytes(content)
-
     if not sequences:
-        raise HTTPException(status_code=400, detail="No sequences found in uploaded file")
+        raise HTTPException(status_code=400, detail="No valid sequences found in uploaded FASTA")
 
-    # If MODEL_MANAGER available, prefer it (it may handle HF/local/custom switching)
-    if MODEL_MANAGER is not None:
-        try:
-            # allow MODEL_MANAGER.predict to be sync or async
-            pred = MODEL_MANAGER.predict(sequences, metadata={})
-            if hasattr(pred, "__await__"):  # coroutine
-                results = await pred  # type: ignore
-            else:
-                results = pred
-        except Exception as e:
-            logger.exception("ModelManager.predict failed: %s", e)
-            # fallback to unknowns on error
-            results = [{
-                "sequence_id": r.get("id", f"seq{i+1}"),
-                "sequence": r.get("sequence", ""),
+    # Ensure sequence_id exists
+    for idx, s in enumerate(sequences):
+        if not s.get("sequence_id"):
+            s["sequence_id"] = f"seq_{idx+1}"
+
+    # Predict using the loaded model
+    model = getattr(app.state, "model", None)
+    if model is None:
+        model = _load_model_safe()
+
+    # If model.predict_batch is blocking / heavy, run in threadpool to avoid blocking event loop
+    loop = asyncio.get_running_loop()
+    try:
+        predict = getattr(model, "predict_batch", None)
+        if not callable(predict):
+            raise RuntimeError("Loaded model does not expose predict_batch(sequences)")
+        # run in executor
+        results = await loop.run_in_executor(None, lambda: predict(sequences))
+    except Exception:
+        # Return per-sequence Unknown results if model failed unexpectedly
+        traceback.print_exc()
+        results = []
+        for s in sequences:
+            results.append({
+                "sequence_id": s.get("sequence_id"),
+                "sequence": s.get("sequence"),
                 "predicted_species": "Unknown",
                 "confidence": 0.0,
-                "source": "error"
-            } for i, r in enumerate(sequences)]
-    else:
-        # No MODEL_MANAGER: attempt a simple local sklearn-style fallback if a model exists in ../models
-        # This keeps behavior similar to the original lightweight script.
-        # Look for a joblib/pickle at ../models/species_clf.pkl
-        local_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "models", "species_clf.pkl"))
-        local_bundle = None
-        try:
-            import joblib, pickle
-            if os.path.exists(local_path):
-                try:
-                    data = joblib.load(local_path)
-                except Exception:
-                    with open(local_path, "rb") as f:
-                        data = pickle.load(f)
-                bundle = {"vectorizer": None, "classifier": None}
-                if isinstance(data, dict):
-                    bundle["vectorizer"] = data.get("vectorizer")
-                    bundle["classifier"] = data.get("classifier", data.get("clf", None))
-                else:
-                    bundle["classifier"] = data
-                local_bundle = bundle
-        except Exception as e:
-            logger.info("No local model bundle available or failed to load: %s", e)
+                "source": "error",
+            })
 
-        if local_bundle and local_bundle.get("classifier") is not None:
-            clf = local_bundle.get("classifier")
-            vec = local_bundle.get("vectorizer")
-            results = []
-            for i, rec in enumerate(sequences):
-                seq = rec.get("sequence", "")
-                seq_id = rec.get("id", f"seq{i+1}")
-                try:
-                    if vec is not None:
-                        x = vec.transform([seq])
-                        pred = clf.predict(x)
-                        if hasattr(clf, "predict_proba"):
-                            prob = float(max(clf.predict_proba(x)[0]))
-                        else:
-                            prob = 1.0
-                        label = pred[0] if isinstance(pred, (list, tuple)) else str(pred)
-                    else:
-                        pred = clf.predict([seq])
-                        label = pred[0]
-                        prob = 1.0
-                except Exception:
-                    label = "Unknown"
-                    prob = 0.0
-                results.append({
-                    "sequence_id": seq_id,
-                    "sequence": seq,
-                    "predicted_species": label,
-                    "confidence": float(prob),
-                    "source": "sklearn_local"
-                })
-        else:
-            # Last-resort: return Unknowns so frontend doesn't break
-            results = [{
-                "sequence_id": r.get("id", f"seq{i+1}"),
-                "sequence": r.get("sequence", ""),
-                "predicted_species": "Unknown",
-                "confidence": 0.0,
-                "source": "unknown"
-            } for i, r in enumerate(sequences)]
-
-    # Normalize/validate output shape before returning to frontend
-    normalized: List[Dict[str, Any]] = []
+    # Normalize results: ensure keys exist and types are correct
+    normalized = []
     for r in results:
-        seq_id = r.get("sequence_id") or r.get("id") or r.get("sequenceId") or ""
-        seq = r.get("sequence") or r.get("seq") or ""
-        pred = r.get("predicted_species") or r.get("label") or r.get("prediction") or "Unknown"
-        conf = r.get("confidence") or r.get("score") or 0.0
-        src = r.get("source") or "unknown"
-        try:
-            conf = float(conf)
-        except Exception:
-            conf = 0.0
         normalized.append({
-            "sequence_id": seq_id,
-            "sequence": seq,
-            "predicted_species": pred,
-            "confidence": conf,
-            "source": src
+            "sequence_id": r.get("sequence_id") or r.get("id") or "",
+            "sequence": r.get("sequence") or "",
+            "predicted_species": r.get("predicted_species") or r.get("label") or "Unknown",
+            "confidence": float(r.get("confidence") or r.get("score") or 0.0),
+            "source": r.get("source") or "unknown",
         })
 
     return normalized
