@@ -5,10 +5,16 @@ import { analyzeFastaFile } from "./api"; // keep api helper
 
 // Full App.jsx — replace your current file with this exact content.
 const App = () => {
+  // === Config ===
+  const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
+  const VALID_EXTENSIONS = [".fasta", ".json"]; // strict per requirement
+  const NOVELTY_THRESHOLD = 0.40; // 40%
+
   // === State Management ===
   const [selectedFile, setSelectedFile] = useState(null);
+  const [parsedJsonPreview, setParsedJsonPreview] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false); // controls loading overlay/buffer
-  const [vizActive, setVizActive] = useState(false); // NEW: keeps throbbing/spin active after analysis
+  const [vizActive, setVizActive] = useState(false); // keeps throbbing/spin active after analysis
   const [isFastSpin, setIsFastSpin] = useState(false); // controls faster spin (kept while vizActive if desired)
   const [metrics, setMetrics] = useState({ totalReads: 0, totalSpecies: 0 });
   const [results, setResults] = useState([]);
@@ -17,9 +23,8 @@ const App = () => {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
   const [newSpeciesMessage, setNewSpeciesMessage] = useState("");
   const [showSecondBgHelix, setShowSecondBgHelix] = useState(false);
-
-  // NEW: Blue helix glow toggle (faint fluorescent overlay on blue helix)
-  const [blueGlowActive, setBlueGlowActive] = useState(false);
+  const [blueGlowActive, setBlueGlowActive] = useState(false); // Blue helix glow toggle (faint overlay)
+  const [modelUsed, setModelUsed] = useState(""); // show which model was used
 
   // === Refs for DOM elements and THREE.js objects ===
   const bgCanvasRef = useRef(null);
@@ -31,7 +36,7 @@ const App = () => {
   const bgCameraRef = useRef(null);
   const bgRendererRef = useRef(null);
   const bgGroupRef = useRef(null); // The blue helix (base)
-  const blueGlowRef = useRef(null); // NEW: glow overlay for blue helix
+  const blueGlowRef = useRef(null); // glow overlay for blue helix
   const secondBgGroupRef = useRef(null); // The new helix that appears (red)
   const particlesRef = useRef(null);
 
@@ -51,6 +56,26 @@ const App = () => {
   const BASE_URL = "http://127.0.0.1:8000";
   const BACKEND_URL = `${BASE_URL}/analyze`;
   const HEALTH_URL = `${BASE_URL}/health`;
+
+  // === Redirect to landing page on reload (ONLY reloads) ===
+  useEffect(() => {
+    try {
+      const navEntries =
+        performance.getEntriesByType && performance.getEntriesByType("navigation");
+      const navType =
+        navEntries && navEntries.length && navEntries[0].type
+          ? navEntries[0].type
+          : performance && performance.navigation && performance.navigation.type === 1
+          ? "reload"
+          : null;
+
+      if (navType === "reload" && window.location.pathname !== "/") {
+        window.location.href = "/";
+      }
+    } catch (e) {
+      // fail quietly
+    }
+  }, []);
 
   // === Health Check on Mount ===
   useEffect(() => {
@@ -623,6 +648,7 @@ const App = () => {
     setMetrics({ totalReads: 0, totalSpecies: 0 });
     setResults([]);
     setNewSpeciesMessage("");
+    setModelUsed("");
 
     // NEW: enable blue helix glow when an analysis is triggered
     setBlueGlowActive(true);
@@ -633,6 +659,7 @@ const App = () => {
     if (isDemo) {
       await new Promise((r) => setTimeout(r, 900));
       data = {
+        modelUsed: "demo-model",
         metrics: { totalSpecies: 50, totalReads: 10243 },
         species: [
           { name: "Saccharomyces cerevisiae", confidence: 0.98, id: "1" },
@@ -653,6 +680,7 @@ const App = () => {
         );
         await new Promise((r) => setTimeout(r, 800));
         data = {
+          modelUsed: "mock-fallback",
           metrics: { totalSpecies: 12, totalReads: 7654 },
           species: [
             { name: "Fallback_species_A", confidence: 0.93, id: "f1" },
@@ -662,19 +690,24 @@ const App = () => {
       }
     }
 
+    // Normalize species list & set modelUsed if available
     let speciesList = [];
     if (Array.isArray(data)) {
       speciesList = data.map((d, i) => ({
-        // FIX: Use sequence_id from the backend, as 'id' may not exist.
         id: d.id || d.sequence_id || `${i + 1}`,
-        name: d.predicted_species || d.label || "Unknown",
-        confidence: d.confidence || d.score || 0,
+        name: d.predicted_species || d.label || d.name || "Unknown",
+        confidence: (d.confidence || d.score || d.match || 0),
       }));
     } else {
-      speciesList = data.species || [];
+      speciesList = (data.species || []).map((d, i) => ({
+        id: d.id || d.sequence_id || `${i + 1}`,
+        name: d.name || d.predicted_species || d.label || "Unknown",
+        confidence: (d.confidence || d.score || d.match || 0),
+      }));
       if (data.metrics) setMetrics(data.metrics);
     }
-    
+    if (data.modelUsed) setModelUsed(data.modelUsed);
+
     const previousSpeciesNames = new Set(previousResults.map(s => s.name));
     const newSpecies = speciesList.filter(s => !previousSpeciesNames.has(s.name));
     if (newSpecies.length > 0) {
@@ -691,7 +724,7 @@ const App = () => {
       totalSpecies: new Set(speciesList.map((s) => s.name)).size,
       totalReads: speciesList.length
     }));
-    
+
     // hide loading overlay, but KEEP vizActive (so throbbing/spin remain)
     setIsAnalyzing(false);
 
@@ -703,14 +736,58 @@ const App = () => {
     // as you requested it glows after analyze. Reset will turn it off.
   };
 
+  // === File validation helpers ===
+  const validateFile = (file) => {
+    if (!file) return "No file selected.";
+    const lower = file.name.toLowerCase();
+    const validExt = VALID_EXTENSIONS.some((ext) => lower.endsWith(ext));
+    if (!validExt) return "Invalid file type. Only .fasta and .json allowed.";
+    if (file.size > MAX_FILE_SIZE) return "File exceeds 500 MB limit.";
+    return null;
+  };
+
+  // helper: human-readable bytes
+  const formatBytes = (bytes) => {
+    if (!bytes && bytes !== 0) return "";
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    if (bytes === 0) return "0 B";
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+    return `${value.toFixed(value < 10 && i > 0 ? 2 : 1)} ${sizes[i]}`;
+  };
+
   const handleFileChange = (e) => {
     const uploadedFile = e.target.files?.[0];
     if (uploadedFile) {
+      const err = validateFile(uploadedFile);
+      if (err) {
+        setErrorMessage(err);
+        setSelectedFile(null);
+        setParsedJsonPreview(null);
+        return;
+      }
       setSelectedFile(uploadedFile);
       setErrorMessage("");
       setMetrics({ totalReads: 0, totalSpecies: 0 });
       setResults([]);
       setNewSpeciesMessage("");
+      setParsedJsonPreview(null);
+
+      // If JSON, parse preview on client
+      if (uploadedFile.name.toLowerCase().endsWith(".json")) {
+        const fr = new FileReader();
+        fr.onload = () => {
+          try {
+            const j = JSON.parse(fr.result);
+            const sequences = j.sequences || j.data || j.records || [];
+            setParsedJsonPreview({ count: sequences.length || 0, samples: sequences.slice(0, 5) });
+          } catch (e) {
+            setParsedJsonPreview(null);
+            setErrorMessage("Invalid JSON file structure.");
+          }
+        };
+        fr.readAsText(uploadedFile);
+      }
     }
   };
 
@@ -722,11 +799,33 @@ const App = () => {
     e.stopPropagation();
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) {
+      const err = validateFile(dropped);
+      if (err) {
+        setErrorMessage(err);
+        setSelectedFile(null);
+        setParsedJsonPreview(null);
+        return;
+      }
       setSelectedFile(dropped);
       setErrorMessage("");
       setMetrics({ totalReads: 0, totalSpecies: 0 });
       setResults([]);
       setNewSpeciesMessage("");
+      setParsedJsonPreview(null);
+      if (dropped.name.toLowerCase().endsWith(".json")) {
+        const fr = new FileReader();
+        fr.onload = () => {
+          try {
+            const j = JSON.parse(fr.result);
+            const sequences = j.sequences || j.data || j.records || [];
+            setParsedJsonPreview({ count: sequences.length || 0, samples: sequences.slice(0, 5) });
+          } catch (e) {
+            setParsedJsonPreview(null);
+            setErrorMessage("Invalid JSON file structure.");
+          }
+        };
+        fr.readAsText(dropped);
+      }
     }
   };
 
@@ -737,6 +836,7 @@ const App = () => {
     setResults([]);
     setPreviousResults([]);
     setNewSpeciesMessage("");
+    setParsedJsonPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setShowSecondBgHelix(false);
     // NEW: remove blue glow on reset
@@ -744,9 +844,10 @@ const App = () => {
     // turn visual persistence off
     setVizActive(false);
     setIsFastSpin(false);
+    setModelUsed("");
   };
 
-  // UI helper: ConfidenceBar
+  // UI helper: ConfidenceBar (with gradient visually)
   const ConfidenceBar = ({ confidence = 0 }) => (
     <div className="progress-track" style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div
@@ -771,74 +872,76 @@ const App = () => {
     </div>
   );
 
-  useEffect(() => {
-    if (showSecondBgHelix && bgSceneRef.current && !secondBgGroupRef.current) {
-        // create a red, fluorescent-looking helix for the SECOND helix
-        const createRedGlowingHelix = (reverse = false) => {
-            const points = [];
-            const numPoints = 300;
-            const helixRadius = 1;
-            const helixHeight = 3;
-            for (let i = 0; i < numPoints; i++) {
-                const t = (i / (numPoints - 1)) * Math.PI * 4;
-                const x = reverse ? -helixRadius * Math.cos(t) : helixRadius * Math.cos(t);
-                const y = helixHeight * (i / numPoints) - helixHeight / 2;
-                const z = reverse ? -helixRadius * Math.sin(t) : helixRadius * Math.sin(t);
-                points.push(new THREE.Vector3(x, y, z));
-            }
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  // === Exports & actions ===
+  const exportCSV = () => {
+    if (!results.length) return;
+    const rows = [
+      ["id", "species", "confidence_pct"],
+      ...results.map((s) => [s.id || "", `"${(s.name || "").replace(/"/g, '""')}"`, ((s.confidence || 0) * 100).toFixed(2)]),
+    ];
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "analysis_report.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-            // Use a brighter red hex and larger point size to make it pop.
-            // AdditiveBlending + higher opacity gives a fluorescent effect.
-            const material = new THREE.PointsMaterial({
-                color: 0xff2b4b, // bright red
-                size: 0.03,     // slightly larger than the blue helix points
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                opacity: 0.95,
-            });
-            material.userData = { baseSize: 0.03, baseOpacity: 0.95 };
+  const exportPDF = () => {
+    // Simple print-based PDF: open a new window with a minimal report and call print()
+    const html = `
+      <html>
+      <head>
+        <title>Analysis Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #0b2b3a; padding: 20px; }
+          h1 { color: #0066ff; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th, td { padding: 8px 10px; border: 1px solid #ddd; text-align:left; }
+        </style>
+      </head>
+      <body>
+        <h1>Analysis Report</h1>
+        <p>Model used: ${modelUsed || "N/A"}</p>
+        <p>Sequences: ${metrics.totalReads || 0} — Species: ${metrics.totalSpecies || 0}</p>
+        <table>
+          <thead><tr><th>#</th><th>Species</th><th>Confidence (%)</th></tr></thead>
+          <tbody>
+            ${results.map((s, i) => `<tr><td>${i+1}</td><td>${(s.name || "").replace(/</g, "&lt;")}</td><td>${((s.confidence||0)*100).toFixed(1)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    const w = window.open("", "_blank", "noopener");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    // give time for rendering then print
+    setTimeout(() => {
+      w.print();
+    }, 500);
+  };
 
-            const pointsMesh = new THREE.Points(geometry, material);
+  const rerun = () => {
+    // re-use same file
+    runAnalysis(false);
+  };
 
-            // subtle emissive glow can be simulated by adding a faint, slightly larger
-            // copy with even higher transparency and same color
-            const glowGeometry = new THREE.BufferGeometry().setFromPoints(points);
-            const glowMaterial = new THREE.PointsMaterial({
-                color: 0xff2b4b,
-                size: 0.06,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                opacity: 0.12,
-              });
-            glowMaterial.userData = { baseSize: 0.06, baseOpacity: 0.12 };
-            const glowMesh = new THREE.Points(glowGeometry, glowMaterial);
-
-            const group = new THREE.Group();
-            group.add(pointsMesh);
-            group.add(glowMesh);
-
-            return group;
-        };
-
-        secondBgGroupRef.current = createRedGlowingHelix(true);
-        bgSceneRef.current.add(secondBgGroupRef.current);
-    } else if (!showSecondBgHelix && secondBgGroupRef.current) {
-        bgSceneRef.current.remove(secondBgGroupRef.current);
-        secondBgGroupRef.current.traverse((obj) => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach((m) => m.dispose && m.dispose());
-                } else {
-                    obj.material.dispose && obj.material.dispose();
-                }
-            }
-        });
-        secondBgGroupRef.current = null;
+  const moveToAdmin = () => {
+    // Very simple navigation to /admin route; assumes your app will handle that path.
+    // If you don't have routing yet, this can be replaced by a callback or open admin in same app.
+    try {
+      window.location.href = "/admin";
+    } catch (e) {
+      console.warn("Navigate to admin:", e);
     }
-  }, [showSecondBgHelix]);
+  };
 
+  // === Render ===
   return (
     <>
       <style>
@@ -904,7 +1007,7 @@ const App = () => {
 .progress-track{flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
 .progress-fill{height:100%;background:var(--gradient-primary);border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1);position:relative}
 .progress-fill::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);animation:shimmer 2s infinite}
-@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}} 
 .confidence-value{font-weight:700;color:var(--secondary-cyan);font-size:0.85rem;min-width:50px;text-align:right}
 .empty-state{text-align:center;padding:3rem 1rem;color:var(--text-muted)}
 .empty-icon{font-size:4rem;margin-bottom:1rem;opacity:0.5}
@@ -968,7 +1071,7 @@ const App = () => {
               </svg>
               <div>
                 <h3 className="panel-title">Sample Upload</h3>
-                <p className="panel-subtitle">Upload FASTA files for species identification</p>
+                <p className="panel-subtitle">Upload FASTA or JSON files for species identification</p>
               </div>
             </div>
 
@@ -980,10 +1083,16 @@ const App = () => {
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10,9 9,9 8,9" />
               </svg>
-              <p className="upload-text">Click to select FASTA files<br /><small>or drag and drop here</small></p>
-              <input ref={fileInputRef} type="file" className="file-input" onChange={handleFileChange} accept=".fa,.fasta" />
-              {selectedFile && <div className="file-name">{selectedFile.name}</div>}
+              <p className="upload-text">Click to select FASTA/JSON files<br /><small>or drag and drop here</small></p>
+              <input ref={fileInputRef} type="file" className="file-input" onChange={handleFileChange} accept=".fasta,.json" />
+              {selectedFile && <div className="file-name">{selectedFile.name} — {formatBytes(selectedFile.size)}</div>}
             </div>
+
+            {parsedJsonPreview && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: "var(--text-secondary)" }}>
+                JSON preview: {parsedJsonPreview.count} sequences — sample IDs: {parsedJsonPreview.samples.map((s, i) => <span key={i}>{s.id || s.sequence_id || s.name}{i < parsedJsonPreview.samples.length -1 ? ", " : ""}</span>)}
+              </div>
+            )}
 
             <div className="button-group">
               <button className="btn btn-primary" onClick={() => runAnalysis(false)} disabled={!selectedFile || isAnalyzing}>
@@ -1053,27 +1162,47 @@ const App = () => {
               </div>
             </div>
 
+            <div style={{ padding: "0 1rem 0 0", marginBottom: 8 }}>
+              <strong style={{ color: "var(--text-secondary)" }}>Model used:</strong> <span style={{ color: "var(--secondary-cyan)", fontWeight: 700 }}>{modelUsed || "—"}</span>
+            </div>
+
             <div className="results-container">
               {results.length > 0 ? (
-                results.map((s) => (
-                  <div className="result-item" key={s.id || s.name}>
-                    <div className="result-header">
-                      <span className="sequence-id">{s.id || "-"}</span>
-                      <span className="species-name">{s.name} ({ (s.confidence * 100).toFixed(1) }%)</span>
+                results.map((s, idx) => {
+                  const pct = (s.confidence || 0) * 100;
+                  // Threshold coloring: >= 40% green, < 40% red
+                  const nameColor = pct >= NOVELTY_THRESHOLD * 100 ? "var(--accent-green)" : "#ff6b6b";
+                  return (
+                    <div className="result-item" key={s.id || s.name || idx}>
+                      <div className="result-header">
+                        <span className="sequence-id">{s.id || "-"}</span>
+                        <span className="species-name" style={{ color: nameColor }}>
+                          {s.name} ({pct.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        <ConfidenceBar confidence={s.confidence || 0} />
+                      </div>
                     </div>
-                    <div style={{ marginTop: 6 }}>
-                      <ConfidenceBar confidence={s.confidence || 0} />
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="empty-state">
                   <div className="empty-icon">🧬</div>
                   <div className="empty-text">No analysis results yet</div>
-                  <div className="empty-subtext">Upload a FASTA file to begin species identification</div>
+                  <div className="empty-subtext">Upload a FASTA or JSON file to begin species identification</div>
                 </div>
               )}
             </div>
+
+            {results.length > 0 && (
+              <div style={{ marginTop: 12 }} className="button-group">
+                <button className="btn btn-secondary" onClick={exportCSV}>Export CSV</button>
+                <button className="btn btn-secondary" onClick={exportPDF}>Export PDF</button>
+                <button className="btn btn-primary" onClick={rerun}>Re-run</button>
+                <button className="btn btn-primary" onClick={moveToAdmin}>Move to Admin</button>
+              </div>
+            )}
           </section>
         </main>
 
