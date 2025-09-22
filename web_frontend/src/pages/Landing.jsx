@@ -11,6 +11,8 @@ import axios from "axios";
  * - Better organized sections
  * - Streamlined auth flow
  * - New Three.js background: Breathing, glowing sphere of dots
+ *
+ * Breathing period has been set to 10s total => 5s inhale + 5s exhale
  */
 
 const OFFLINE_MODELS = [
@@ -133,7 +135,6 @@ const Landing = () => {
       sessionStorage.removeItem('was_refreshed');
     }
   }, [loggedIn]);
-
 
   // Health check & models fetch (on mount)
   useEffect(() => {
@@ -343,11 +344,12 @@ const Landing = () => {
       const time = performance.now() * 0.001;
 
       // Breathing effect: scale
-      const scale = 1 + Math.sin(time * Math.PI / 3) * 0.4;
+      // For a 10s period (5s inhale + 5s exhale), angular frequency ω = 2π / T = 2π / 10 = π / 5
+      const scale = 1 + Math.sin(time * Math.PI / 5) * 0.4;
       spherePoints.scale.set(scale, scale, scale);
 
-      // Color transition and glow effect
-      const t = (Math.sin(time * Math.PI / 3) + 1) / 2;
+      // Color transition and glow effect (use same frequency)
+      const t = (Math.sin(time * Math.PI / 5) + 1) / 2;
       const invertedT = 1 - t;
       pMat.color.lerpColors(initialColor.current, finalColor.current, invertedT);
       pMat.opacity = 0.8 + t * 0.2;
@@ -359,6 +361,7 @@ const Landing = () => {
 
       renderer.render(scene, camera);
     };
+
     rafRef.current = rafId;
     animate();
 
