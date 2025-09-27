@@ -1,0 +1,146 @@
+# src/web_api/models.py
+"""
+MongoDB models (Beanie) for the SIH project.
+
+Documents:
+ - User
+ - Analysis (with embedded SpeciesEntry)
+ - Comment
+ - Proposal
+ - FileRecord
+
+Provides `init_db()` to initialize Motor + Beanie using env vars:
+ - MONGO_URI
+ - MONGO_DB_NAME (optional, defaults to "sih_db")
+"""
+
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from beanie import Document, EmbeddedModel, init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field
+
+
+# ---------------------------
+# Embedded / helper models
+# ---------------------------
+class SpeciesEntry(EmbeddedModel):
+    """Embedded representation of a species/prediction in an analysis result."""
+    sequence_id: Optional[str] = None
+    name: Optional[str] = None
+    confidence: Optional[float] = None
+    source: Optional[str] = None
+    sequence: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
+
+
+class NoveltyRef(EmbeddedModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+# ---------------------------
+# Documents
+# ---------------------------
+class User(Document):
+    username: str = Field(..., min_length=1)
+    email: Optional[str] = None
+    hashed_password: Optional[str] = None
+    role: Optional[str] = "user"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "users"
+
+    class Config:
+        schema_extra = {"example": {"username": "demo", "email": "me@example.com", "role": "user"}}
+
+
+class Analysis(Document):
+    """
+    Represents a single analysis run:
+      - metrics: free-form metrics (totalSpecies, totalReads, etc.)
+      - species: list of SpeciesEntry
+      - original_json: raw payload (optional)
+      - uploaded_by: username or user id
+    """
+    analysis_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_by: Optional[str] = None
+    metrics: Optional[Dict[str, Any]] = None
+    species: List[SpeciesEntry] = Field(default_factory=list)
+    original_json: Optional[Dict[str, Any]] = None
+    file_name: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+    class Settings:
+        name = "analyses"  # collection name
+
+
+class Comment(Document):
+    analysis_id: Optional[str] = None
+    author_name: Optional[str] = None
+    job: Optional[str] = None
+    goal: Optional[str] = None
+    comment_text: Optional[str] = None
+    familiarity_pct: Optional[float] = None
+    unfamiliarity_pct: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "comments"
+
+
+class Proposal(Document):
+    analysis_id: Optional[str] = None
+    from_novelty: Optional[NoveltyRef] = None
+    to: Optional[str] = None
+    reason: Optional[str] = None
+    by: Optional[str] = None
+    status: Optional[str] = "pending"  # pending / accepted / rejected
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "proposals"
+
+
+class FileRecord(Document):
+    file_name: Optional[str] = None
+    uploaded_by: Optional[str] = None
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    original_json: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    class Settings:
+        name = "files"
+
+
+# ---------------------------
+# DB initializer
+# ---------------------------
+async def init_db():
+    """
+    Initialize Motor client and Beanie.
+    Reads MONGO_URI and MONGO_DB_NAME from environment.
+    Usage:
+      - set MONGO_URI in .env (or env vars)
+      - set MONGO_DB_NAME optionally (defaults to "sih_db")
+      - await init_db() from FastAPI startup event
+    """
+    mongo_uri = os.getenv("MONGO_URI")
+    db_name = os.getenv("MONGO_DB_NAME", "sih_db")
+
+    if not mongo_uri:
+        raise RuntimeError("MONGO_URI not set. Set MONGO_URI environment variable (see README).")
+
+    # Create Motor client & db
+    client = AsyncIOMotorClient(mongo_uri)
+    db = client[db_name]
+
+    # Register Beanie document models
+    await init_beanie(database=db, document_models=[User, Analysis, Comment, Proposal, FileRecord])
+
+    print(f"[init_db] connected to MongoDB database: {db_name}")

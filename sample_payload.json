@@ -1,0 +1,7 @@
+﻿{
+  "file_name": "demo.json",
+  "sequences": [
+    {"sequence_id": "s1", "sequence": "ATGCGTACGTAGCTAG"},
+    {"sequence_id": "s2", "sequence": "CGTACGTAGCTAACGAT"}
+  ]
+}
