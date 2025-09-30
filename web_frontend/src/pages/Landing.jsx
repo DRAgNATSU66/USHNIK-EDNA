@@ -507,11 +507,11 @@ const Landing = () => {
         {`
 :root{--primary-blue:#0066ff;--secondary-cyan:#00d4ff;--accent-green:#00ff88;--deep-ocean:#001133;--dark-blue:#002266;--glass-border:rgba(255,255,255,0.1);--text-primary:#ffffff;--text-secondary:#b3d9ff;--text-muted:#7eb3ff;--gradient-primary:linear-gradient(135deg,var(--primary-blue) 0%,var(--secondary-cyan) 100%);--gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);}
 
-*{box-sizing:border-box}html,body,#root{height:100%;width:100%;}body{margin:0;font-family:'Inter',system-ui,Segoe UI,Roboto;color:var(--text-primary);background:var(--gradient-bg);overflow:hidden}
+*{box-sizing:border-box}html,body{height:100%;width:100%;overflow-x:hidden}#root{width:100%;min-height:100vh}body{margin:0;font-family:'Inter',system-ui,Segoe UI,Roboto;color:var(--text-primary);background:var(--gradient-bg)}
 
 #landing-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none}
 
-.container{position:relative;z-index:10;min-height:100vh;padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.container{position:relative;z-index:10;min-height:100vh;padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;max-width:100vw;overflow-x:hidden}
 
 .header{width:100%;text-align:center;margin-bottom:3rem}
 
@@ -573,6 +573,31 @@ const Landing = () => {
 
 .footer{margin-top:2rem;color:var(--text-muted);font-size:13px;text-align:center}
 h2, p {color: var(--text-primary)}
+
+/* Mobile responsiveness for Landing page */
+@media(max-width:768px){
+  .container{padding:1rem;justify-content:flex-start;padding-top:2rem}
+  .header{margin-bottom:2rem}
+  .logo{font-size:2rem}
+  .main-card{padding:20px;max-width:calc(100vw - 40px);margin-bottom:2rem}
+  .status-bar{top:16px;right:16px;padding:8px 12px;font-size:12px}
+  .auth-form{padding:20px}
+  .models-section{margin-bottom:20px}
+}
+
+@media(max-width:480px){
+  .container{padding:0.5rem;padding-top:1.5rem}
+  .header{margin-bottom:1.5rem}
+  .logo{font-size:1.75rem}
+  .main-card{padding:16px;max-width:calc(100vw - 20px)}
+  .status-bar{position:static;margin-bottom:1rem;justify-content:center}
+  .auth-form{padding:16px}
+}
+
+/* Hide status bar on very small screens to prevent overlap */
+@media(max-width:360px){
+  .status-bar{display:none}
+}
 `}
       </style>
 

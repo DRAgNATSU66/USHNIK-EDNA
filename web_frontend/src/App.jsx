@@ -949,16 +949,17 @@ const App = () => {
 /* inline CSS preserved from your single-file UI for exact look */
 :root{--primary-blue:#0066ff;--secondary-cyan:#00d4ff;--accent-green:#00ff88;--deep-ocean:#001133;--dark-blue:#002266;--light-blue:#f0f8ff;--glass-bg:rgba(255,255,255,0.05);--glass-border:rgba(255,255,255,0.1);--text-primary:#ffffff;--text-secondary:#b3d9ff;--text-muted:#7eb3ff;--shadow-glow:0 0 40px rgba(0,102,255,0.3);--shadow-card:0 20px 60px rgba(0,17,51,0.4);--gradient-primary:linear-gradient(135deg,var(--primary-blue) 0%,var(--secondary-cyan) 100%);--gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);}
 *{margin:0;padding:0;box-sizing:border-box}html,body,#root{height:100%;width:100%;overflow:hidden}body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto, 'Oxygen','Ubuntu','Cantarell',sans-serif;background:var(--gradient-bg);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden}
+*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;width:100%;overflow-x:hidden}#root{width:100%;min-height:100vh}body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto, 'Oxygen','Ubuntu','Cantarell',sans-serif;background:var(--gradient-bg);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased;position:relative}
 #background-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none}
-.main-container{position:relative;z-index:10;min-height:100vh;display:flex;flex-direction:column;overflow-y:auto;padding:2rem}
-.header{padding:2rem 2rem 1rem;text-align:center;position:relative}
+.main-container{position:relative;z-index:10;min-height:100vh;display:flex;flex-direction:column;width:100%;max-width:100vw;overflow-x:hidden;padding:1rem}
+.header{padding:2rem 2rem 1rem;text-align:center;position:relative;overflow:hidden;word-wrap:break-word}
 .header::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:100px;height:4px;background:var(--gradient-primary);border-radius:2px;box-shadow:var(--shadow-glow)}
-.logo{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.5rem;letter-spacing:-0.02em;text-shadow:0 0 30px rgba(0,102,255,0.5)}
-.tagline{font-size:1.1rem;color:var(--text-secondary);margin-bottom:0.5rem;font-weight:400}
-.subtitle{font-size:0.9rem;color:var(--text-muted);max-width:600px;margin:0 auto}
-.content-grid{flex:1;display:grid;grid-template-columns:1fr;gap:2rem;padding:2rem;max-width:1400px;margin:0 auto;width:100%}
-@media(min-width:768px){.content-grid{grid-template-columns:repeat(2,1fr)}.results-panel{grid-column:1 / -1}}
-@media(min-width:1200px){.content-grid{grid-template-columns:400px 1fr 400px;gap:2.5rem}.upload-panel{grid-column:1}.metrics-panel{grid-column:2}.results-panel{grid-column:3}}
+.logo{font-size:clamp(1.5rem,5vw,3.5rem);font-weight:800;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.5rem;letter-spacing:-0.02em;text-shadow:0 0 30px rgba(0,102,255,0.5);word-wrap:break-word;line-height:1.1}
+.tagline{font-size:1.1rem;color:var(--text-secondary);margin-bottom:0.5rem;font-weight:400;word-wrap:break-word}
+.subtitle{font-size:0.9rem;color:var(--text-muted);max-width:600px;margin:0 auto;word-wrap:break-word;line-height:1.5}
+.content-grid{flex:1;display:grid;grid-template-columns:1fr;gap:1.5rem;padding:1rem 0;max-width:1400px;margin:0 auto;width:100%}
+@media(min-width:768px){.content-grid{grid-template-columns:repeat(2,1fr);gap:2rem;padding:1.5rem 0}.results-panel{grid-column:1 / -1}}
+@media(min-width:1200px){.content-grid{grid-template-columns:400px 1fr 400px;gap:2.5rem;padding:2rem 0}.upload-panel{grid-column:1}.metrics-panel{grid-column:2}.results-panel{grid-column:3}}
 .glass-panel{background:rgba(255,255,255,0.05);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:2rem;box-shadow:0 20px 60px rgba(0,17,51,0.4);transition:all 0.4s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
 .glass-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(135deg,#0066ff 0%,#00d4ff 100%);opacity:0.8}
 .glass-panel:hover{transform:translateY(-5px);box-shadow:0 30px 80px rgba(0,17,51,0.6);border-color:rgba(255,255,255,0.2)}
@@ -974,7 +975,7 @@ const App = () => {
 .upload-text{color:var(--text-secondary);font-weight:500}
 .file-input{display:none}
 .file-name{margin-top:1rem;padding:0.5rem 1rem;background:rgba(0,102,255,0.1);border-radius:8px;color:var(--accent-green);font-size:0.85rem;font-weight:500}
-.button-group{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1.5rem}
+.button-group{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1.5rem;width:100%}
 .btn{padding:0.75rem 1.5rem;border:none;border-radius:10px;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;position:relative;overflow:hidden;text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem}
 .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none !important}
 .btn-primary{background:var(--gradient-primary);color:white;box-shadow:0 10px 30px rgba(0,102,255,0.4)}
@@ -994,7 +995,9 @@ const App = () => {
 .metric-label{font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:500}
 .viz-container{height:200px;border-radius:12px;background:rgba(0,0,0,0.2);border:1px solid var(--glass-border);overflow:hidden;position:relative}
 #metrics-canvas{width:100%;height:100%}
-.results-container{max-height:400px;overflow-y:auto;padding-right:0.5rem}
+.results-container{max-height:350px;overflow-y:auto;padding-right:0.5rem}
+@media(max-height:800px){.results-container{max-height:250px}}
+@media(max-height:600px){.results-container{max-height:200px}}
 .results-container::-webkit-scrollbar{width:6px}
 .results-container::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
 .results-container::-webkit-scrollbar-thumb{background:var(--primary-blue);border-radius:3px}
@@ -1013,11 +1016,53 @@ const App = () => {
 .empty-icon{font-size:4rem;margin-bottom:1rem;opacity:0.5}
 .empty-text{font-size:1rem;font-weight:500;color:var(--text-secondary);margin-bottom:0.5rem}
 .empty-subtext{font-size:0.85rem;color:var(--text-muted)}
-.footer{padding:2rem;text-align:center;border-top:1px solid var(--glass-border);background:rgba(0,0,0,0.2);margin-top:2rem}
+.footer{padding:2rem;text-align:center;border-top:1px solid var(--glass-border);background:rgba(0,0,0,0.2);margin-top:2rem;flex-shrink:0}
 .footer-content{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;max-width:1400px;margin:0 auto}
 .footer-text{color:var(--text-muted);font-size:0.9rem}
 .footer-brand{color:var(--text-primary);font-weight:700;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-@media(max-width:767px){.header{padding:1.5rem 1rem 1rem}.content-grid{padding:1rem;gap:1.5rem}.glass-panel{padding:1.5rem}.metrics-grid{grid-template-columns:1fr}.button-group{flex-direction:column}.btn{justify-content:center}.footer-content{flex-direction:column;text-align:center}}
+@media(max-width:767px){
+  .main-container{padding:0.5rem}
+  .header{padding:1rem 0.5rem;position:relative}
+  .content-grid{padding:0.5rem 0;gap:1rem}
+  .glass-panel{padding:1rem;margin:0 0.25rem}
+  .metrics-grid{grid-template-columns:1fr}
+  .button-group{flex-direction:column;gap:0.75rem}
+  .btn{justify-content:center;padding:0.875rem 1rem;font-size:0.875rem}
+  .footer{margin-top:1rem;padding:1.5rem 0.5rem}
+  .footer-content{flex-direction:column;text-align:center}
+  .results-container{max-height:300px}
+  .viz-container{height:150px}
+  .metric-value{font-size:2rem}
+  .backend-status{display:none !important;visibility:hidden !important}
+}
+/* Additional mobile and small screen improvements */
+@media(max-width:480px){
+  .main-container{padding:0.25rem}
+  .glass-panel{padding:0.875rem;margin:0 0.125rem}
+  .header{padding:0.75rem 0.25rem;position:relative;overflow:hidden}
+  .logo{font-size:1.75rem;line-height:1.2;word-wrap:break-word}
+  .tagline{font-size:1rem;margin-bottom:0.25rem}
+  .subtitle{font-size:0.8rem;line-height:1.4;word-wrap:break-word}
+  .results-container{max-height:250px}
+  .viz-container{height:120px}
+
+}
+/* Ensure scrollability on very small screens */
+@media(max-height:600px){
+  .glass-panel{padding:0.75rem}
+  .header{padding:0.5rem 0.25rem}
+  .results-container{max-height:150px}
+}
+/* Extra small screens - prevent any text overflow */
+@media(max-width:360px){
+  .main-container{padding:0.125rem}
+  .header{padding:0.5rem 0.125rem;word-wrap:break-word;overflow-wrap:break-word}
+  .glass-panel{padding:0.75rem;margin:0}
+  .logo{font-size:1.4rem;line-height:1.1}
+  .tagline{font-size:0.9rem}
+  .subtitle{font-size:0.75rem;line-height:1.3}
+  .backend-status{display:none !important;visibility:hidden !important}
+}
 .loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,17,51,0.9);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;visibility:hidden;transition:all 0.3s ease}
 .loading-overlay.active{opacity:1;visibility:visible}
 .loading-spinner{width:60px;height:60px;border:3px solid rgba(255,255,255,0.05);border-top:3px solid var(--primary-blue);border-radius:50%;animation:spin 1s linear infinite}
@@ -1036,10 +1081,30 @@ const App = () => {
     text-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88, 0 0 40px #00ff88;
   }
 }
+/* Backend status positioning */
+.backend-status {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  color: #9fb4c8;
+  font-size: 13px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(10px);
+}
+/* Hide backend status on screens smaller than 900px to prevent overlap */
+@media(max-width:900px){
+  .backend-status{
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
         `}
       </style>
 
-      <div className="main-container container">
+      <div className="main-container">
         <canvas ref={bgCanvasRef} id="background-canvas" />
 
         {isAnalyzing && (
@@ -1056,9 +1121,11 @@ const App = () => {
             species identification, and biodiversity assessment from deep-sea
             samples
           </p>
-          <div style={{ position: "absolute", right: 20, top: 20, color: "#9fb4c8", fontSize: 13 }}>
-            {backendStatus}
-          </div>
+          {typeof window !== 'undefined' && window.innerWidth > 900 && (
+            <div className="backend-status">
+              {backendStatus}
+            </div>
+          )}
         </header>
 
         <main className="content-grid">
@@ -1196,7 +1263,7 @@ const App = () => {
             </div>
 
             {results.length > 0 && (
-              <div style={{ marginTop: 12 }} className="button-group">
+              <div style={{ marginTop: 16, paddingBottom: 8 }} className="button-group">
                 <button className="btn btn-secondary" onClick={exportCSV}>Export CSV</button>
                 <button className="btn btn-secondary" onClick={exportPDF}>Export PDF</button>
                 <button className="btn btn-primary" onClick={rerun}>Re-run</button>
