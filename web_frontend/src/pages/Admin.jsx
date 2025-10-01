@@ -492,6 +492,38 @@ const Admin = () => {
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+
+/* Project logo styling */
+.project-logo {
+  position: absolute;
+  top: 50px;
+  left: 30px;
+  z-index: 200;
+  width: clamp(140px, 16vw, 220px);
+  height: auto;
+  opacity: 0.95;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.project-logo:hover {
+  opacity: 1;
+  transform: scale(1.03);
+}
+@media(max-width:768px){
+  .project-logo{
+    width: clamp(120px, 14vw, 180px);
+    top: 40px;
+    left: 25px;
+  }
+}
+@media(max-width:480px){
+  .project-logo{
+    width: clamp(100px, 22vw, 140px);
+    top: 30px;
+    left: 20px;
+  }
+}
 `}
       </style>
 
@@ -499,6 +531,7 @@ const Admin = () => {
       <canvas id="admin-bg-canvas" ref={canvasRef} />
 
       <div className="container">
+        <img src="/logo.png" alt="AquaGenome Logo" className="project-logo" />
         <header className="header">
           <div className="brand">
             <div>

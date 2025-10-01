@@ -25,6 +25,7 @@ const App = () => {
   const [showSecondBgHelix, setShowSecondBgHelix] = useState(false);
   const [blueGlowActive, setBlueGlowActive] = useState(false); // Blue helix glow toggle (faint overlay)
   const [modelUsed, setModelUsed] = useState(""); // show which model was used
+  const [userType, setUserType] = useState("researcher"); // researcher, policymaker, industry
 
   // === Refs for DOM elements and THREE.js objects ===
   const bgCanvasRef = useRef(null);
@@ -941,6 +942,21 @@ const App = () => {
     }
   };
 
+  const goToDetailedAnalysis = () => {
+    // Store current analysis data and user type in sessionStorage for the detailed analysis page
+    sessionStorage.setItem('analysisResults', JSON.stringify(results));
+    sessionStorage.setItem('userType', userType);
+    sessionStorage.setItem('modelUsed', modelUsed);
+    sessionStorage.setItem('analysisMetrics', JSON.stringify(metrics));
+    
+    // Navigate to detailed analysis page
+    try {
+      window.location.href = `/detailed-analysis?type=${userType}`;
+    } catch (e) {
+      console.warn("Navigate to detailed analysis:", e);
+    }
+  };
+
   // === Render ===
   return (
     <>
@@ -974,6 +990,14 @@ const App = () => {
 .upload-text{color:var(--text-secondary);font-weight:500}
 .file-input{display:none}
 .file-name{margin-top:1rem;padding:0.5rem 1rem;background:rgba(0,102,255,0.1);border-radius:8px;color:var(--accent-green);font-size:0.85rem;font-weight:500}
+
+.user-type-selector{margin-bottom:1.5rem;padding:1.5rem;background:rgba(255,255,255,0.02);border:1px solid var(--glass-border);border-radius:12px}
+.selector-label{display:block;color:var(--text-primary);font-weight:600;font-size:0.9rem;margin-bottom:0.75rem}
+.toggle-menu{display:flex;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap}
+.toggle-option{padding:0.6rem 1.2rem;border:1px solid var(--glass-border);background:rgba(255,255,255,0.03);border-radius:8px;color:var(--text-secondary);font-size:0.85rem;font-weight:500;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;gap:0.4rem}
+.toggle-option:hover{background:rgba(255,255,255,0.08);color:var(--text-primary);border-color:var(--primary-blue)}
+.toggle-option.active{background:var(--gradient-primary);color:white;border-color:var(--primary-blue);box-shadow:0 4px 15px rgba(0,102,255,0.3)}
+.selector-description{color:var(--text-muted);font-size:0.8rem;line-height:1.4;margin:0}
 .button-group{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1.5rem;width:100%}
 .btn{padding:0.75rem 1.5rem;border:none;border-radius:10px;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;position:relative;overflow:hidden;text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem}
 .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none !important}
@@ -1100,6 +1124,37 @@ const App = () => {
     visibility: hidden !important;
   }
 }
+/* Project logo styling */
+.project-logo {
+  position: absolute;
+  top: 50px;
+  left: 30px;
+  z-index: 200;
+  width: clamp(140px, 16vw, 220px);
+  height: auto;
+  opacity: 0.95;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.project-logo:hover {
+  opacity: 1;
+  transform: scale(1.03);
+}
+@media(max-width:767px){
+  .project-logo{
+    width: clamp(120px, 14vw, 180px);
+    top: 40px;
+    left: 25px;
+  }
+}
+@media(max-width:480px){
+  .project-logo{
+    width: clamp(100px, 22vw, 140px);
+    top: 30px;
+    left: 20px;
+  }
+}
         `}
       </style>
 
@@ -1113,6 +1168,7 @@ const App = () => {
         )}
 
         <header className="header">
+          <img src="/logo.png" alt="AquaGenome Logo" className="project-logo" />
           <h1 className="logo">eDNA Biodiversity Analyzer</h1>
           <p className="tagline">Smart India Hackathon 2025</p>
           <p className="subtitle">
@@ -1152,6 +1208,36 @@ const App = () => {
               <p className="upload-text">Click to select FASTA/JSON files<br /><small>or drag and drop here</small></p>
               <input ref={fileInputRef} type="file" className="file-input" onChange={handleFileChange} accept=".fasta,.json" />
               {selectedFile && <div className="file-name">{selectedFile.name} — {formatBytes(selectedFile.size)}</div>}
+            </div>
+
+            {/* User Type Selector */}
+            <div className="user-type-selector">
+              <label className="selector-label">Analysis View:</label>
+              <div className="toggle-menu">
+                <button 
+                  className={`toggle-option ${userType === 'researcher' ? 'active' : ''}`}
+                  onClick={() => setUserType('researcher')}
+                >
+                  🔬 Researcher
+                </button>
+                <button 
+                  className={`toggle-option ${userType === 'policymaker' ? 'active' : ''}`}
+                  onClick={() => setUserType('policymaker')}
+                >
+                  🏛️ Policymaker
+                </button>
+                <button 
+                  className={`toggle-option ${userType === 'industry' ? 'active' : ''}`}
+                  onClick={() => setUserType('industry')}
+                >
+                  🏭 Industry
+                </button>
+              </div>
+              <p className="selector-description">
+                {userType === 'researcher' && "Focus: Raw data, species discovery, scientific accuracy"}
+                {userType === 'policymaker' && "Focus: Conservation, biodiversity monitoring, quick insights"}
+                {userType === 'industry' && "Focus: Operational, compliance, ROI-driven insights"}
+              </p>
             </div>
 
             {parsedJsonPreview && (
@@ -1267,6 +1353,14 @@ const App = () => {
                 <button className="btn btn-secondary" onClick={exportPDF}>Export PDF</button>
                 <button className="btn btn-primary" onClick={rerun}>Re-run</button>
                 <button className="btn btn-primary" onClick={moveToAdmin}>Move to Admin</button>
+                <button className="btn btn-primary" onClick={goToDetailedAnalysis}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/>
+                    <path d="M21 11h-4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/>
+                    <path d="M15 2H9a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/>
+                  </svg>
+                  More Details
+                </button>
               </div>
             )}
           </section>

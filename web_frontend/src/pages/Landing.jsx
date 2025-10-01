@@ -511,15 +511,45 @@ const Landing = () => {
 
 #landing-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none}
 
-.container{position:relative;z-index:10;min-height:100vh;padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;max-width:100vw;overflow-x:hidden}
+.container{position:relative;z-index:10;min-height:100vh;padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:100vw;overflow-x:hidden}
 
-.header{width:100%;text-align:center;margin-bottom:3rem}
+.header{width:100%;text-align:center;margin-bottom:1.6rem;margin-top:4rem}
 
-.logo{font-size:clamp(2.5rem,5vw,4rem);font-weight:800;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem;line-height:1.1}
+.logo{
+  font-size:clamp(2.5rem,5vw,4rem);
+  font-weight:800;
+  color:white;
+  margin-bottom:0.5rem;
+  line-height:1.1;
+  letter-spacing:-0.02em;
+  text-shadow:
+    0 0 10px rgba(0,102,255,0.6),
+    0 0 20px rgba(0,212,255,0.4),
+    0 0 40px rgba(0,102,255,0.3);
+  filter: drop-shadow(0 0 8px rgba(0,212,255,0.4));
+  animation: logoGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes logoGlow {
+  0% {
+    text-shadow:
+      0 0 10px rgba(0,102,255,0.6),
+      0 0 20px rgba(0,212,255,0.4),
+      0 0 40px rgba(0,102,255,0.3);
+    filter: drop-shadow(0 0 8px rgba(0,212,255,0.4));
+  }
+  100% {
+    text-shadow:
+      0 0 20px rgba(0,102,255,0.8),
+      0 0 30px rgba(0,212,255,0.6),
+      0 0 50px rgba(0,102,255,0.4);
+    filter: drop-shadow(0 0 15px rgba(0,212,255,0.6));
+  }
+}
 
 .subtitle{color:var(--text-muted);max-width:700px;margin:0 auto;font-size:16px;line-height:1.4}
 
-.main-card{width:1000px;max-width:calc(100vw - 80px);background:rgba(255,255,255,0.04);border-radius:20px;padding:40px;border:1px solid var(--glass-border);backdrop-filter:blur(15px);box-shadow:0 25px 80px rgba(0,17,51,0.5);color:var(--text-primary)}
+.main-card{width:1100px;max-width:calc(100vw - 60px);background:rgba(255,255,255,0.04);border-radius:24px;padding:50px;border:1px solid var(--glass-border);backdrop-filter:blur(20px);box-shadow:0 30px 100px rgba(0,17,51,0.6);color:var(--text-primary);margin:auto}
 
 .status-bar{position:absolute;top:32px;right:32px;display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:50px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(10px)}
 
@@ -529,7 +559,7 @@ const Landing = () => {
 
 .auth-section{text-align:center;margin-bottom:32px}
 
-.auth-form{background:rgba(255,255,255,0.02);border-radius:16px;padding:32px;border:1px solid rgba(255,255,255,0.06);max-width:400px;margin:0 auto}
+.auth-form{background:rgba(255,255,255,0.05);border-radius:20px;padding:40px;border:1px solid rgba(255,255,255,0.1);max-width:480px;width:100%;margin:0 auto;box-shadow:0 20px 60px rgba(0,17,51,0.4);backdrop-filter:blur(20px)}
 
 .form-group{margin-bottom:20px}
 
@@ -576,7 +606,7 @@ h2, p {color: var(--text-primary)}
 
 /* Mobile responsiveness for Landing page */
 @media(max-width:768px){
-  .container{padding:1rem;justify-content:flex-start;padding-top:2rem}
+  .container{padding:1rem;justify-content:center;min-height:100vh}
   .header{margin-bottom:2rem}
   .logo{font-size:2rem}
   .main-card{padding:20px;max-width:calc(100vw - 40px);margin-bottom:2rem}
@@ -586,7 +616,9 @@ h2, p {color: var(--text-primary)}
 }
 
 @media(max-width:480px){
-  .container{padding:0.5rem;padding-top:1.5rem}
+  .container{padding:1rem;justify-content:center;min-height:100vh}
+  .main-card{padding:30px}
+  .auth-form{padding:30px;max-width:100%}
   .header{margin-bottom:1.5rem}
   .logo{font-size:1.75rem}
   .main-card{padding:16px;max-width:calc(100vw - 20px)}
@@ -598,12 +630,44 @@ h2, p {color: var(--text-primary)}
 @media(max-width:360px){
   .status-bar{display:none}
 }
+/* Project logo styling */
+.project-logo {
+  position: absolute;
+  top: 50px;
+  left: 30px;
+  z-index: 200;
+  width: clamp(140px, 16vw, 220px);
+  height: auto;
+  opacity: 0.95;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.project-logo:hover {
+  opacity: 1;
+  transform: scale(1.03);
+}
+@media(max-width:768px){
+  .project-logo{
+    width: clamp(120px, 14vw, 180px);
+    top: 40px;
+    left: 25px;
+  }
+}
+@media(max-width:480px){
+  .project-logo{
+    width: clamp(100px, 22vw, 140px);
+    top: 30px;
+    left: 20px;
+  }
+}
 `}
       </style>
 
       <canvas id="landing-canvas" ref={bgCanvasRef} />
 
       <div className="container">
+        <img src="/logo.png" alt="AquaGenome Logo" className="project-logo" />
         <div className="status-bar">
           <div className="status-indicator" style={{background: isOnline ? "var(--accent-green)" : "#ff6b6b"}}></div>
           <span style={{color: "var(--text-secondary)", fontSize: 13, fontWeight: 600}}>
@@ -723,30 +787,27 @@ h2, p {color: var(--text-primary)}
             </div>
           )}
 
-          <div className="models-section">
-            <div className="section-title">Available Analysis Models</div>
-            <div className="section-subtitle">
-              Model selection is automatic based on file size, internet connectivity, and system resources
-            </div>
-            {renderModelLists()}
-          </div>
-
-          <div className="proceed-section">
-            <button
-              className="btn-proceed"
-              disabled={!loggedIn}
-              onClick={proceedToAnalyze}
-              title={!loggedIn ? "Please sign in first" : "Continue to analytics page"}
-            >
-              {loggedIn ? "Proceed to Analysis →" : "Sign in to Continue"}
-            </button>
-            
-            {!loggedIn && (
-              <div style={{marginTop: 12, color: "var(--text-muted)", fontSize: 13}}>
-                Authentication required to access analysis tools
+          {loggedIn && (
+            <div className="models-section">
+              <div className="section-title">Available Analysis Models</div>
+              <div className="section-subtitle">
+                Model selection is automatic based on file size, internet connectivity, and system resources
               </div>
-            )}
-          </div>
+              {renderModelLists()}
+            </div>
+          )}
+
+          {loggedIn && (
+            <div className="proceed-section">
+              <button
+                className="btn-proceed"
+                onClick={proceedToAnalyze}
+                title="Continue to analytics page"
+              >
+                Proceed to Analysis →
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="footer">
