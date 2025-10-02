@@ -1,7 +1,49 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import axios from "axios";
-import { analyzeFastaFile } from "./api"; // keep api helper
+import { useNavigate } from "react-router-dom"; // <-- tiny addition
+
+// The previous import for "./api" caused a compile error as that file was missing.
+// The external API helper logic will be integrated below for a self-contained single-file app.
+
+// Mock/Integrated API Logic
+// NOTE: This assumes the backend endpoint is accessible at BASE_URL/analyze
+const analyzeFastaFile = async (file) => {
+  const BASE_URL = "http://127.0.0.1:8000"; // Re-define locally to avoid prop drilling / external config
+  const BACKEND_URL = `${BASE_URL}/analyze`;
+  
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await axios.post(BACKEND_URL, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      timeout: 30000, // 30 seconds timeout
+    });
+
+    if (response.data && response.data.species) {
+      return response.data;
+    } else {
+      console.error("API response lacked expected 'species' data:", response.data);
+      throw new Error("Invalid API response format");
+    }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+        throw new Error("Request timed out. Please check your backend.");
+      }
+      if (error.response) {
+        throw new Error(`Backend Error: ${error.response.status} - ${error.response.data.detail || error.response.statusText}`);
+      } else if (error.request) {
+        throw new Error("No response received from backend. Check if the server is running.");
+      }
+    }
+    throw new Error(`An unexpected error occurred during API call: ${error.message}`);
+  }
+};
+
 
 // Full App.jsx — replace your current file with this exact content.
 const App = () => {
@@ -25,6 +67,9 @@ const App = () => {
   const [showSecondBgHelix, setShowSecondBgHelix] = useState(false);
   const [blueGlowActive, setBlueGlowActive] = useState(false); // Blue helix glow toggle (faint overlay)
   const [modelUsed, setModelUsed] = useState(""); // show which model was used
+
+  // router navigate
+  const navigate = useNavigate(); // <-- tiny addition to allow navigation to stakeholder page
 
   // === Refs for DOM elements and THREE.js objects ===
   const bgCanvasRef = useRef(null);
@@ -558,7 +603,7 @@ const App = () => {
                 blending: THREE.AdditiveBlending,
                 transparent: true,
                 opacity: 0.12,
-              });
+                });
             glowMaterial.userData = { baseSize: 0.06, baseOpacity: 0.12 };
             const glowMesh = new THREE.Points(glowGeometry, glowMaterial);
 
@@ -671,12 +716,12 @@ const App = () => {
       };
     } else {
       try {
-        // ✅ Use helper instead of inline axios.post
+        // ✅ Use the integrated helper instead of external import
         data = await analyzeFastaFile(selectedFile);
       } catch (err) {
         console.error("Backend error:", err);
         setErrorMessage(
-          "Upload failed or backend unreachable. Showing demo data instead."
+          `Upload failed or backend unreachable. Error: ${err.message}. Showing demo data instead.`
         );
         await new Promise((r) => setTimeout(r, 800));
         data = {
@@ -931,6 +976,33 @@ const App = () => {
     runAnalysis(false);
   };
 
+  // --- NEW FUNCTION for Stakeholder Report ---
+  const generateStakeholderReport = () => {
+    console.log("Generating Stakeholder Report...");
+    // Placeholder for actual report generation/API call logic
+    // e.g., trigger a service that generates a high-level summary PDF
+    // For the UI, we can provide a console message to confirm action.
+    const tempMsg = document.createElement('div');
+    tempMsg.textContent = "Report generation triggered (Check console for log)";
+    tempMsg.style.cssText = "position:fixed; bottom:20px; right:20px; background:#00d4ff; color:black; padding:10px 20px; border-radius:10px; z-index:9999; font-weight:bold; opacity:1; transition:opacity 0.5s;";
+    document.body.appendChild(tempMsg);
+
+    // navigate to stakeholder selector page after a small delay so user sees the toast briefly
+    setTimeout(() => {
+      try {
+        navigate("/stakeholder"); // <-- this is the tiny fix so the button moves to the stakeholder page
+      } catch (e) {
+        console.warn("Navigation to /stakeholder failed:", e);
+        // fallback: change location
+        window.location.href = "/stakeholder";
+      }
+      // fade out message
+      tempMsg.style.opacity = 0;
+      setTimeout(() => tempMsg.remove(), 500);
+    }, 300);
+  };
+  // -------------------------------------------
+
   const moveToAdmin = () => {
     // Very simple navigation to /admin route; assumes your app will handle that path.
     // If you don't have routing yet, this can be replaced by a callback or open admin in same app.
@@ -1045,6 +1117,9 @@ const App = () => {
         {isAnalyzing && (
           <div className="loading-overlay active">
             <div className="loading-spinner"></div>
+            <div style={{color: 'var(--text-primary)', marginTop: '20px'}}>
+              Running eDNA analysis...
+            </div>
           </div>
         )}
 
@@ -1200,6 +1275,10 @@ const App = () => {
                 <button className="btn btn-secondary" onClick={exportCSV}>Export CSV</button>
                 <button className="btn btn-secondary" onClick={exportPDF}>Export PDF</button>
                 <button className="btn btn-primary" onClick={rerun}>Re-run</button>
+                {/* NEW STAKEHOLDER BUTTON */}
+                <button className="btn btn-primary" onClick={generateStakeholderReport}>
+                  Stakeholder Report
+                </button>
                 <button className="btn btn-primary" onClick={moveToAdmin}>Move to Admin</button>
               </div>
             )}
