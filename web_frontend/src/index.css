@@ -1,5 +1,34 @@
-﻿@tailwind base;
+﻿/* index.css — replace current content with this */
+
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
+/* Leaflet CSS (needed for proper tile/tooltip/layout) */
+@import "leaflet/dist/leaflet.css";
+
+/* Keep full-height root so background canvases and layout work */
+html, body, #root {
+  height: 100%;
+}
+
+/* Prevent horizontal scroll (optional but recommended for your dashboards) */
+html, body {
+  overscroll-behavior-x: none;
+  overflow-x: hidden;
+}
+
+/* Ensure any Leaflet map containers fill their parent card area */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: pan-y;
+}
+
+/* Small tweak: ensure popups/tooltips and tiles render crisply on high-DPI */
+.leaflet-tile {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* If you use default leaflet markers later, they may need styling fixes in some bundlers;
+   using CircleMarker or custom icons usually avoids that problem. */

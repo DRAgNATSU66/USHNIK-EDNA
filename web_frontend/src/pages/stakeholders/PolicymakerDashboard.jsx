@@ -25,18 +25,6 @@ ChartJS.register(
   Legend
 );
 
-/**
- * PolicymakerDashboard (updated)
- *
- * - Trend graph card spans full width of the grid for symmetry
- * - Line chart theme updated to match screenshot (electric cyan, circular points, darker center)
- *
- * Everything else (theme, background canvases, layout, buttons) preserved.
- *
- * Dependencies:
- *   npm i three chart.js react-chartjs-2
- */
-
 export default function PolicymakerDashboard() {
   const [mapOpen, setMapOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
@@ -69,7 +57,6 @@ export default function PolicymakerDashboard() {
   const runFeasibility = async () => {
     setFeasibilityRunning(true);
     setFeasibilityResult(null);
-    // simulate work
     await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1200));
     const result = {
       roiPercent: (5 + Math.random() * 18).toFixed(1), // 5 - 23%
@@ -110,20 +97,58 @@ export default function PolicymakerDashboard() {
   --gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);
 }
 
-/* Page */
+/* Ensure no horizontal scroll and style the global scrollbar */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--gradient-bg);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden; /* remove horizontal scroll */
+  overflow-y: auto;
+}
+
+/* WebKit scrollbar (Chrome/Edge/Opera) */
+body::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#00d4ff 0%, #00bfff 100%);
+  border-radius: 999px;
+  min-height: 44px;
+  border: 3px solid rgba(0,0,0,0);
+  box-shadow: 0 8px 20px rgba(0,212,255,0.18);
+}
+body::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.06);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #00bfff transparent;
+}
+
+/* Page root / layout */
 .page-root{
   min-height:100vh;
   width:100%;
   padding:28px;
   box-sizing:border-box;
-  background:var(--gradient-bg);
+  background:transparent; /* gradient is on body */
   color:var(--text-primary);
-  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
   position:relative;
-  overflow:auto;
+  overflow: visible;
 }
 
-/* Background canvases: two layers (particles + orbital) */
+/* background canvases */
 .bg-canvas {
   position: fixed;
   inset: 0;
@@ -131,7 +156,7 @@ export default function PolicymakerDashboard() {
   pointer-events: none;
 }
 
-/* header */
+/* header + branding */
 .header {
   max-width:1300px;
   margin: 0 auto 22px;
@@ -148,7 +173,7 @@ export default function PolicymakerDashboard() {
 }
 .brand .subtitle { color:var(--text-muted); margin-top:6px; font-size:0.95rem; }
 
-/* layout grid - symmetric two column */
+/* main grid layout */
 .container {
   max-width:1300px;
   margin: 0 auto;
@@ -159,12 +184,12 @@ export default function PolicymakerDashboard() {
   align-items:start;
 }
 
-/* MAKE Trend Graph full width */
+/* Trend full width */
 .trendFull {
   grid-column: 1 / -1;
 }
 
-/* glass card */
+/* card styles */
 .card {
   background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
   border-radius:14px;
@@ -173,8 +198,6 @@ export default function PolicymakerDashboard() {
   box-shadow: 0 18px 60px rgba(0,10,30,0.45);
   backdrop-filter: blur(12px) saturate(120%);
 }
-
-/* stronger glass */
 .card.strong {
   padding:22px;
   border-radius:16px;
@@ -182,102 +205,47 @@ export default function PolicymakerDashboard() {
   box-shadow: 0 26px 90px rgba(0,12,40,0.6);
 }
 
-/* small header row for sections */
+/* sections and helpers */
 .sectionTitle { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .sectionTitle .left { display:flex; gap:12px; align-items:center; }
 .sectionTitle h3 { margin:0; font-size:1.05rem; font-weight:700; }
 .sectionTitle .sub { color:var(--text-muted); font-size:0.9rem; }
 
-/* map placeholder */
-.mapPlaceholder {
-  height:420px;
-  border-radius:10px;
-  border: 1px dashed rgba(255,255,255,0.03);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--text-muted);
-}
+/* placeholders and charts layout */
+.mapPlaceholder { height:420px; border-radius:10px; border: 1px dashed rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
+.trendGrid { display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; }
+.statTile { flex: 0 0 48%; background: rgba(0,0,0,0.04); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.02); }
+.stat { font-weight:800; font-size:1.4rem; background: var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.statLabel { color:var(--text-muted); font-size:0.92rem; margin-top:6px; }
 
-/* trend grid - updated to horizontal charts side-by-side */
-.trendGrid {
-  display:flex;
-  gap:12px;
-  align-items:flex-start;
-  margin-bottom:12px;
-}
+.trendCharts { display:flex; gap:14px; width:100%; margin-top:10px; }
+.trendCharts .chartCard { flex:1; background: rgba(0,0,0,0.03); border-radius:10px; padding:12px; min-height:220px; }
 
-/* small stat tiles */
-.statTile {
-  flex: 0 0 48%;
-  background: rgba(0,0,0,0.04);
-  padding:12px;
-  border-radius:10px;
-  border:1px solid rgba(255,255,255,0.02);
-}
-.stat {
-  font-weight:800;
-  font-size:1.4rem;
-  background: var(--gradient-primary);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-.statLabel { color:var(--text-muted); font-size:0.92rem; }
-
-/* horizontal charts container */
-.trendCharts {
-  display:flex;
-  gap:14px;
-  width:100%;
-  margin-top:10px;
-}
-.trendCharts .chartCard {
-  flex:1;
-  background: rgba(0,0,0,0.03);
-  border-radius:10px;
-  padding:12px;
-  min-height:220px;
-}
-
-/* economic feasibility card custom */
 .feasibilityKpis { display:flex; gap:12px; }
 .kpi { flex:1; padding:12px; border-radius:10px; background:rgba(0,0,0,0.03); border:1px solid rgba(255,255,255,0.02); text-align:center; }
 .kpi .big { font-weight:900; font-size:1.4rem; color:var(--marine-green); }
 
-/* orbital container (card replaced by feasibility) */
-.orbitalWrap { height:60vh; min-height:320px; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.03); background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); display:flex; align-items:center; justify-content:center; }
-
-/* small control row */
 .controls { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
 .btn { padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:700; }
 .btn.primary { background:var(--gradient-primary); color:white; box-shadow:0 12px 40px rgba(0,102,255,0.16); }
 .btn.ghost { background:transparent; color:var(--text-muted); border:1px solid rgba(255,255,255,0.03); }
 
-/* modals */
-.modal-backdrop {
-  position:fixed; inset:0; background:rgba(2,8,18,0.6); display:flex; align-items:center; justify-content:center; z-index:40;
-}
-.modal {
-  width:calc(100% - 64px); max-width:1000px; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); border-radius:12px; padding:20px; border:1px solid var(--glass-border);
-  box-shadow:0 30px 80px rgba(0,10,30,0.6);
-  max-height:90vh; overflow:auto;
-}
+.modal-backdrop { position:fixed; inset:0; background:rgba(2,8,18,0.6); display:flex; align-items:center; justify-content:center; z-index:40; }
+.modal { width:calc(100% - 64px); max-width:1000px; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); border-radius:12px; padding:20px; border:1px solid var(--glass-border); box-shadow:0 30px 80px rgba(0,10,30,0.6); max-height:90vh; overflow:auto; }
 
-/* responsive */
 @media (max-width: 1100px) {
   .trendCharts { flex-direction:column; }
 }
 @media (max-width: 980px) {
   .container { grid-template-columns: 1fr; }
   .mapPlaceholder { height:300px; }
-  .orbitalWrap { height:40vh; }
 }
-`}</style>
+      `}</style>
 
       <div className="page-root">
         {/* Background components (particles + orbital) */}
-        <FloatingBackgroundCanvas className="bg-canvas" />
-        <BackgroundOrbitalCanvas className="bg-canvas" />
+        <FloatingBackgroundCanvas />
+        <BackgroundOrbitalCanvas />
 
         <header className="header">
           <div className="brand" aria-hidden>
@@ -313,7 +281,7 @@ export default function PolicymakerDashboard() {
 
           {/* RIGHT column -> Top: Economic Feasibility (replaces orbital card) ; Below: Threat & Alert Panel */}
           <div>
-            {/* Economic Feasibility card (same size as orbital card previously) */}
+            {/* Economic Feasibility card */}
             <section className="card strong" aria-labelledby="econ-title">
               <div className="sectionTitle">
                 <div className="left">
@@ -357,7 +325,6 @@ export default function PolicymakerDashboard() {
                   <button
                     className="btn ghost"
                     onClick={() => {
-                      // quick CSV export of sample economic table
                       const rows = [
                         ["metric", "value"],
                         ["estimated_roi_percent", feasibilityResult?.roiPercent ?? "n/a"],
@@ -386,7 +353,7 @@ export default function PolicymakerDashboard() {
               </div>
             </section>
 
-            {/* Threats & Alerts card below (vertical under Economic card) */}
+            {/* Threats & Alerts card below */}
             <section className="card strong" style={{ marginTop: 18 }} aria-labelledby="alerts-title">
               <div className="sectionTitle">
                 <div className="left">
@@ -428,7 +395,6 @@ export default function PolicymakerDashboard() {
               </div>
             </div>
 
-            {/* HORIZONTAL charts side-by-side */}
             <div className="trendCharts" style={{ marginTop: 6 }}>
               <div className="chartCard">
                 <div style={{ height: 260 }}>
@@ -509,7 +475,6 @@ export default function PolicymakerDashboard() {
 
 /* ---------------------------- Charts ------------------------------------ */
 
-/* LINE CHART: theme updated to match screenshot (electric-cyan line, circular points, darker center) */
 function LineChart() {
   const cyan = "#00d4ff";
   const data = {
@@ -522,12 +487,11 @@ function LineChart() {
         tension: 0.35,
         borderWidth: 2.6,
         borderColor: cyan,
-        pointBackgroundColor: "#001f33", // dark center like your screenshot
+        pointBackgroundColor: "#001f33",
         pointBorderColor: cyan,
         pointBorderWidth: 2,
         pointRadius: 5,
         pointHoverRadius: 7,
-        // slight shadow-like/background below line simulated via low-opacity fill (subtle)
         backgroundColor: "rgba(0,212,255,0.06)",
       },
     ],
@@ -550,9 +514,7 @@ function LineChart() {
       },
     },
     elements: {
-      line: { // add small cap rounding to produce smoother line
-        capBezierPoints: true,
-      },
+      line: { capBezierPoints: true },
     },
   };
 
@@ -590,12 +552,10 @@ function BarChart() {
 }
 
 /* ------------------- Floating Background Canvas (Three.js) --------------- */
-/* Marine-green glowing particles with drifting velocities for organic motion */
 function FloatingBackgroundCanvas(props) {
   const ref = useRef();
 
   useEffect(() => {
-    // create a canvas element and append to ref container so it sits behind everything
     const canvas = document.createElement("canvas");
     canvas.style.width = "100%";
     canvas.style.height = "100%";
@@ -614,11 +574,9 @@ function FloatingBackgroundCanvas(props) {
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 50;
 
-    // particle field
     const COUNT = 900;
     const positions = new Float32Array(COUNT * 3);
     const velocities = new Float32Array(COUNT * 3);
-
     const spreadX = 160;
     const spreadY = 90;
     const spreadZ = 80;
@@ -638,7 +596,7 @@ function FloatingBackgroundCanvas(props) {
 
     const material = new THREE.PointsMaterial({
       size: 1.1,
-      color: 0x00ffaa, // marine green
+      color: 0x00ffaa,
       transparent: true,
       opacity: 0.07,
       depthTest: false,
@@ -648,7 +606,6 @@ function FloatingBackgroundCanvas(props) {
     const pts = new THREE.Points(geometry, material);
     scene.add(pts);
 
-    // animation
     let rafId;
     const start = performance.now();
     const loop = (now) => {
@@ -701,7 +658,6 @@ function FloatingBackgroundCanvas(props) {
 }
 
 /* ---------------------- Background Orbital (Three.js) ------------------- */
-/* Purely decorative orbital visual moved to page background (pointer-events:none) */
 function BackgroundOrbitalCanvas(props) {
   const ref = useRef();
 
@@ -816,7 +772,6 @@ function BackgroundOrbitalCanvas(props) {
       const positions = centralGeo.attributes.position.array;
       for (let i = 0; i < centralCount; i++) {
         const idx = i * 3;
-        // apply small per-point scale variation rather than multiplying persistently (use a temporary scale)
         const px = positions[idx];
         const py = positions[idx + 1];
         const pz = positions[idx + 2];

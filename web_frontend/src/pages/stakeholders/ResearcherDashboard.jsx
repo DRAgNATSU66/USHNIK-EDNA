@@ -21,13 +21,10 @@ export default function ResearcherDashboard() {
     { id: "NV-002", name: "Candidate sp. 2", location: "Site C" },
   ];
 
-  /* ---------------- Histogram (bars) with Line overlay ----------------
-     The line color uses the project's secondary cyan: #00d4ff
-     Adjusted so labels are horizontal and line points draw above bars.
-  --------------------------------------------------------------------- */
+  /* ---------------- Histogram (bars) with Line overlay ---------------- */
   const labels = ["Species Richness", "Evenness", "Coverage", "Novelty Index", "Genetic Diversity"];
-  const barValues = [72, 58, 81, 46, 69]; // histogram heights
-  const lineValues = [68, 60, 79, 50, 71]; // trend line (example; can be same or different)
+  const barValues = [72, 58, 81, 46, 69];
+  const lineValues = [68, 60, 79, 50, 71];
 
   const comboData = {
     labels,
@@ -39,7 +36,7 @@ export default function ResearcherDashboard() {
         backgroundColor: ["#0066ff", "#00d4ff", "#00ffaa", "#00ffaa", "#0066ff"],
         borderColor: "rgba(255,255,255,0.06)",
         borderWidth: 1,
-        barPercentage: 0.64,      // slightly narrower so points are not visually covered
+        barPercentage: 0.64,
         categoryPercentage: 0.66,
         order: 1,
       },
@@ -47,16 +44,16 @@ export default function ResearcherDashboard() {
         type: "line",
         label: "Trend",
         data: lineValues,
-        borderColor: "#00d4ff", // cyan line color
+        borderColor: "#00d4ff",
         backgroundColor: "transparent",
         borderWidth: 2.6,
         tension: 0.22,
         pointBackgroundColor: "#00d4ff",
         pointBorderColor: "#ffffff",
-        pointRadius: 6,          // larger point so it's clearly visible
-        pointBorderWidth: 2,     // white stroke around point to separate from bar
+        pointRadius: 6,
+        pointBorderWidth: 2,
         pointHoverRadius: 7,
-        order: 3,                // draw after bars (ensures points sit on top)
+        order: 3,
       },
     ],
   };
@@ -78,7 +75,7 @@ export default function ResearcherDashboard() {
           color: "#ffffff",
           maxRotation: 0,
           minRotation: 0,
-          autoSkip: false,     // show all labels
+          autoSkip: false,
         },
         grid: { display: false },
       },
@@ -89,7 +86,6 @@ export default function ResearcherDashboard() {
     },
     elements: {
       point: {
-        // ensure line points are drawn over bars visually
         hoverBorderWidth: 2,
       },
     },
@@ -112,10 +108,51 @@ export default function ResearcherDashboard() {
   --gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);
 }
 
-/* background on document root so canvases sit above it */
-html, body { height:100%; margin:0; background: var(--gradient-bg); }
+/* Remove horizontal page scroll and style the page scrollbar (Chromium/Opera) */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;    /* vertical allowed */
+  overflow-x: hidden;  /* remove horizontal scroll */
+  background: var(--gradient-bg);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing:antialiased;
+}
 
-/* page root — transparent to let background canvases show through gaps */
+/* Page-level scrollbar styling (Chromium/WebKit) */
+body::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  background: transparent;
+}
+body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#00d4ff 0%, #00f4ff 48%, #00bfff 100%);
+  border-radius: 999px;
+  min-height: 44px;
+  box-shadow: 0 0 22px rgba(0,212,255,0.45);
+  border: 3px solid rgba(0,0,0,0);
+}
+body::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.06);
+}
+
+/* Firefox fallback */
+body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,212,255,0.95) transparent;
+}
+
+/* page UI */
 .page-root{
   min-height:100vh;
   width:100%;
@@ -123,99 +160,53 @@ html, body { height:100%; margin:0; background: var(--gradient-bg); }
   box-sizing:border-box;
   background: transparent;
   color:var(--text-primary);
-  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
   position:relative;
-  z-index: 30; /* UI above canvases */
+  z-index: 30;
 }
 
-/* canvases inserted into body will use this stacking (kept for reference) */
-.bg-canvas { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+/* canvases inserted into body */
+.bg-canvas { position: fixed; inset: 0; z-index: 20; pointer-events: none; width:100%; height:100%; }
 
-/* Top-level layout: keep full-width container and center content */
-.page-inner {
-  max-width: 1300px;
-  margin: 0 auto;
-}
-
-/* Header */
-.header {
-  text-align:center;
-  margin-bottom:20px;
-}
-.header .logo {
-  font-size: clamp(1.8rem, 3.2vw, 2.6rem);
-  font-weight:800;
-  background:var(--gradient-primary);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-}
+/* layout */
+.page-inner { max-width: 1300px; margin: 0 auto; }
+.header { text-align:center; margin-bottom:20px; }
+.header .logo { font-size: clamp(1.8rem, 3.2vw, 2.6rem); font-weight:800; background:var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .header .subtitle { color:var(--text-muted); margin-top:6px; }
 
-/* Grid: top row two equal columns, bottom full-width card */
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  align-items: stretch; /* ensures children stretch to equal height */
-  grid-auto-rows: auto;
-}
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; grid-auto-rows: auto; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
 
-/* make the top-row wrapper explicit to help visual symmetry */
-.top-row {
-  display: contents; /* allows the two cards to live in the same grid columns */
-}
-
-/* The Biodiversity card spans both columns */
-.full-span {
-  grid-column: 1 / -1;
-}
-
-/* card styling: bluish, hazy, stronger blur, uniform borders */
 .card {
-  position: relative;
-  z-index: 50;
+  position: relative; z-index: 50;
   background: linear-gradient(180deg, rgba(0,40,100,0.40), rgba(0,20,60,0.32));
-  border-radius: 14px;
-  padding: 18px;
-  border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 18px; border: 1px solid var(--glass-border);
   box-shadow: 0 18px 60px rgba(0,8,28,0.6);
-  backdrop-filter: blur(20px) saturate(130%);
-  -webkit-backdrop-filter: blur(20px) saturate(130%);
-  color: var(--text-primary);
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  min-height: 320px; /* ensure top cards have a comfortable height and match each other */
+  backdrop-filter: blur(20px) saturate(130%); -webkit-backdrop-filter: blur(20px) saturate(130%);
+  color: var(--text-primary); display:flex; flex-direction:column; gap:12px; min-height: 320px;
 }
 
-/* small responsive tweak for very narrow viewports */
-@media (max-width: 980px) {
-  .grid { grid-template-columns: 1fr; }
-  .card { min-height: auto; }
-}
+.full-span { grid-column: 1 / -1; min-height: 360px; }
 
-/* card header */
-.card h3 { margin:0; font-size:1.05rem; font-weight:800; color:#fff; }
-.card .sub { color: var(--text-muted); font-size:0.92rem; }
-
-/* small table styles for match list */
+/* tables & lists */
 .matchTable { width:100%; border-collapse:collapse; font-size:0.95rem; margin-top:6px; color:var(--text-primary); }
 .matchTable th, .matchTable td { padding:10px 8px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
 .matchTable thead th { color:var(--text-primary); font-weight:700; background: linear-gradient(90deg, rgba(0,102,255,0.06), rgba(0,212,255,0.03)); }
 
-/* novel list */
 .novelItem { padding:12px; border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); border:1px solid rgba(255,255,255,0.03); color:var(--text-primary); }
-
-/* KPI row */
 .kpiRow { display:flex; gap:12px; flex-wrap:wrap; }
 .kpi { flex:1; min-width:110px; text-align:center; padding:12px; border-radius:10px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); }
 .kpi .value { font-size:1.4rem; font-weight:900; color:var(--marine-green); }
 .kpi .label { color:var(--text-muted); font-size:0.9rem; margin-top:6px; }
 
-/* small utilities */
 .controls { display:flex; gap:8px; align-items:center; }
 .btn { padding:8px 12px; border-radius:8px; border:none; font-weight:700; cursor:pointer; }
 .btn.primary { background:var(--gradient-primary); color:#fff; box-shadow: 0 10px 30px rgba(0,102,255,0.12); }
 .btn.ghost { background:transparent; color:var(--text-muted); border:1px solid rgba(255,255,255,0.04); }
+
+/* Keep internal overflow-x on tables but let that scrollbar use inner styling (unchanged) */
+.table-wrapper { overflow-x: auto; }
+.table-wrapper::-webkit-scrollbar { height: 10px; }
+.table-wrapper::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#0066ff,#00d4ff); border-radius:8px; }
       `}</style>
 
       {/* Three.js backgrounds */}
@@ -230,7 +221,7 @@ html, body { height:100%; margin:0; background: var(--gradient-bg); }
           </header>
 
           <div className="grid" role="main" aria-label="Researcher dashboard grid">
-            {/* Top-left: DNA Match Results (half width) */}
+            {/* Top-left: DNA Match Results */}
             <section className="card" aria-labelledby="dna-match-title">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -247,7 +238,7 @@ html, body { height:100%; margin:0; background: var(--gradient-bg); }
                   <div className="kpi"><div className="value">98%</div><div className="label">Avg Match Confidence</div></div>
                 </div>
 
-                <div style={{ overflowX: "auto", marginTop: 6 }}>
+                <div className="table-wrapper" style={{ marginTop: 6 }}>
                   <table className="matchTable" role="table" aria-label="DNA match table">
                     <thead>
                       <tr><th>Sample</th><th>Match</th><th>Score</th></tr>
@@ -266,7 +257,7 @@ html, body { height:100%; margin:0; background: var(--gradient-bg); }
               </div>
             </section>
 
-            {/* Top-right: Novel Species (half width) */}
+            {/* Top-right: Novel Species */}
             <section className="card" aria-labelledby="novel-title">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -288,8 +279,8 @@ html, body { height:100%; margin:0; background: var(--gradient-bg); }
               </div>
             </section>
 
-            {/* Bottom full-width Biodiversity Metrics (spans both columns) */}
-            <section className="card full-span" aria-labelledby="biodiv-title" style={{ minHeight: 360 }}>
+            {/* Bottom: Biodiversity Metrics */}
+            <section className="card full-span" aria-labelledby="biodiv-title">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <h3 id="biodiv-title">Biodiversity Metrics</h3>
@@ -337,7 +328,7 @@ function FloatingBackgroundCanvas() {
     canvas.style.height = "100%";
     canvas.style.position = "fixed";
     canvas.style.inset = "0";
-    canvas.style.zIndex = "20"; // between background and UI
+    canvas.style.zIndex = "20";
     canvas.style.pointerEvents = "none";
     canvas.setAttribute("data-bg", "floating-particles");
     document.body.appendChild(canvas);
@@ -372,7 +363,7 @@ function FloatingBackgroundCanvas() {
       size: 1.4,
       color: 0x00ffaa,
       transparent: true,
-      opacity: 0.045, // subtle
+      opacity: 0.045,
       depthTest: false,
       blending: THREE.AdditiveBlending,
     });
@@ -444,7 +435,6 @@ function BackgroundOrbitalCanvas() {
     const root = new THREE.Group();
     scene.add(root);
 
-    // dotted central cluster
     const centralCount = 600;
     const centralPos = new Float32Array(centralCount * 3);
     const radius = 1.7;
@@ -469,7 +459,6 @@ function BackgroundOrbitalCanvas() {
     const centralPoints = new THREE.Points(centralGeo, centralMat);
     root.add(centralPoints);
 
-    // a few orbits
     const makeOrbitDots = (num = 120, r = 2.8, rot = 0) => {
       const p = new Float32Array(num * 3);
       for (let i = 0; i < num; i++) {
@@ -498,7 +487,6 @@ function BackgroundOrbitalCanvas() {
       orbit1.mesh.rotation.y += 0.0048;
       orbit2.mesh.rotation.z -= 0.0052;
 
-      // gentle twinkle
       const pos = centralGeo.attributes.position.array;
       for (let i = 0; i < centralCount; i++) {
         const idx = i * 3;

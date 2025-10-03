@@ -7,12 +7,10 @@ import {
   AlertTriangle,
   CheckCircle,
   Copy,
-  ArrowLeft,
   Zap,
   TrendingUp,
   Database,
   Eye,
-  Search,
 } from "lucide-react";
 
 // Mock axios for demo — replace with your real axios
@@ -253,8 +251,6 @@ const Admin = () => {
 
   //
   // === THREE.JS BACKGROUND CUBE (DOTS) ===
-  // Cube made of many small points forming edges & surfaces.
-  // Rotates subtly on all axes. Colors cycle blue->yellow->red->green.
   //
   const canvasRef = useRef(null);
   const three = useRef({
@@ -398,10 +394,95 @@ const Admin = () => {
     <>
       <style>
         {`
-:root{--primary-blue:#0066ff;--secondary-cyan:#00d4ff;--accent-green:#00ff88;--deep-ocean:#001133;--dark-blue:#002266;--glass-border:rgba(255,255,255,0.1);--text-primary:#ffffff;--text-secondary:#b3d9ff;--text-muted:#7eb3ff;--gradient-primary:linear-gradient(135deg,var(--primary-blue) 0%,var(--secondary-cyan) 100%);--gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%)}
-*{box-sizing:border-box}html,body,#root{height:100%;width:100%}body{margin:0;font-family:'Inter',system-ui,Roboto;color:var(--text-primary);background:var(--gradient-bg);overflow:auto}
-#admin-bg-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none}
-.container{position:relative;z-index:10;min-height:100vh;padding:2rem}
+/* =============================
+   Theme variables & base reset
+   ============================= */
+:root{
+  --primary-blue:#0066ff;
+  --secondary-cyan:#00d4ff;
+  --accent-green:#00ff88;
+  --deep-ocean:#001133;
+  --dark-blue:#002266;
+  --glass-border:rgba(255,255,255,0.1);
+  --text-primary:#ffffff;
+  --text-secondary:#b3d9ff;
+  --text-muted:#7eb3ff;
+  --gradient-primary:linear-gradient(135deg,var(--primary-blue) 0%,var(--secondary-cyan) 100%);
+  --gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);
+}
+
+/* Keep native page scrolling but hide horizontal overflow to remove sideways scroll */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;    /* allow vertical scrolling */
+  overflow-x: hidden;  /* remove horizontal scroll */
+  background: var(--gradient-bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, Roboto, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* =============================
+   Page-level scrollbar styling
+   (Chromium / Opera / WebKit)
+   ============================= */
+body::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  background: transparent;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+
+body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* chunky cyan thumb with glow — matches inner scrolls */
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#00d4ff 0%, #00f4ff 48%, #00bfff 100%);
+  border-radius: 999px;
+  min-height: 44px;
+  box-shadow: 0 0 22px rgba(0,212,255,0.45);
+  border: 3px solid rgba(0,0,0,0);
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.06);
+}
+
+/* =============================
+   Firefox scrollbar fallback
+   ============================= */
+body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,212,255,0.95) transparent;
+}
+
+/* =============================
+   Keep internal scrollables styled
+   (unchanged inner scrollbars)
+   ============================= */
+
+/* Use 100% width (not 100vw) to avoid creating horizontal overflow when scrollbar is present */
+#admin-bg-canvas{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100vh;
+  z-index:0;
+  pointer-events:none;
+}
+
+/* Container keeps padding but will not cause horizontal overflow due to overflow-x:hidden on body */
+.container{position:relative;z-index:10;min-height:100vh;padding:2rem;max-width:1400px;margin:0 auto}
 
 /* Header: center brand, keep badge at right */
 .header{width:100%;text-align:left;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:center;position:relative}
@@ -409,7 +490,7 @@ const Admin = () => {
 .logo{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:800;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .subtitle{color:var(--text-muted);font-size:0.95rem}
 .top-badge{position:absolute;right:2rem;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.04); color: var(--text-primary);}
-.grid{display:grid;grid-template-columns:1fr;gap:1.25rem;max-width:1300px;margin:0 auto}
+.grid{display:grid;grid-template-columns:1fr;gap:1.25rem;margin:0 auto}
 @media(min-width:1000px){.grid{grid-template-columns:1fr}}
 .glass{background:rgba(255,255,255,0.04);backdrop-filter:blur(12px);border-radius:16px;padding:20px;border:1px solid var(--glass-border);box-shadow:0 20px 60px rgba(0,17,51,0.45)}
 .panel-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
@@ -439,16 +520,15 @@ const Admin = () => {
 .success{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);color:var(--accent-green)}
 .error{background:rgba(255,80,80,0.06);border:1px solid rgba(255,80,80,0.12);color:#ff9b9b}
 
-/* Update metrics-grid for better responsiveness and centering */
+/* metrics grid */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Responsive columns */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.25rem;
   margin-bottom: 2rem;
   max-width: 1300px;
   margin: 0 auto 2rem;
 }
-
 .metric-card {
   padding: 1.5rem;
   border-radius: 16px;
@@ -460,7 +540,6 @@ const Admin = () => {
   flex-direction: column;
   align-items: flex-start;
 }
-
 .metric-icon {
   width: 48px;
   height: 48px;
@@ -472,7 +551,6 @@ const Admin = () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .metric-value {
   font-size: 2.5rem;
   font-weight: 800;
@@ -481,18 +559,9 @@ const Admin = () => {
   -webkit-text-fill-color: transparent;
   line-height: 1;
 }
-
-.metric-title {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-top: 0.5rem;
-}
-
-.metric-subtitle {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-`}
+.metric-title { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.5rem; }
+.metric-subtitle { font-size: 0.8rem; color: var(--text-secondary); }
+        `}
       </style>
 
       {/* Three.js Background */}

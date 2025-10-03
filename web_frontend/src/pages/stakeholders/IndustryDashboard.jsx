@@ -66,7 +66,7 @@ export default function IndustryDashboard() {
         label: "Risk Sensitivity",
         data: [65, 55, 70, 50, 45],
         fill: true,
-        backgroundColor: "rgba(0,170,140,0.12)", // keep faint fill
+        backgroundColor: "rgba(0,170,140,0.12)", // faint fill
         borderColor: "#ffffff",                    // white outline for clarity
         borderWidth: 2.5,                          // slightly thicker line
         pointBackgroundColor: "#00ffaa",
@@ -84,15 +84,12 @@ export default function IndustryDashboard() {
       r: {
         suggestedMin: 0,
         suggestedMax: 100,
-        // grid and angle lines subtle but white-tinged
         grid: { color: "rgba(255,255,255,0.06)" },
         angleLines: { color: "rgba(255,255,255,0.06)" },
-        // axis labels around the radar (the category names)
         pointLabels: {
           color: "#ffffff",
           font: { family: "'Inter', system-ui, Roboto, Arial", size: 12, weight: "600" },
         },
-        // tick labels (radial values)
         ticks: {
           color: "#ffffff",
           backdropColor: "transparent",
@@ -135,14 +132,48 @@ export default function IndustryDashboard() {
   --gradient-bg:radial-gradient(ellipse at center,var(--dark-blue) 0%,var(--deep-ocean) 100%);
 }
 
-/* Put the page background on the document root so canvases can sit above it */
-html, body {
+/* Put the page background on the document root so canvases can sit above it
+   and prevent horizontal scroll. */
+html, body, #root {
   height: 100%;
+  width: 100%;
   margin: 0;
+  padding: 0;
   background: var(--gradient-bg);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* REMOVE horizontal scroll/gutter */
+  overflow-y: auto;
 }
 
-/* Page root should be transparent so canvases (which are in body) can show */
+/* WebKit scrollbar styling (Chrome / Opera / Edge) for main page */
+body::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#00d4ff 0%, #00bfff 100%);
+  border-radius: 999px;
+  min-height: 44px;
+  border: 3px solid rgba(0,0,0,0);
+  box-shadow: 0 8px 20px rgba(0,212,255,0.18);
+}
+body::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.06);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #00bfff transparent;
+}
+
+/* Page root should be transparent so canvases are visible */
 .page-root{
   min-height:100vh;
   width:100%;
@@ -150,9 +181,8 @@ html, body {
   box-sizing:border-box;
   background: transparent; /* transparent so canvases are visible */
   color:var(--text-primary);
-  font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
   position:relative;
-  overflow:auto;
+  overflow: visible;
   z-index: 30; /* UI stack above canvases */
 }
 
@@ -272,8 +302,8 @@ html, body {
       `}</style>
 
       {/* Background canvases: Floating particles + decorative orbital (both pointer-events:none) */}
-      <FloatingBackgroundCanvas className="bg-canvas" />
-      <BackgroundOrbitalCanvas className="bg-canvas" />
+      <FloatingBackgroundCanvas />
+      <BackgroundOrbitalCanvas />
 
       <div className="page-root">
         <header className="header" aria-hidden>
