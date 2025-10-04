@@ -1,7 +1,11 @@
 // PolicymakerDashboard.jsx
+// Requires: npm install leaflet
+// Optional (for map export): npm install dom-to-image-more
+
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line, Bar } from "react-chartjs-2";
+import L from "leaflet";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -86,10 +90,10 @@ export default function PolicymakerDashboard() {
 :root{
   --primary-blue:#0066ff;
   --secondary-cyan:#00d4ff;
-  --marine-green:#00ffaa; /* marine green accent */
+  --marine-green:#00ffaa;
   --accent-green:#00ff88;
-  --deep-ocean:#001133;   /* matches your earlier theme */
-  --dark-blue:#002266;    /* matches earlier theme */
+  --deep-ocean:#001133;
+  --dark-blue:#002266;
   --glass-border:rgba(255,255,255,0.06);
   --text-primary:#eaf6ff;
   --text-muted:#9acfff;
@@ -107,7 +111,7 @@ html, body, #root {
   color: var(--text-primary);
   font-family: Inter, system-ui, Roboto, "Helvetica Neue", Arial;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden; /* remove horizontal scroll */
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -142,7 +146,7 @@ body::-webkit-scrollbar-thumb:hover {
   width:100%;
   padding:28px;
   box-sizing:border-box;
-  background:transparent; /* gradient is on body */
+  background:transparent;
   color:var(--text-primary);
   position:relative;
   overflow: visible;
@@ -212,7 +216,7 @@ body::-webkit-scrollbar-thumb:hover {
 .sectionTitle .sub { color:var(--text-muted); font-size:0.9rem; }
 
 /* placeholders and charts layout */
-.mapPlaceholder { height:420px; border-radius:10px; border: 1px dashed rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
+.mapPlaceholder { height:420px; border-radius:10px; border: 1px dashed rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; color:var(--text-muted); position:relative; overflow:hidden; }
 .trendGrid { display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; }
 .statTile { flex: 0 0 48%; background: rgba(0,0,0,0.04); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.02); }
 .stat { font-weight:800; font-size:1.4rem; background: var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
@@ -232,6 +236,70 @@ body::-webkit-scrollbar-thumb:hover {
 
 .modal-backdrop { position:fixed; inset:0; background:rgba(2,8,18,0.6); display:flex; align-items:center; justify-content:center; z-index:40; }
 .modal { width:calc(100% - 64px); max-width:1000px; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); border-radius:12px; padding:20px; border:1px solid var(--glass-border); box-shadow:0 30px 80px rgba(0,10,30,0.6); max-height:90vh; overflow:auto; }
+
+/* Leaflet container styling (keeps theme) */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  filter: drop-shadow(0 6px 18px rgba(0,102,255,0.06));
+}
+/* small map inside card */
+.map-small { height: 420px; width: 100%; border-radius: 10px; }
+/* large map in modal */
+.map-large { height: 60vh; width: 100%; border-radius: 10px; }
+
+/* DARK tiles should match the UI — no hue-rotate here (we use dark tiles) */
+
+/* hollow marker style is stroke-only (circleMarker uses stroke color) */
+/* tooltip and popup readability — styled to match site card theme */
+.leaflet-tooltip.map-tooltip {
+  background: linear-gradient(135deg, rgba(0,48,90,0.95), rgba(0,64,130,0.95)) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 18px 60px rgba(0,10,30,0.6) !important;
+  padding: 10px 12px !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  opacity: 0.99 !important;
+  line-height: 1.2 !important;
+  border: 1px solid rgba(0,212,255,0.12) !important;
+}
+.leaflet-popup-content-wrapper.map-popup {
+  background: linear-gradient(135deg, rgba(0,102,255,0.95), rgba(0,212,255,0.95)) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  padding: 12px !important;
+  box-shadow: 0 22px 80px rgba(0,12,40,0.66) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+}
+.leaflet-popup-content {
+  color: #ffffff !important;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+/* 'Indian Ocean' label styling */
+.ocean-label {
+  font-weight: 800;
+  font-size: 18px;
+  color: rgba(234,246,255,0.18);
+  text-shadow: 0 3px 10px rgba(0,0,0,0.55);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* map legend */
+.map-legend {
+  background: rgba(0,5,18,0.55);
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+.map-legend .row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.map-legend .swatch { width:12px; height:12px; border-radius:3px; box-shadow: 0 6px 18px rgba(0,102,255,0.06); border:1px solid rgba(255,255,255,0.06); }
 
 @media (max-width: 1100px) {
   .trendCharts { flex-direction:column; }
@@ -271,10 +339,8 @@ body::-webkit-scrollbar-thumb:hover {
               </div>
 
               <div className="mapPlaceholder">
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 800, marginBottom: 6 }}>Map Placeholder</div>
-                  <div style={{ color: "var(--text-muted)" }}>Integrate Mapbox / Leaflet here</div>
-                </div>
+                {/* Small embedded map */}
+                <MapComponent smallKey="card-map" small={true} />
               </div>
             </section>
           </div>
@@ -418,12 +484,14 @@ body::-webkit-scrollbar-thumb:hover {
                 <h3 style={{ margin: 0 }}>Map Viewer</h3>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn ghost" onClick={() => downloadCSV(sampleCSVRows, "map-region.csv")}>Export CSV</button>
+                  {/* Export PNG using dynamic import of dom-to-image-more */}
+                  <MapExportButton />
                   <button className="btn primary" onClick={() => setMapOpen(false)}>Close</button>
                 </div>
               </div>
 
               <div style={{ height: "60vh", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.03)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
-                Replace with full map integration (Mapbox / Leaflet)
+                <MapComponent smallKey="modal-map" small={false} />
               </div>
             </div>
           </div>
@@ -815,4 +883,278 @@ function BackgroundOrbitalCanvas(props) {
   }, []);
 
   return <div ref={ref} className="bg-canvas" {...props} />;
+}
+
+/* ---------------------------- Map Component ----------------------------- */
+/*
+  - smallKey: unique id for container DOM element
+  - small: boolean -> renders smaller interactive map (for card) or larger (for modal)
+*/
+function MapComponent({ smallKey = "map", small = true }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const legendControlRef = useRef(null);
+
+  // hotspots sample for Indian Ocean region (lat, lng ~ [lat, lon])
+  const hotspots = [
+    {
+      id: "sri-lanka",
+      name: "Sri Lanka Coastal Shelf",
+      coords: [6.9, 79.9],
+      species_count: 54,
+      risk: "High",
+      info: "Multiple coral and seagrass hotspots; local pollution pressures.",
+    },
+    {
+      id: "andaman",
+      name: "Andaman & Nicobar",
+      coords: [10.5, 92.7],
+      species_count: 72,
+      risk: "Critical",
+      info: "High biodiversity; invasive species monitoring needed.",
+    },
+    {
+      id: "maldives",
+      name: "Maldives Atolls",
+      coords: [3.2, 73.2],
+      species_count: 38,
+      risk: "Medium",
+      info: "Coral bleaching susceptibility; active restoration sites.",
+    },
+    {
+      id: "lakshadweep",
+      name: "Lakshadweep",
+      coords: [10.5, 72.6],
+      species_count: 28,
+      risk: "Low",
+      info: "Protected zones present; monitoring ongoing.",
+    },
+    {
+      id: "bay-of-bengal",
+      name: "Bay of Bengal Offshore",
+      coords: [10.0, 85.0],
+      species_count: 19,
+      risk: "High",
+      info: "Shipping/pollution corridor; watch-listed species present.",
+    },
+  ];
+
+  // risk color map (uses same palette present in page)
+  const riskColor = {
+    Critical: "#ff6b6b", // neon red-ish
+    High: "#ffcf33",
+    Medium: "var(--accent-green)",
+    MediumAlt: "#00ff88",
+    Low: "#66d2ff",
+  };
+
+  // ensure leaflet CSS exists (inject if not)
+  useEffect(() => {
+    const checkAndInject = () => {
+      const href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      const exists = Array.from(document.styleSheets).some((s) => (s.href || "").includes("leaflet"));
+      if (!exists) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = href;
+        link.crossOrigin = "";
+        document.head.appendChild(link);
+      }
+    };
+    checkAndInject();
+  }, []);
+
+  useEffect(() => {
+    // create map if not present
+    const el = containerRef.current;
+    if (!el) return;
+    // avoid re-init
+    if (mapRef.current) {
+      setTimeout(() => mapRef.current.invalidateSize(), 200);
+      return;
+    }
+
+    // center over Indian Ocean / Indian subcontinent region
+    const center = [7.5, 82.5];
+    const initialZoom = small ? 4.4 : 5.2;
+
+    const map = L.map(el, {
+      center,
+      zoom: initialZoom,
+      minZoom: 3,
+      maxZoom: 13,
+      zoomControl: true,
+      attributionControl: false,
+      preferCanvas: true,
+    });
+    mapRef.current = map;
+
+    // DARK themed tile layer (Carto dark_all)
+    const tileUrl = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+    const tileLayer = L.tileLayer(tileUrl, {
+      maxZoom: 19,
+    }).addTo(map);
+
+    // Add 'Indian Ocean' label as non-interactive DivIcon (position approximated)
+    // coordinates chosen to appear roughly center-south of India
+    const oceanLabel = L.marker([6.5, 80.5], {
+      interactive: false,
+      icon: L.divIcon({
+        className: "ocean-label",
+        html: "Indian Ocean",
+        iconSize: [160, 30],
+      }),
+    }).addTo(map);
+
+    // Add hollow circle markers (stroke only). radius scaled by species_count.
+    hotspots.forEach((h) => {
+      const cs = getComputedStyle(document.documentElement);
+      const accentGreen = cs.getPropertyValue("--accent-green").trim() || "#00ff88";
+
+      const color =
+        h.risk === "Critical" ? riskColor.Critical :
+        h.risk === "High" ? riskColor.High :
+        h.risk === "Medium" ? (accentGreen || riskColor.MediumAlt) :
+        riskColor.Low;
+
+      const radius = Math.max(6, Math.min(20, Math.round(4 + Math.log(h.species_count + 1) * 4)));
+
+      // hollow: stroke-only circleMarker
+      const circle = L.circleMarker(h.coords, {
+        radius,
+        color: color,         // stroke color
+        weight: 2.8,
+        fill: false,          // <-- no fill to create hollow marker
+        fillOpacity: 0,
+        opacity: 0.96,
+      }).addTo(map);
+
+      // hover interaction: thicker stroke on mouseover for emphasis
+      circle.on("mouseover", function () {
+        this.setStyle({ weight: 4.6 });
+        this.openTooltip();
+      });
+      circle.on("mouseout", function () {
+        this.setStyle({ weight: 2.8 });
+        this.closeTooltip();
+      });
+
+      // styled tooltip / popup (one-liner on hover)
+      const html = `
+        <div style="font-weight:800;color:#ffffff;margin-bottom:6px;">${h.name}</div>
+        <div style="color:rgba(234,246,255,0.85);font-size:13px;">Species: ${h.species_count} • Risk: ${h.risk}</div>
+        <div style="color:rgba(234,246,255,0.82);font-size:12px;margin-top:6px;">${h.info}</div>
+      `;
+      circle.bindTooltip(html, {
+        direction: "top",
+        offset: [0, -8],
+        opacity: 0.99,
+        permanent: false,
+        className: "map-tooltip",
+      });
+
+      // popup on click with themed class
+      circle.on("click", () => {
+        L.popup({ closeButton: true, autoClose: true, className: "map-popup" })
+          .setLatLng(h.coords)
+          .setContent(`<div style="font-weight:900">${h.name}</div><div style="color:rgba(234,246,255,0.92);font-size:13px;margin-top:6px;">Species: ${h.species_count} • Risk: ${h.risk}</div><div style="color:rgba(234,246,255,0.9);font-size:12px;margin-top:8px;">${h.info}</div>`)
+          .openOn(map);
+      });
+    });
+
+    // custom legend control
+    const legend = L.control({ position: small ? "bottomleft" : "bottomright" });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "map-legend");
+      div.innerHTML = `
+        <div style="font-weight:800;margin-bottom:6px;">Hotspot key</div>
+        <div class="row"><div class="swatch" style="background:${riskColor.Critical}"></div><div style="color:var(--text-muted);font-size:13px;">Critical</div></div>
+        <div class="row"><div class="swatch" style="background:${riskColor.High}"></div><div style="color:var(--text-muted);font-size:13px;">High</div></div>
+        <div class="row"><div class="swatch" style="background:var(--accent-green)"></div><div style="color:var(--text-muted);font-size:13px;">Medium</div></div>
+        <div class="row"><div class="swatch" style="background:${riskColor.Low}"></div><div style="color:var(--text-muted);font-size:13px;">Low</div></div>
+      `;
+      return div;
+    };
+    legend.addTo(map);
+    legendControlRef.current = legend;
+
+    // ensure size invalidation responsiveness
+    const onResize = () => {
+      try { map.invalidateSize(); } catch (e) {}
+    };
+    window.addEventListener("resize", onResize);
+
+    // fit to markers nicely at mount
+    const markerLatLngs = hotspots.map((h) => h.coords);
+    if (markerLatLngs.length) {
+      const bounds = L.latLngBounds(markerLatLngs);
+      map.fitBounds(bounds.pad(0.6), { maxZoom: small ? 7 : 9, animate: true });
+    }
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      try {
+        if (legend) map.removeControl(legend);
+        tileLayer.remove();
+        oceanLabel.remove();
+        map.off();
+        map.remove();
+        mapRef.current = null;
+      } catch (e) {}
+    };
+  }, [small]);
+
+  // ensure map redraw if container size changes (e.g. modal open)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (mapRef.current) mapRef.current.invalidateSize();
+    }, 300);
+    return () => clearTimeout(t);
+  }, [smallKey]);
+
+  return (
+    <div
+      id={smallKey}
+      ref={containerRef}
+      className={small ? "map-small leaflet-container" : "map-large leaflet-container"}
+      aria-label="Indian Ocean biodiversity hotspot map"
+    />
+  );
+}
+
+/* -------------------- Map Export Button (dynamic) ----------------------- */
+function MapExportButton() {
+  const handleExport = async () => {
+    // find the modal map container if present, else card map
+    const el = document.querySelector(".map-large") || document.querySelector(".map-small");
+    if (!el) {
+      alert("Map element not found for export.");
+      return;
+    }
+
+    try {
+      // dynamic import to avoid hard dependency if not installed
+      const domtoimage = await import("dom-to-image-more");
+      const dataUrl = await domtoimage.toPng(el, {
+        bgcolor: "#001426",
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+        },
+      });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `hotspot_map_${new Date().toISOString().slice(0,19)}.png`;
+      a.click();
+    } catch (err) {
+      console.warn("Export failed (dom-to-image-more missing?)", err);
+      alert("Map export requires 'dom-to-image-more'. Install it: npm install dom-to-image-more\nOr open / right-click & screenshot as a fallback.");
+    }
+  };
+
+  return (
+    <button className="btn ghost" onClick={handleExport} title="Export map view to PNG">
+      Export PNG
+    </button>
+  );
 }

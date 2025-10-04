@@ -1,11 +1,12 @@
-﻿/* index.css — replace current content with this */
+﻿/* Leaflet CSS (needed for proper tile/tooltip/layout) */
+@import "leaflet/dist/leaflet.css";
+/* index.css — replace current content with this */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Leaflet CSS (needed for proper tile/tooltip/layout) */
-@import "leaflet/dist/leaflet.css";
+
 
 /* Keep full-height root so background canvases and layout work */
 html, body, #root {
