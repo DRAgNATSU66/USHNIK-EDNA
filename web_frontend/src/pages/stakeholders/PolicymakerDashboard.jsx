@@ -194,8 +194,9 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 /* card styles */
+/* NOTE: increased contrast/opacity compared to previous version so cards remain readable */
 .card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.04));
   border-radius:14px;
   padding:18px;
   border: 1px solid var(--glass-border);
@@ -234,8 +235,33 @@ body::-webkit-scrollbar-thumb:hover {
 .btn.primary { background:var(--gradient-primary); color:white; box-shadow:0 12px 40px rgba(0,102,255,0.16); }
 .btn.ghost { background:transparent; color:var(--text-muted); border:1px solid rgba(255,255,255,0.03); }
 
-.modal-backdrop { position:fixed; inset:0; background:rgba(2,8,18,0.6); display:flex; align-items:center; justify-content:center; z-index:40; }
-.modal { width:calc(100% - 64px); max-width:1000px; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); border-radius:12px; padding:20px; border:1px solid var(--glass-border); box-shadow:0 30px 80px rgba(0,10,30,0.6); max-height:90vh; overflow:auto; }
+/* modal backdrop = soft dim + blur without changing card opacity */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 18, 0.45); /* soft dark overlay */
+  backdrop-filter: blur(6px) saturate(0.95); /* blur the page behind modal */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  pointer-events: auto; /* capture interactions so background isn't clickable */
+}
+
+/* keep modal itself sharp and above backdrop */
+.modal {
+  width:calc(100% - 64px);
+  max-width:1000px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+  border-radius:12px;
+  padding:20px;
+  border:1px solid var(--glass-border);
+  box-shadow:0 30px 80px rgba(0,10,30,0.6);
+  max-height:90vh;
+  overflow:auto;
+  position: relative;
+  z-index: 61;
+}
 
 /* Leaflet container styling (keeps theme) */
 .leaflet-container {
@@ -249,10 +275,101 @@ body::-webkit-scrollbar-thumb:hover {
 /* large map in modal */
 .map-large { height: 60vh; width: 100%; border-radius: 10px; }
 
-/* DARK tiles should match the UI — no hue-rotate here (we use dark tiles) */
+/* POPULATE HOVER PULSE STYLES - uses variables so colors match the page */
+/* marker wrapper default ensures transparent center so underlying map shows */
+.hotspot-wrapper { background: transparent; }
 
-/* hollow marker style is stroke-only (circleMarker uses stroke color) */
-/* tooltip and popup readability — styled to match site card theme */
+/* hotspot element (two layers): ring stroke + dot */
+.hotspot {
+  position: relative;
+  display: inline-block;
+  transform: translate(-50%, -50%); /* anchor centers icon correctly */
+  width: 36px;
+  height: 36px;
+  pointer-events: auto;
+}
+.hotspot .ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  box-sizing: border-box;
+  border: 2.6px solid rgba(0,0,0,0.0); /* overridden per-risk color inline */
+  background: transparent;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+  will-change: transform, box-shadow;
+  z-index: 2;
+}
+.hotspot .dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.0); /* usually transparent small center */
+  z-index: 3;
+}
+
+/* pulse element sits behind ring and animates on hover */
+.hotspot .pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%) scale(0.8);
+  border-radius: 999px;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+/* Animation keyframes */
+@keyframes hotspot-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0.38;
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1.28);
+    opacity: 0.18;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Hover / active state - start pulse and enlarge ring slightly */
+.hotspot.hover .ring {
+  transform: translate(-50%, -50%) scale(1.06);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.36);
+}
+.hotspot.hover .pulse {
+  opacity: 1;
+  animation: hotspot-pulse 1400ms cubic-bezier(.2,.9,.3,1) infinite;
+}
+
+/* per-risk color presets - stroke and pulse colors use neon palette */
+.hotspot.critical .ring { border-color: #ff6b6b; }
+.hotspot.critical .pulse { box-shadow: 0 0 28px 6px rgba(255,107,107,0.12), inset 0 0 18px rgba(255,107,107,0.06); background: radial-gradient(circle at 50% 50%, rgba(255,107,107,0.14), transparent 40%); }
+
+.hotspot.high .ring { border-color: #ffcf33; }
+.hotspot.high .pulse { box-shadow: 0 0 28px 6px rgba(255,207,51,0.12), inset 0 0 18px rgba(255,207,51,0.04); background: radial-gradient(circle at 50% 50%, rgba(255,207,51,0.12), transparent 40%); }
+
+.hotspot.medium .ring { border-color: var(--accent-green); }
+.hotspot.medium .pulse { box-shadow: 0 0 28px 6px rgba(0,255,136,0.12), inset 0 0 18px rgba(0,255,136,0.04); background: radial-gradient(circle at 50% 50%, rgba(0,255,136,0.12), transparent 40%); }
+
+.hotspot.low .ring { border-color: #66d2ff; }
+.hotspot.low .pulse { box-shadow: 0 0 28px 6px rgba(102,210,255,0.12), inset 0 0 18px rgba(102,210,255,0.04); background: radial-gradient(circle at 50% 50%, rgba(102,210,255,0.10), transparent 40%); }
+
+/* tooltip and popup readability */
 .leaflet-tooltip.map-tooltip {
   background: linear-gradient(135deg, rgba(0,48,90,0.95), rgba(0,64,130,0.95)) !important;
   color: #ffffff !important;
@@ -484,7 +601,6 @@ body::-webkit-scrollbar-thumb:hover {
                 <h3 style={{ margin: 0 }}>Map Viewer</h3>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn ghost" onClick={() => downloadCSV(sampleCSVRows, "map-region.csv")}>Export CSV</button>
-                  {/* Export PNG using dynamic import of dom-to-image-more */}
                   <MapExportButton />
                   <button className="btn primary" onClick={() => setMapOpen(false)}>Close</button>
                 </div>
@@ -996,7 +1112,6 @@ function MapComponent({ smallKey = "map", small = true }) {
     }).addTo(map);
 
     // Add 'Indian Ocean' label as non-interactive DivIcon (position approximated)
-    // coordinates chosen to appear roughly center-south of India
     const oceanLabel = L.marker([6.5, 80.5], {
       interactive: false,
       icon: L.divIcon({
@@ -1006,60 +1121,97 @@ function MapComponent({ smallKey = "map", small = true }) {
       }),
     }).addTo(map);
 
-    // Add hollow circle markers (stroke only). radius scaled by species_count.
+    // Use divIcon hotspots with hollow ring + dot + pulse which animates on hover
     hotspots.forEach((h) => {
       const cs = getComputedStyle(document.documentElement);
       const accentGreen = cs.getPropertyValue("--accent-green").trim() || "#00ff88";
-
       const color =
         h.risk === "Critical" ? riskColor.Critical :
         h.risk === "High" ? riskColor.High :
         h.risk === "Medium" ? (accentGreen || riskColor.MediumAlt) :
         riskColor.Low;
 
-      const radius = Math.max(6, Math.min(20, Math.round(4 + Math.log(h.species_count + 1) * 4)));
+      const radius = Math.max(10, Math.min(28, Math.round(6 + Math.log(h.species_count + 1) * 6)));
+      const size = radius * 2;
 
-      // hollow: stroke-only circleMarker
-      const circle = L.circleMarker(h.coords, {
-        radius,
-        color: color,         // stroke color
-        weight: 2.8,
-        fill: false,          // <-- no fill to create hollow marker
-        fillOpacity: 0,
-        opacity: 0.96,
-      }).addTo(map);
-
-      // hover interaction: thicker stroke on mouseover for emphasis
-      circle.on("mouseover", function () {
-        this.setStyle({ weight: 4.6 });
-        this.openTooltip();
-      });
-      circle.on("mouseout", function () {
-        this.setStyle({ weight: 2.8 });
-        this.closeTooltip();
-      });
-
-      // styled tooltip / popup (one-liner on hover)
+      // make HTML for divIcon. classes include risk-based classnames for styling.
+      const safeRiskClass = h.risk.toLowerCase().replace(/\s+/g, "-");
       const html = `
-        <div style="font-weight:800;color:#ffffff;margin-bottom:6px;">${h.name}</div>
-        <div style="color:rgba(234,246,255,0.85);font-size:13px;">Species: ${h.species_count} • Risk: ${h.risk}</div>
-        <div style="color:rgba(234,246,255,0.82);font-size:12px;margin-top:6px;">${h.info}</div>
+        <div class="hotspot" data-radius="${radius}">
+          <div class="pulse"></div>
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>
       `;
-      circle.bindTooltip(html, {
-        direction: "top",
-        offset: [0, -8],
-        opacity: 0.99,
-        permanent: false,
-        className: "map-tooltip",
+
+      // create divIcon & marker
+      const icon = L.divIcon({
+        html,
+        className: `hotspot-wrapper ${safeRiskClass}`, // wrapper holds CSS scope
+        iconSize: [size, size],
+        iconAnchor: [radius, radius],
       });
 
-      // popup on click with themed class
-      circle.on("click", () => {
-        L.popup({ closeButton: true, autoClose: true, className: "map-popup" })
-          .setLatLng(h.coords)
-          .setContent(`<div style="font-weight:900">${h.name}</div><div style="color:rgba(234,246,255,0.92);font-size:13px;margin-top:6px;">Species: ${h.species_count} • Risk: ${h.risk}</div><div style="color:rgba(234,246,255,0.9);font-size:12px;margin-top:8px;">${h.info}</div>`)
-          .openOn(map);
-      });
+      const marker = L.marker(h.coords, { icon }).addTo(map);
+
+      // After adding marker, apply per-instance inline styles to set border color & pulse color
+      // We query the created DOM node (Leaflet attaches it)
+      setTimeout(() => {
+        try {
+          const node = marker.getElement();
+          if (!node) return;
+          const hotspotEl = node.querySelector(".hotspot");
+          const ringEl = node.querySelector(".ring");
+          const pulseEl = node.querySelector(".pulse");
+          const dotEl = node.querySelector(".dot");
+
+          if (ringEl) {
+            ringEl.style.borderColor = color;
+          }
+          if (pulseEl) {
+            // subtle background gradient derived from color
+            pulseEl.style.background = `radial-gradient(circle at 50% 50%, ${color}33, transparent 40%)`;
+            pulseEl.style.boxShadow = `0 0 28px 6px ${hexToRgba(color,0.12)}`;
+          }
+          if (dotEl) {
+            // inner dot subtle tint
+            dotEl.style.background = `${hexToRgba(color,0.95)}`;
+            dotEl.style.width = `${Math.max(8, Math.round(radius*0.36))}px`;
+            dotEl.style.height = `${Math.max(8, Math.round(radius*0.36))}px`;
+          }
+
+          // add hover listeners to toggle .hover class which runs the pulse animation
+          node.addEventListener("mouseover", () => {
+            hotspotEl && hotspotEl.classList.add("hover");
+          });
+          node.addEventListener("mouseout", () => {
+            hotspotEl && hotspotEl.classList.remove("hover");
+          });
+
+          // tooltip + popup setup (readable themed)
+          const tipHtml = `
+            <div style="font-weight:900;color:#ffffff;margin-bottom:6px;">${h.name}</div>
+            <div style="color:rgba(234,246,255,0.92);font-size:13px;">Species: ${h.species_count} • Risk: ${h.risk}</div>
+            <div style="color:rgba(234,246,255,0.9);font-size:12px;margin-top:6px;">${h.info}</div>
+          `;
+          marker.bindTooltip(tipHtml, {
+            direction: "top",
+            offset: [0, -radius - 6],
+            opacity: 0.99,
+            permanent: false,
+            className: "map-tooltip",
+          });
+
+          marker.on("click", () => {
+            L.popup({ closeButton: true, autoClose: true, className: "map-popup" })
+              .setLatLng(h.coords)
+              .setContent(`<div style="font-weight:900">${h.name}</div><div style="color:rgba(234,246,255,0.92);font-size:13px;margin-top:6px;">Species: ${h.species_count} • Risk: ${h.risk}</div><div style="color:rgba(234,246,255,0.9);font-size:12px;margin-top:8px;">${h.info}</div>`)
+              .openOn(map);
+          });
+        } catch (e) {
+          // graceful no-op
+        }
+      }, 0);
     });
 
     // custom legend control
@@ -1125,7 +1277,6 @@ function MapComponent({ smallKey = "map", small = true }) {
 /* -------------------- Map Export Button (dynamic) ----------------------- */
 function MapExportButton() {
   const handleExport = async () => {
-    // find the modal map container if present, else card map
     const el = document.querySelector(".map-large") || document.querySelector(".map-small");
     if (!el) {
       alert("Map element not found for export.");
@@ -1133,7 +1284,6 @@ function MapExportButton() {
     }
 
     try {
-      // dynamic import to avoid hard dependency if not installed
       const domtoimage = await import("dom-to-image-more");
       const dataUrl = await domtoimage.toPng(el, {
         bgcolor: "#001426",
@@ -1157,4 +1307,19 @@ function MapExportButton() {
       Export PNG
     </button>
   );
+}
+
+/* ---------------------------- Utilities -------------------------------- */
+/** Convert hex to rgba string with alpha (hex may be #rgb, #rrggbb) */
+function hexToRgba(hex, alpha = 1) {
+  try {
+    const h = hex.replace("#", "");
+    const bigint = parseInt(h.length === 3 ? h.split("").map(c=>c+c).join("") : h, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch (e) {
+    return `rgba(0,212,255,${alpha})`;
+  }
 }
