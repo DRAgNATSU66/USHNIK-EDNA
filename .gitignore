@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 ENV/
+gpu_env/
 
 # Secrets
 .env

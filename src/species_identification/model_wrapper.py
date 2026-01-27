@@ -1,219 +1,213 @@
+# src/species_identification/model_wrapper.py
 """
-Model wrapper / adapter layer.
+Model wrapper / adapter layer for eDNA species classification.
 
-Priority logic (dynamic):
- 1) sandipan_local (models/sandipan_models.model_interface) if present
- 2) Hugging Face helper (src.species_identification.hf_inference) if USE_HF=true
- 3) models/species_clf.pkl (sklearn_local) if present
- 4) Dummy fallback returning 'Unknown'
+Priority logic:
+  1) NTWrapper (real trained nucleotide-transformer model) if USE_HF=true
+  2) Error - NO FAKE SPECIES, NO MOCKS
 
-This file intentionally reads the USE_HF flag at runtime (not once at import) so
-you can toggle the env var without restarting Python in many cases.
+Environment variables:
+  USE_HF: Set to "true" to enable nucleotide transformer model (required)
+  HF_MODEL_PATH: Path to trained model directory (default: models/trained_nt)
+
+IMPORTANT: All mock models have been removed. This module will raise
+an error if no real model is available.
 """
+
 import os
 import typing as t
-import importlib
-import importlib.util
 from abc import ABC, abstractmethod
 
+
 def is_hf_enabled() -> bool:
-    """Read USE_HF from environment at call time (dynamic)."""
+    """Check if HuggingFace/NT model is enabled via environment."""
     return os.getenv("USE_HF", "false").lower() in ("1", "true", "yes")
 
 
+def get_model_path() -> str:
+    """Get model path from environment."""
+    return os.getenv("HF_MODEL_PATH", "models/trained_nt")
+
+
 class ModelWrapperBase(ABC):
+    """Base class for model wrappers."""
+    
     @classmethod
     @abstractmethod
     def available(cls) -> bool:
+        """Check if this model is available."""
         pass
-
+    
     @classmethod
     @abstractmethod
     def load(cls, **kwargs) -> "ModelWrapperBase":
+        """Load the model."""
         pass
-
+    
     @abstractmethod
     def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
+        """
+        Predict species for a batch of sequences.
+        
+        Args:
+            sequences: List of dicts with keys: sequence_id, sequence
+        
+        Returns:
+            List of dicts with keys: sequence_id, sequence, predicted_species, confidence, source
+        """
         pass
 
 
-# -------------------------
-# Sandipan wrapper
-# -------------------------
-class SandipanWrapper(ModelWrapperBase):
-    def __init__(self, iface_module, model_obj):
-        self.iface = iface_module
-        self.model = model_obj
-
+class NTWrapper(ModelWrapperBase):
+    """
+    Nucleotide Transformer model wrapper using trained InstaDeepAI model.
+    
+    Loads model from HF_MODEL_PATH and performs GPU inference.
+    Uses nt_inference module for actual predictions.
+    """
+    
+    def __init__(self, nt_module):
+        self.nt = nt_module
+    
     @classmethod
     def available(cls) -> bool:
-        try:
-            spec = importlib.util.find_spec("models.sandipan_models.model_interface")
-            return spec is not None
-        except Exception:
+        """Check if NT model is available and configured."""
+        if not is_hf_enabled():
             return False
-
-    @classmethod
-    def load(cls, model_path: str = "models/sandipan_models", **kwargs) -> "SandipanWrapper":
-        module = importlib.import_module("models.sandipan_models.model_interface")
-        model_obj = module.load(model_path)
-        return cls(iface_module=module, model_obj=model_obj)
-
-    def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
-        seqs = [s["sequence"] for s in sequences]
-        results = self.iface.predict_batch(self.model, seqs)
-        out = []
-        for s, r in zip(sequences, results):
-            out.append({
-                "sequence_id": s.get("sequence_id"),
-                "sequence": s.get("sequence"),
-                "predicted_species": r.get("predicted_species") or r.get("label") or "Unknown",
-                "confidence": float(r.get("confidence", 0.0)),
-                "source": "sandipan_local",
-            })
-        return out
-
-
-# -------------------------
-# HF wrapper (lazy)
-# -------------------------
-class HFWrapper(ModelWrapperBase):
-    def __init__(self, hf_module):
-        self.hf = hf_module
-
-    @classmethod
-    def available(cls) -> bool:
-        try:
-            spec = importlib.util.find_spec("src.species_identification.hf_inference")
-            return spec is not None
-        except Exception:
+        
+        # Check if model directory exists
+        model_path = get_model_path()
+        if not os.path.exists(model_path):
+            print(f"[NTWrapper] Model path does not exist: {model_path}")
             return False
-
-    @classmethod
-    def load(cls, **kwargs) -> "HFWrapper":
-        hf_module = importlib.import_module("src.species_identification.hf_inference")
-        return cls(hf_module)
-
-    def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
-        seqs = [s["sequence"] for s in sequences]
-        hf_results = self.hf.predict_batch(seqs)
-        out = []
-        for s, r in zip(sequences, hf_results):
-            out.append({
-                "sequence_id": s.get("sequence_id"),
-                "sequence": s.get("sequence"),
-                "predicted_species": r.get("predicted_species") or r.get("label") or "Unknown",
-                "confidence": float(r.get("confidence", 0.0)),
-                "source": "huggingface_api",
-            })
-        return out
-
-
-# -------------------------
-# Sklearn wrapper
-# -------------------------
-class SklearnWrapper(ModelWrapperBase):
-    def __init__(self, model, vectorizer=None):
-        self.model = model
-        self.vectorizer = vectorizer
-
-    @classmethod
-    def available(cls) -> bool:
-        return os.path.exists(os.path.join("models", "species_clf.pkl"))
-
-    @classmethod
-    def load(cls, path: str = os.path.join("models", "species_clf.pkl"), **kwargs) -> "SklearnWrapper":
-        try:
-            import joblib  # type: ignore
-        except Exception as e:
-            raise RuntimeError("joblib is required to load sklearn model") from e
-
-        obj = joblib.load(path)
-        if isinstance(obj, dict):
-            model = obj.get("model")
-            vectorizer = obj.get("vectorizer")
-        else:
-            model = obj
-            vectorizer = None
-        return cls(model=model, vectorizer=vectorizer)
-
-    def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
-        texts = [s["sequence"] for s in sequences]
-        try:
-            X = self.vectorizer.transform(texts) if self.vectorizer else texts
-        except Exception:
-            X = texts
-        try:
-            preds = self.model.predict(X)
-        except Exception:
-            preds = ["Unknown"] * len(texts)
-        probs = None
-        try:
-            if hasattr(self.model, "predict_proba"):
-                probs = self.model.predict_proba(X)
-        except Exception:
-            probs = None
-
-        out = []
-        for i, s in enumerate(sequences):
-            predicted = str(preds[i])
-            confidence = float(max(probs[i]) if probs is not None else 0.0)
-            out.append({
-                "sequence_id": s.get("sequence_id"),
-                "sequence": s.get("sequence"),
-                "predicted_species": predicted,
-                "confidence": confidence,
-                "source": "sklearn_local",
-            })
-        return out
-
-
-# -------------------------
-# Dummy fallback
-# -------------------------
-class DummyWrapper(ModelWrapperBase):
-    @classmethod
-    def available(cls) -> bool:
+        
+        # Check for required files
+        required_files = ["label_map.json", "training_config.json"]
+        for f in required_files:
+            fpath = os.path.join(model_path, f)
+            if not os.path.exists(fpath):
+                print(f"[NTWrapper] Missing required file: {f}")
+                return False
+        
+        # Check for model weights
+        model_file = os.path.join(model_path, "model.pt")
+        classifier_file = os.path.join(model_path, "classifier_head.pt")
+        if not os.path.exists(model_file) and not os.path.exists(classifier_file):
+            print(f"[NTWrapper] Missing model weights (model.pt or classifier_head.pt)")
+            return False
+        
         return True
-
+    
     @classmethod
-    def load(cls, **kwargs) -> "DummyWrapper":
-        return cls()
+    def load(cls, **kwargs) -> "NTWrapper":
+        """Load the nucleotide transformer module."""
+        from src.species_identification import nt_inference
+        return cls(nt_inference)
+    
+    def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
+        """Run real inference on sequences."""
+        if not sequences:
+            return []
+        
+        # Extract raw sequences
+        seqs = [s.get("sequence", "") for s in sequences]
+        
+        # Run inference using nt_inference module
+        nt_results = self.nt.predict_batch(seqs)
+        
+        # Build output
+        out = []
+        for s, r in zip(sequences, nt_results):
+            out.append({
+                "sequence_id": s.get("sequence_id", ""),
+                "sequence": s.get("sequence", ""),
+                "predicted_species": r.get("label", "Unknown"),
+                "confidence": float(r.get("confidence", 0.0)),
+                "source": "huggingface_trained"
+            })
+        
+        return out
 
-    def predict_batch(self, sequences):
-        return [{
-            "sequence_id": s.get("sequence_id"),
-            "sequence": s.get("sequence"),
-            "predicted_species": "Unknown",
-            "confidence": 0.0,
-            "source": "none",
-        } for s in sequences]
+
+# Keep HFWrapper as alias for backward compatibility
+HFWrapper = NTWrapper
 
 
-# -------------------------
-# get_best_model: orchestrates priority (evaluates USE_HF dynamically)
-# -------------------------
+class ModelNotAvailableError(Exception):
+    """Raised when no valid model is available."""
+    pass
+
+
+class ErrorWrapper(ModelWrapperBase):
+    """
+    Error wrapper - raises clear error instead of returning fake species.
+    
+    This is used when no real model is available. It provides a clear
+    error message instead of returning fake/mock predictions.
+    """
+    
+    def __init__(self, error_message: str):
+        self.error_message = error_message
+    
+    @classmethod
+    def available(cls) -> bool:
+        return True  # Always available as fallback
+    
+    @classmethod
+    def load(cls, **kwargs) -> "ErrorWrapper":
+        model_path = get_model_path()
+        use_hf = is_hf_enabled()
+        
+        if not use_hf:
+            msg = (
+                "Model inference is disabled. Set USE_HF=true in environment.\n"
+                "Also ensure HF_MODEL_PATH points to a trained model directory."
+            )
+        else:
+            msg = (
+                f"Trained model not found at: {model_path}\n"
+                f"Please train a model first using train_nt.py or set HF_MODEL_PATH correctly.\n"
+                f"Required files: label_map.json, training_config.json, model.pt (or classifier_head.pt)"
+            )
+        
+        return cls(error_message=msg)
+    
+    def predict_batch(self, sequences: t.List[t.Dict]) -> t.List[t.Dict]:
+        """Raise error instead of returning fake predictions."""
+        raise ModelNotAvailableError(self.error_message)
+
+
 def get_best_model() -> ModelWrapperBase:
-    # 1) sandipan_local
-    try:
-        if SandipanWrapper.available():
-            return SandipanWrapper.load()
-    except Exception as e:
-        print("SandipanWrapper failed to load:", e)
+    """
+    Get the best available model wrapper.
+    
+    Priority:
+      1) NTWrapper (real trained nucleotide-transformer) if USE_HF=true and model exists
+      2) ErrorWrapper (raises clear error with HTTP 503)
+    
+    NO MOCKS, NO FAKE SPECIES.
+    """
+    # Try Nucleotide Transformer wrapper
+    if is_hf_enabled():
+        try:
+            if NTWrapper.available():
+                print("[model_wrapper] Loading NTWrapper (real trained nucleotide-transformer)")
+                return NTWrapper.load()
+            else:
+                print("[model_wrapper] NTWrapper not available (model missing)")
+        except Exception as e:
+            print(f"[model_wrapper] NTWrapper failed to load: {e}")
+    else:
+        print("[model_wrapper] USE_HF not enabled")
+    
+    # No real model available - return error wrapper
+    print("[model_wrapper] WARNING: No real model available, using ErrorWrapper")
+    return ErrorWrapper.load()
 
-    # 2) HF (if allowed at call time)
-    try:
-        if is_hf_enabled() and HFWrapper.available():
-            return HFWrapper.load()
-    except Exception as e:
-        print("HFWrapper failed to load:", e)
 
-    # 3) sklearn_local
-    try:
-        if SklearnWrapper.available():
-            return SklearnWrapper.load()
-    except Exception as e:
-        print("SklearnWrapper failed to load:", e)
-
-    # 4) fallback
-    return DummyWrapper.load()
+# Legacy compatibility - raise clear error for old mock imports
+def _raise_mock_removed_error():
+    raise ImportError(
+        "Mock models have been removed. Use real trained model.\n"
+        "Set USE_HF=true and HF_MODEL_PATH=models/trained_nt"
+    )

@@ -1,0 +1,19 @@
+Config OK: hidden_size=1280
+ERROR: Due to a serious vulnerability issue in `torch.load`, even with `weights_only=True`, we now require users to upgrade torch to at least v2.6 in order to use the function. This version restriction does not apply when loading files with safetensors.
+See the vulnerability report here https://nvd.nist.gov/vuln/detail/CVE-2025-32434
+
+TRACEBACK:
+Traceback (most recent call last):
+  File "<string>", line 12, in <module>
+  File "C:\Users\ushni\Documents\SIH_REPO\gpu_env\lib\site-packages\transformers\models\auto\auto_factory.py", line 372, in from_pretrained
+    return model_class.from_pretrained(
+  File "C:\Users\ushni\Documents\SIH_REPO\gpu_env\lib\site-packages\transformers\modeling_utils.py", line 4109, in from_pretrained
+    load_info = cls._load_pretrained_model(model, state_dict, checkpoint_files, load_config)
+  File "C:\Users\ushni\Documents\SIH_REPO\gpu_env\lib\site-packages\transformers\modeling_utils.py", line 4226, in _load_pretrained_model
+    merged_state_dict.update(load_state_dict(ckpt_file))
+  File "C:\Users\ushni\Documents\SIH_REPO\gpu_env\lib\site-packages\transformers\modeling_utils.py", line 341, in load_state_dict
+    check_torch_load_is_safe()
+  File "C:\Users\ushni\Documents\SIH_REPO\gpu_env\lib\site-packages\transformers\utils\import_utils.py", line 1253, in check_torch_load_is_safe
+    raise ValueError(
+ValueError: Due to a serious vulnerability issue in `torch.load`, even with `weights_only=True`, we now require users to upgrade torch to at least v2.6 in order to use the function. This version restriction does not apply when loading files with safetensors.
+See the vulnerability report here https://nvd.nist.gov/vuln/detail/CVE-2025-32434
