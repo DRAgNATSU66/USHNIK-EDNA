@@ -1,0 +1,26 @@
+{
+  "model_id": "dnabert2_bacteria_v1",
+  "route": "bacteria_pathogen",
+  "base_model": "zhihan1996/DNABERT-2-117M",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "known_species",
+    "likely_taxonomic_group",
+    "possible_novelty",
+    "possible_contamination"
+  ],
+  "training_dataset_version": null,
+  "metrics": {},
+  "thresholds": {
+    "high_confidence": 0.70,
+    "low_confidence": 0.40
+  },
+  "artifact_uri": null,
+  "checksum": null,
+  "created_at": "2026-05-26",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "16S rRNA V3-V4 classifier for bacteria and archaea. Base: DNABERT-2 117M. Head: linear probe, 4-class. Lower high_confidence threshold reflects higher natural diversity in bacteria."
+}

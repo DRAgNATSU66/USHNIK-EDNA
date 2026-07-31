@@ -3,12 +3,12 @@
 # WSL2 Setup Script for InstaDeepAI Nucleotide Transformer
 # =============================================================================
 # Run this inside Ubuntu WSL2 shell after running the PowerShell setup commands
-# Usage: bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_setup.sh
+# Usage: bash /mnt/c/Users/ushni/Documents/SYNTH VEDA/scripts/wsl_setup.sh
 # =============================================================================
 
 set -e  # Exit on error
 
-REPO_PATH="/mnt/c/Users/ushni/Documents/SIH_REPO"
+REPO_PATH="/mnt/c/Users/ushni/Documents/SYNTH VEDA"
 VENV_NAME="wsl_env"
 
 echo "=============================================="

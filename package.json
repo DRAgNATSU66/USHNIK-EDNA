@@ -1,4 +1,5 @@
 {
+  "name": "synth-veda",
   "dependencies": {
     "dom-to-image-more": "^3.7.1",
     "leaflet": "^1.9.4",

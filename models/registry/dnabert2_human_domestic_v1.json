@@ -1,0 +1,24 @@
+{
+  "model_id": "dnabert2_human_domestic_v1",
+  "route": "human_domestic_contamination",
+  "base_model": "zhihan1996/DNABERT-2-117M",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "possible_contamination",
+    "known_species"
+  ],
+  "training_dataset_version": null,
+  "metrics": {},
+  "thresholds": {
+    "high_confidence": 0.80,
+    "low_confidence": 0.50
+  },
+  "artifact_uri": null,
+  "checksum": null,
+  "created_at": "2026-05-26",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "Human and domestic animal contamination detector. Higher thresholds — false positives here are costly. Covers human mtDNA D-loop, Alu elements, and common domestic animal signatures."
+}

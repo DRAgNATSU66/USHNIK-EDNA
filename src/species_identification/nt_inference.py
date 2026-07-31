@@ -63,7 +63,7 @@ def _get_model_path() -> str:
     # Default paths based on platform
     if platform.system() == "Linux":
         # Check if running in WSL (Linux with Windows filesystem access)
-        wsl_path = "/mnt/c/Users/ushni/Documents/SIH_REPO/models/trained_nt"
+        wsl_path = "/mnt/c/Users/ushni/Documents/SYNTH VEDA/models/trained_nt"
         if os.path.exists(wsl_path):
             return wsl_path
     

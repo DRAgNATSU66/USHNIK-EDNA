@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pyo
 
 # Virtual environments
 .venv/
@@ -12,6 +13,8 @@ gpu_env/
 
 # Secrets
 .env
+.env.*
+!.env.example
 
 # Jupyter
 .ipynb_checkpoints/
@@ -19,18 +22,73 @@ gpu_env/
 # Caches
 .cache/
 *.cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/
+.pnp
+.pnp.js
 
 # Build outputs
 dist/
 build/
+*.egg-info/
+.eggs/
 
-# Data (large files) - do NOT push large datasets to git
+# Data (large files)
 data/
 data/*
+sample_as_json.json
 
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Model artifacts (keep registry metadata only — binaries go to HF Hub or object storage)
+models/sandipan_models/
+models/trained_dnabert/
+models/trained_nt/
+models/*.pkl
+models/*.bin
+models/*.pt
+models/*.safetensors
+models/*.gguf
+models/*.onnx
+models/checkpoints/
+# Training run outputs (large artifacts, not committed — upload to HF Hub or object storage)
+models/runs/
+
+# Temp/debug output files
+train_output.txt
+nt_load_error.txt
+*.bak
+
+# Frontend backup
+backup_frontend/
+
+# Rust
+packages/fastx_parser/target/
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Docker
+infra/docker/.env
+
+# Terraform state and variable values (may contain secrets)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform.lock.hcl

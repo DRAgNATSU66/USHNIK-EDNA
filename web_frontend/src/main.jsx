@@ -1,50 +1,124 @@
-﻿// web_frontend/src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import App from "./App"; // Analytics page (Page 2)
-import Landing from "./pages/Landing"; // Landing page (Page 1)
-import Admin from "./pages/Admin"; // Admin page (Page 3 - curation)
-import StakeholderDashboardPage from "./pages/StakeholderDashboardPage"; // Stakeholder page (selected from Analytics)
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+// Pages
+import Landing from "./pages/Landing";
+import Dashboard from "./pages/Dashboard";
+import Upload from "./pages/Upload";
+import JobProgress from "./pages/JobProgress";
+import AnalysisResults from "./pages/AnalysisResults";
+import ReviewQueue from "./pages/ReviewQueue";
+import Admin from "./pages/Admin";
+import ModelStatus from "./pages/ModelStatus";
+import AbyssSetup from "./pages/AbyssSetup";
+
 import "./index.css";
 
-// NOTE: If you haven't yet created StakeholderDashboardPage.jsx, keep the file import
-// and create that component later in src/pages. The dev server will show an error
-// until that component exists. If you'd rather avoid the import error now, temporarily
-// comment the import and the corresponding Route line.
+const isCurator = (role) =>
+  ["curator", "admin", "company_owner"].includes(role);
 
-function RootRoutes() {
+const isAdmin = (role) =>
+  role === "admin";
+
+function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Landing */}
-        <Route path="/" element={<Landing />} />
+    <Routes>
+      {/* Public */}
+      <Route path="/" element={<Landing />} />
 
-        {/* Analytics (Page 2) */}
-        <Route path="/analytics" element={<App />} />
+      {/* Protected: any authenticated user */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/upload"
+        element={
+          <ProtectedRoute>
+            <Upload />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jobs/:job_id"
+        element={
+          <ProtectedRoute>
+            <JobProgress />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analysis/:analysis_id"
+        element={
+          <ProtectedRoute>
+            <AnalysisResults />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/models"
+        element={
+          <ProtectedRoute>
+            <ModelStatus />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/abyss"
+        element={
+          <ProtectedRoute>
+            <AbyssSetup />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* Admin (Page 3 option A) */}
-        <Route path="/admin" element={<Admin />} />
+      {/* Protected: curator/admin only */}
+      <Route
+        path="/reviews"
+        element={
+          <ProtectedRoute requiredRole={isCurator}>
+            <ReviewQueue />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* Stakeholder (Page 3 option B) - two-state page (selection / dashboard) */}
-        <Route path="/stakeholder" element={<StakeholderDashboardPage />} />
+      {/* Protected: admin only (component also guards internally) */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requiredRole={isAdmin}>
+            <Admin />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* helpful shortcuts */}
-        <Route path="/home" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+      {/* Redirects */}
+      <Route path="/home" element={<Navigate to="/" replace />} />
+      <Route path="/analytics" element={<Navigate to="/upload" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
-  throw new Error("Root element not found. Make sure there is a <div id='root'></div> in index.html");
+  throw new Error("Root element not found. Ensure index.html has <div id='root'></div>.");
 }
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <RootRoutes />
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

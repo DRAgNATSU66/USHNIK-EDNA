@@ -1,0 +1,46 @@
+[package]
+name = "fastx_parser"
+version = "0.1.0"
+edition = "2021"
+description = "Synth Veda fast FASTA/FASTQ streaming parser and batching engine"
+authors = ["Synth Veda"]
+license = "MIT"
+
+[[bin]]
+name = "synthveda-parse"
+path = "src/main.rs"
+
+# Library target: used for integration tests and future PyO3/maturin Python bindings
+[lib]
+name = "fastx_parser"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+rayon = "1"
+
+# PyO3 binding — enable with: cargo build --features pyo3-binding
+# Required when building the Python extension module via maturin.
+pyo3 = { version = "0.21", features = ["extension-module"], optional = true }
+
+[features]
+default = []
+pyo3-binding = ["pyo3"]
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3"
+
+[[bench]]
+name = "parse_bench"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

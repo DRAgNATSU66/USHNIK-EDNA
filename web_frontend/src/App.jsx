@@ -1216,7 +1216,6 @@ html, body, .results-container, .json-preview, .list-scroll, .main-container {
 
         <header className="header">
           <h1 className="logo">eDNA Biodiversity Analyzer</h1>
-          <p className="tagline">Smart India Hackathon 2025</p>
           <p className="subtitle">
             Advanced AI-driven platform for environmental DNA analysis,
             species identification, and biodiversity assessment from deep-sea
@@ -1378,8 +1377,7 @@ html, body, .results-container, .json-preview, .list-scroll, .main-container {
 
         <footer className="footer">
           <div className="footer-content">
-            <div className="footer-text">Built for Smart India Hackathon 2025 — Advanced eDNA Analysis Platform</div>
-            <div className="footer-brand">By 6-Bit Coders</div>
+            <div className="footer-text">Advanced eDNA Analysis Platform</div>
           </div>
         </footer>
       </div>

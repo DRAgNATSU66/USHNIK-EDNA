@@ -1,0 +1,22 @@
+# ML inference dependencies — optional.
+# The worker runs in stub mode without these.
+# Install only when you want live model inference.
+#
+# GPU (CUDA 12.x):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#
+# CPU-only (slower, but works on any machine):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+# Then install the rest:
+#   pip install -r requirements-ml.txt
+
+torch>=2.1.0
+transformers>=4.40.0
+sentencepiece>=0.2.0      # required by DNABERT-2 BPE tokeniser
+accelerate>=0.27.0        # faster model loading, mixed precision
+safetensors>=0.4.0        # safe weight format (never pickle)
+
+# Optional: LoRA fine-tuning (Phase 14)
+# peft>=0.10.0
+# bitsandbytes>=0.43.0  # 8-bit / 4-bit quantisation (Linux/WSL2 only)

@@ -2,26 +2,158 @@ name: CI
 
 on:
   push:
-    branches: [ dev, main ]
+    branches: [main, dev]
   pull_request:
-    branches: [ dev, main ]
+    branches: [main, dev]
+
+# Cancel in-progress runs on the same branch when a new commit is pushed
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  # -----------------------------------------------------------------------
+  # Job 1: API service tests (FastAPI + pytest-asyncio)
+  # -----------------------------------------------------------------------
+  test-api:
+    name: API Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
+
+  # -----------------------------------------------------------------------
+  # Job 2: Worker service tests (pure unit tests, no ML deps)
+  # -----------------------------------------------------------------------
+  test-worker:
+    name: Worker Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/worker/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+
+  # -----------------------------------------------------------------------
+  # Job 3: Frontend lint + production build
+  # -----------------------------------------------------------------------
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web_frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        # Use npm install (not npm ci) so the lock file doesn't need to be committed
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true   # lint warnings should not block CI
+
+      - name: Production build
+        # Supply placeholder env vars so Vite doesn't fail on missing VITE_* vars
+        run: npm run build
+        env:
+          VITE_API_URL: https://placeholder-api.run.app
+          VITE_GOOGLE_CLIENT_ID: placeholder-google-client-id.apps.googleusercontent.com
+
+  # -----------------------------------------------------------------------
+  # Job 4: Python security scan (bandit, medium+ severity)
+  # -----------------------------------------------------------------------
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+      - name: Install bandit
+        run: pip install bandit
 
-      - name: Run tests
-        run: pytest -q
+      - name: Scan API service
+        # -ll = medium+high severity only; -q = suppress file-level INFO
+        run: bandit -r services/api/app -ll --quiet --exclude services/api/app/db/supabase_client.py
+        # supabase_client.py excluded: it uses subprocess-like patterns
+        # that bandit flags but are safe given our use
+
+      - name: Scan worker service
+        run: bandit -r services/worker/app -ll --quiet
+
+      - name: Check no .env secrets committed
+        # Ensure no .env file (excluding .env.example) is tracked in git
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$' | grep -v '\.env\.example'; then
+            echo "ERROR: A .env file is tracked by git. Remove it immediately."
+            exit 1
+          fi
+          echo "No .env files committed — OK"
+
+  # -----------------------------------------------------------------------
+  # Job 5: Docker build validation (verify all three images build cleanly)
+  # -----------------------------------------------------------------------
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    # Only run on pushes to main/dev (not on every PR to save minutes)
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -t synthveda-api:ci services/api/
+
+      - name: Build worker image
+        run: docker build -t synthveda-worker:ci services/worker/
+
+      - name: Build frontend image
+        run: |
+          docker build \
+            --build-arg VITE_API_URL=https://placeholder-api.run.app \
+            --build-arg VITE_GOOGLE_CLIENT_ID=placeholder.apps.googleusercontent.com \
+            -t synthveda-frontend:ci web_frontend/

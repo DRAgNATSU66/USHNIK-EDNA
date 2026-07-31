@@ -1,0 +1,27 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# Never commit terraform.tfvars — it's in .gitignore.
+
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+environment = "production"
+image_tag   = "latest"   # overridden at deploy time with git SHA
+
+# Scale settings — adjust based on traffic
+api_min_instances    = 1
+api_max_instances    = 50
+worker_min_instances = 2
+worker_max_instances = 20
+
+# Cloud Armor rate limit per IP (requests per minute)
+rate_limit_requests_per_minute = 300
+
+# CORS origins (comma-separated, no spaces)
+allowed_origins = "https://synthveda.vercel.app,https://synthveda.io"
+
+# Alert email (leave empty to skip alert notification channel)
+alert_notification_email = "oncall@yourcompany.com"
+
+# Serverless VPC Access connector (must be created before terraform apply)
+# gcloud compute networks vpc-access connectors create synthveda-vpc-connector \
+#   --network=default --region=us-central1 --range=10.8.0.0/28
+vpc_connector_name = "synthveda-vpc-connector"

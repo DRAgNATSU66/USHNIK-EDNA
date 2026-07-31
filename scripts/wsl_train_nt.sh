@@ -3,12 +3,12 @@
 # WSL2 Training Script for InstaDeepAI Nucleotide Transformer
 # =============================================================================
 # Run this inside Ubuntu WSL2 shell after running wsl_setup.sh
-# Usage: bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_train_nt.sh
+# Usage: bash /mnt/c/Users/ushni/Documents/SYNTH VEDA/scripts/wsl_train_nt.sh
 # =============================================================================
 
 set -e
 
-REPO_PATH="/mnt/c/Users/ushni/Documents/SIH_REPO"
+REPO_PATH="/mnt/c/Users/ushni/Documents/SYNTH VEDA"
 VENV_NAME="wsl_env"
 MODEL_NAME="InstaDeepAI/nucleotide-transformer-500m-human-ref"
 OUTPUT_DIR="$REPO_PATH/models/trained_nt"
@@ -91,7 +91,7 @@ echo "=============================================="
 echo ""
 echo "Model saved to: $OUTPUT_DIR"
 echo "This path is accessible from Windows at:"
-echo "  C:\\Users\\ushni\\Documents\\SIH_REPO\\models\\trained_nt\\"
+echo "  C:\\Users\\ushni\\Documents\\SYNTH VEDA\\models\\trained_nt\\"
 echo ""
 echo "Next: Run inference test with:"
 echo "  bash $REPO_PATH/scripts/wsl_infer_nt.sh"

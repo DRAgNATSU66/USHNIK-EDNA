@@ -42,19 +42,19 @@ wsl --install -d Ubuntu-22.04
 # -----------------------------------------------------------------------------
 # Open Ubuntu terminal (from Start menu or run: wsl -d Ubuntu-22.04)
 # Then run:
-#   bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_setup.sh
+#   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_setup.sh
 
 # -----------------------------------------------------------------------------
 # STEP 5: Run training
 # -----------------------------------------------------------------------------
 # In Ubuntu terminal:
-#   bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_train_nt.sh
+#   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_train_nt.sh
 
 # -----------------------------------------------------------------------------
 # STEP 6: Run inference test
 # -----------------------------------------------------------------------------
 # In Ubuntu terminal:
-#   bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_infer_nt.sh
+#   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_infer_nt.sh
 
 # =============================================================================
 # QUICK REFERENCE - Copy-paste commands
@@ -67,10 +67,10 @@ wsl --install -d Ubuntu-22.04
 # wsl --set-default-version 2; wsl --install -d Ubuntu-22.04
 
 # Ubuntu WSL - Run setup:
-# bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_setup.sh
+# bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_setup.sh
 
 # Ubuntu WSL - Run training:
-# bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_train_nt.sh
+# bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_train_nt.sh
 
 # Ubuntu WSL - Run inference:
-# bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_infer_nt.sh
+# bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_infer_nt.sh

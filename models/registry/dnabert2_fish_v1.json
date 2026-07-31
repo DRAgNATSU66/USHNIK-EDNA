@@ -1,0 +1,25 @@
+{
+  "model_id": "dnabert2_fish_v1",
+  "route": "fish",
+  "base_model": "zhihan1996/DNABERT-2-117M",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "known_species",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "training_dataset_version": null,
+  "metrics": {},
+  "thresholds": {
+    "high_confidence": 0.75,
+    "low_confidence": 0.40
+  },
+  "artifact_uri": null,
+  "checksum": null,
+  "created_at": "2026-05-26",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "MiFish 12S rRNA classifier. Base: DNABERT-2 117M (BPE tokeniser). Head: linear probe, 3-class. Training dataset not yet assembled — weights pending Phase 14."
+}

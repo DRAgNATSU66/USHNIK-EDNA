@@ -1,0 +1,103 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: synthveda-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Production: keep min 1 instance to eliminate cold starts.
+        # Scale up to 50 under load; reduce if cost is a concern post-launch.
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "50"
+
+        # CPU always-on — no throttling while handling requests.
+        # Prevents latency spikes from CPU credits being reclaimed mid-request.
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+
+        # VPC connector for private MongoDB Atlas / Upstash Redis access.
+        # Replace YOUR_PROJECT_ID and YOUR_REGION with your values.
+        run.googleapis.com/vpc-access-connector: projects/YOUR_PROJECT_ID/locations/YOUR_REGION/connectors/synthveda-vpc-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+
+    spec:
+      serviceAccountName: synthveda-production-api@YOUR_PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 80
+      timeoutSeconds: 60
+
+      containers:
+        - image: us-docker.pkg.dev/YOUR_PROJECT_ID/synthveda/api:IMAGE_TAG
+          ports:
+            - containerPort: 8000
+
+          resources:
+            limits:
+              cpu: "2"
+              memory: 1Gi
+
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-mongodb-uri
+                  key: latest
+            - name: MONGODB_DB
+              value: synthveda
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-redis-url
+                  key: latest
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-jwt-secret
+                  key: latest
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-google-client-id
+                  key: latest
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-supabase-url
+                  key: latest
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-supabase-service-role-key
+                  key: latest
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-supabase-anon-key
+                  key: latest
+            - name: ALLOWED_ORIGINS
+              value: "https://synthveda.vercel.app,https://synthveda.io"
+            - name: DEBUG
+              value: "false"
+            - name: MAX_UPLOAD_SIZE_MB
+              value: "500"
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 3
+
+  traffic:
+    - percent: 100
+      latestRevision: true

@@ -1,4 +1,4 @@
-# SIH
+# Synth Veda
 
 ## eDNA Species Classification Pipeline
 
@@ -10,7 +10,7 @@ Windows-safe nucleotide transformer implementation for DNA species classificatio
 
 ```powershell
 # 1. Activate environment
-cd c:\Users\ushni\Documents\SIH_REPO
+cd "c:\Users\ushni\Documents\SYNTH VEDA"
 .\gpu_env\Scripts\activate
 
 # 2. (Optional) Convert data if needed

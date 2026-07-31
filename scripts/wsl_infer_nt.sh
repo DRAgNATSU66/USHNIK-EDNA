@@ -3,12 +3,12 @@
 # WSL2 Inference Script for InstaDeepAI Nucleotide Transformer
 # =============================================================================
 # Run this inside Ubuntu WSL2 shell after training completes
-# Usage: bash /mnt/c/Users/ushni/Documents/SIH_REPO/scripts/wsl_infer_nt.sh
+# Usage: bash /mnt/c/Users/ushni/Documents/SYNTH VEDA/scripts/wsl_infer_nt.sh
 # =============================================================================
 
 set -e
 
-REPO_PATH="/mnt/c/Users/ushni/Documents/SIH_REPO"
+REPO_PATH="/mnt/c/Users/ushni/Documents/SYNTH VEDA"
 VENV_NAME="wsl_env"
 MODEL_PATH="$REPO_PATH/models/trained_nt"
 
@@ -68,7 +68,7 @@ echo "=============================================="
 echo ""
 echo "The model is ready for use with FastAPI on Windows."
 echo "Start the server with:"
-echo "  cd C:\\Users\\ushni\\Documents\\SIH_REPO"
+echo "  cd \"C:\\Users\\ushni\\Documents\\SYNTH VEDA\""
 echo "  .\\gpu_env\\Scripts\\activate"
 echo "  uvicorn src.web_api.main:app --host 127.0.0.1 --port 8000"
 echo ""

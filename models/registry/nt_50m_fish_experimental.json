@@ -1,0 +1,25 @@
+{
+  "model_id": "nt_50m_fish_experimental",
+  "route": "fish",
+  "base_model": "InstaDeepAI/nucleotide-transformer-50m-multi-species",
+  "head_type": "sequence_classification",
+  "embedding_dim": 512,
+  "label_set_version": "v1",
+  "label_set": [
+    "known_species",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "training_dataset_version": null,
+  "metrics": {},
+  "thresholds": {
+    "high_confidence": 0.75,
+    "low_confidence": 0.40
+  },
+  "artifact_uri": null,
+  "checksum": null,
+  "created_at": "2026-05-26",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "Alternative to DNABERT-2 for fish route. Nucleotide Transformer 50M uses 6-mer tokenisation. Smaller and faster than DNABERT-2 117M — useful for Abyss Mode offline inference on constrained hardware. Benchmark both before promoting either to staging."
+}

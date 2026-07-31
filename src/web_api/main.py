@@ -245,7 +245,7 @@ async def lifespan(app: FastAPI):
         print("[shutdown] app shutting down.")
 
 
-app = FastAPI(lifespan=lifespan, title="SIH eDNA Analysis API")
+app = FastAPI(lifespan=lifespan, title="Synth Veda eDNA Analysis API")
 
 app.add_middleware(
     CORSMiddleware,

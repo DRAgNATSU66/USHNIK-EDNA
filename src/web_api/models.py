@@ -1,6 +1,6 @@
 # src/web_api/models.py
 """
-Beanie/Motor models for SIH eDNA project.
+Beanie/Motor models for the Synth Veda eDNA project.
 This version uses pydantic.BaseModel for embedded documents (works with recent beanie).
 Defines:
  - SpeciesEntry (embedded-like pydantic model)

@@ -1,0 +1,40 @@
+# Supabase local development config
+# Run `supabase start` to boot local Supabase stack.
+# See: https://supabase.com/docs/guides/cli/config
+
+[api]
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+port = 54323
+api_url = "http://localhost"
+
+[inbucket]
+port = 54324
+
+[storage]
+file_size_limit = "50MiB"
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.external.google]
+enabled = false        # set to true and add client_id/secret for local Google OAuth testing
+# client_id     = "env(GOOGLE_CLIENT_ID)"
+# secret        = "env(GOOGLE_CLIENT_SECRET)"
