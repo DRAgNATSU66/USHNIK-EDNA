@@ -12,7 +12,7 @@ from .supabase_auth import verify_supabase_access_token
 from ..db import get_db
 from .jwt import create_access_token
 from .session import create_expedition_session, verify_expedition_session, OFFLINE_SESSION_DAYS
-from ..db.supabase_client import SupabaseClient
+from ..db.supabase_client import SupabaseClient, SupabaseUnavailableError
 from ..models.user import UserProfile, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -145,6 +145,11 @@ async def supabase_exchange(body: SupabaseExchangeRequest):
     """
     try:
         claims = await verify_supabase_access_token(body.access_token)
+    except SupabaseUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth service temporarily unavailable. Please try again.",
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
 

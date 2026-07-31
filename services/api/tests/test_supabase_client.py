@@ -129,6 +129,29 @@ async def test_get_auth_user_returns_none_on_invalid_token():
 
 
 @pytest.mark.anyio
+async def test_get_auth_user_raises_supabase_unavailable_on_transport_error():
+    """
+    A transient Supabase outage (network timeout, DNS error, 5xx) must be
+    distinguishable from a rejected token — gotrue surfaces these as
+    AuthRetryableError. get_auth_user should re-raise as
+    SupabaseUnavailableError instead of collapsing it into `None`.
+    """
+    from gotrue.errors import AuthRetryableError
+    from app.db.supabase_client import SupabaseClient, SupabaseUnavailableError
+    import app.db.supabase_client as sc_module
+
+    mock_client = MagicMock()
+    mock_client.auth = MagicMock()
+    mock_client.auth.get_user = AsyncMock(
+        side_effect=AuthRetryableError("Connection timed out", 0)
+    )
+
+    with patch.object(sc_module, "_client", mock_client):
+        with pytest.raises(SupabaseUnavailableError):
+            await SupabaseClient.get_auth_user("some-token")
+
+
+@pytest.mark.anyio
 async def test_get_supabase_raises_when_not_configured():
     from app.db.supabase_client import SupabaseClient
     import app.db.supabase_client as sc_module

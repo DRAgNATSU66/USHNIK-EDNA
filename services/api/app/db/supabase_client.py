@@ -16,6 +16,22 @@ if TYPE_CHECKING:
 _client: "AsyncClient | None" = None
 
 
+class SupabaseUnavailableError(Exception):
+    """
+    Raised when Supabase itself is unreachable due to a transport-level
+    failure (timeout, DNS error, connection refused, or a 502/503/504 from
+    Supabase) — distinct from SupabaseClient._get()'s RuntimeError ("not
+    configured") and distinct from a genuinely rejected/invalid token.
+
+    Callers should surface this as a transient failure (e.g. HTTP 503), not
+    an authentication failure. This matters right after signup: the
+    Supabase Auth account is created client-side *before* the app calls
+    /auth/supabase/exchange, so a transient outage during that exchange
+    must not look like a bad-credentials failure — the account already
+    exists and a "wrong token" message sends the user down a dead end.
+    """
+
+
 async def init_supabase() -> None:
     global _client
     from supabase import create_async_client
@@ -122,11 +138,22 @@ class SupabaseClient:
         """
         Verify a Supabase Auth access token via Supabase's own /auth/v1/user
         endpoint and return the resulting user object (has .id and .email),
-        or None if the token is invalid or expired.
+        or None if the token itself is invalid or expired.
+
+        Raises SupabaseUnavailableError if Supabase is unreachable due to a
+        transport-level failure. The gotrue client (which supabase-py's
+        AsyncClient.auth wraps) raises AuthRetryableError specifically for
+        these cases — network/connection errors and 502/503/504 responses —
+        as opposed to AuthApiError/other AuthError subclasses for a token
+        that was actually rejected. See gotrue.helpers.handle_exception.
         """
+        from gotrue.errors import AuthRetryableError
+
         client = SupabaseClient._get()
         try:
             res = await client.auth.get_user(access_token)
+        except AuthRetryableError as exc:
+            raise SupabaseUnavailableError(str(exc)) from exc
         except Exception:
             return None
         return res.user if res else None

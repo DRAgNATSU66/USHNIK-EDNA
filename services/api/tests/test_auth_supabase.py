@@ -37,6 +37,19 @@ async def test_verify_supabase_access_token_not_configured_raises():
             await verify_supabase_access_token("any-token")
 
 
+@pytest.mark.anyio
+async def test_verify_supabase_access_token_unavailable_propagates():
+    """A transient Supabase outage must propagate as SupabaseUnavailableError,
+    not get collapsed into the same ValueError used for an invalid token."""
+    from app.auth.supabase_auth import verify_supabase_access_token
+    from app.db.supabase_client import SupabaseUnavailableError
+
+    with patch("app.auth.supabase_auth.SupabaseClient.get_auth_user",
+               AsyncMock(side_effect=SupabaseUnavailableError("Connection timed out"))):
+        with pytest.raises(SupabaseUnavailableError):
+            await verify_supabase_access_token("any-token")
+
+
 # ---------------------------------------------------------------------------
 # /auth/supabase/exchange endpoint tests
 # ---------------------------------------------------------------------------
@@ -84,6 +97,24 @@ async def test_supabase_exchange_invalid_token_returns_401(client):
         resp = await client.post("/auth/supabase/exchange", json={"access_token": "bad-token"})
 
     assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_supabase_exchange_transient_outage_returns_503(client):
+    """
+    A transient Supabase outage during token verification (e.g. right after
+    signup, when the Auth account already exists client-side) must surface
+    as 503, not the same 401 used for a genuinely rejected token — otherwise
+    it looks like bad credentials and a signup retry just gets
+    "already registered" with no working path forward.
+    """
+    from app.db.supabase_client import SupabaseUnavailableError
+
+    with patch("app.auth.router.verify_supabase_access_token",
+               AsyncMock(side_effect=SupabaseUnavailableError("Connection timed out"))):
+        resp = await client.post("/auth/supabase/exchange", json={"access_token": "any-token"})
+
+    assert resp.status_code == 503
 
 
 @pytest.mark.anyio
