@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { useAuth } from "../contexts/AuthContext";
@@ -17,12 +17,16 @@ import {
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || "";
 
 function SignupForm() {
-  const { loginWithGoogle, signUpWithPassword } = useAuth();
+  const { isAuthenticated, loading, loginWithGoogle, signUpWithPassword } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+  }, [isAuthenticated, loading, navigate]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);

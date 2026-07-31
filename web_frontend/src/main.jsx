@@ -6,7 +6,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 // Pages
-import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -32,7 +31,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public */}
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

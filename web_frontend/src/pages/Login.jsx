@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { useAuth } from "../contexts/AuthContext";
@@ -16,12 +16,16 @@ import {
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || "";
 
 function LoginForm() {
-  const { loginWithGoogle, loginWithPassword } = useAuth();
+  const { isAuthenticated, loading, loginWithGoogle, loginWithPassword } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+  }, [isAuthenticated, loading, navigate]);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setSubmitting(true);
