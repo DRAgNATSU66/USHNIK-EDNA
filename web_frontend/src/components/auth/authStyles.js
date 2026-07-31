@@ -1,3 +1,5 @@
+import { liquidGlass } from "../../styles/liquidGlass";
+
 export const authColors = {
   pageBg: "#020409",
   cardBg: "#060A14",
@@ -21,25 +23,6 @@ export const authColors = {
   infoBg: "rgba(59,158,255,0.12)",
   infoBorder: "rgba(59,158,255,0.3)",
 };
-
-/**
- * "Liquid Glass" recipe: a raised, frosted surface with a bright specular
- * highlight along the top edge (the "sheen"), a soft inner shadow along the
- * bottom for depth, and a diffuse drop shadow tinted to the surface's own
- * color. This is the shared visual language for every raised interactive
- * element on the auth pages (buttons, pills) — tint the gradient/shadow
- * colors per element, keep the same layering everywhere else, so new
- * buttons/toggles/etc. read as part of the same system.
- */
-function liquidGlass({ top, bottom, border, highlight, innerShadow, outerShadow, blur = 16 }) {
-  return {
-    background: `linear-gradient(180deg, ${top} 0%, ${bottom} 100%)`,
-    border: `1px solid ${border}`,
-    backdropFilter: `blur(${blur}px) saturate(160%)`,
-    WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`,
-    boxShadow: `inset 0 1.5px 1px ${highlight}, inset 0 -2px 6px ${innerShadow}, ${outerShadow}`,
-  };
-}
 
 // Inputs need this same recessed-glass look (see .sv-auth-input in
 // index.css, not here): pseudo-classes like :focus and :-webkit-autofill

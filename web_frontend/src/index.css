@@ -53,3 +53,47 @@ html, body {
   -webkit-box-shadow: 0 0 0px 1000px #0a1220 inset;
   transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
 }
+
+/* New Analysis (Upload) page metadata fields — flat recessed field, no
+   gradient/blur (the source design uses a plain solid field here, unlike
+   the auth inputs' frosted glass), but same reasoning for living in CSS:
+   :focus and :hover need to override the inline style. */
+.sv-upload-field {
+  padding: 13px 15px;
+  border: 1px solid #17253D;
+  border-radius: 10px;
+  background: #080F1C;
+  font-family: inherit;
+  font-size: 14px;
+  color: #F5F5F3;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.sv-upload-field::placeholder {
+  color: #37455E;
+}
+
+.sv-upload-field:focus {
+  border-color: #3B9EFF;
+  box-shadow: 0 0 0 3px rgba(59, 158, 255, 0.18);
+}
+
+.sv-upload-field:hover {
+  border-color: #22364F;
+}
+
+/* Hide the number-input spinner so numeric metadata fields (depth,
+   latitude, salinity, etc.) look identical to the design's plain text
+   fields, while still keeping type="number" for real input validation. */
+.sv-upload-field::-webkit-inner-spin-button,
+.sv-upload-field::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.sv-upload-field[type="number"] {
+  -moz-appearance: textfield;
+}
