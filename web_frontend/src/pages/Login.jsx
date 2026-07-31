@@ -72,7 +72,7 @@ function LoginForm() {
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
-            theme="outline"
+            theme="filled_black"
             shape="pill"
             size="large"
             text="continue_with"
@@ -95,7 +95,7 @@ function LoginForm() {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <label style={authLabelStyle}>
@@ -111,7 +111,7 @@ function LoginForm() {
             placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <button type="submit" disabled={submitting} style={{ ...authPrimaryButtonStyle, opacity: submitting ? 0.6 : 1 }}>

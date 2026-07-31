@@ -60,7 +60,7 @@ function ResetPasswordForm() {
             placeholder="At least 8 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <label style={authLabelStyle}>
@@ -71,7 +71,7 @@ function ResetPasswordForm() {
             placeholder="Re-enter your new password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <button type="submit" disabled={submitting} style={{ ...authPrimaryButtonStyle, opacity: submitting ? 0.6 : 1 }}>

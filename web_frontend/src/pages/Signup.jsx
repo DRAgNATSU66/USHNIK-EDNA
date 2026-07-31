@@ -90,7 +90,7 @@ function SignupForm() {
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
-            theme="outline"
+            theme="filled_black"
             shape="pill"
             size="large"
             text="signup_with"
@@ -113,7 +113,7 @@ function SignupForm() {
             placeholder="Ada Lovelace"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <label style={authLabelStyle}>
@@ -124,7 +124,7 @@ function SignupForm() {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <label style={authLabelStyle}>
@@ -135,7 +135,7 @@ function SignupForm() {
             placeholder="At least 8 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <label style={authLabelStyle}>
@@ -146,7 +146,7 @@ function SignupForm() {
             placeholder="Re-enter your password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            style={authInputStyle}
+            className="sv-auth-input" style={authInputStyle}
           />
         </label>
         <button type="submit" disabled={submitting} style={{ ...authPrimaryButtonStyle, opacity: submitting ? 0.6 : 1 }}>

@@ -56,7 +56,7 @@ function ForgotPasswordForm() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={authInputStyle}
+              className="sv-auth-input" style={authInputStyle}
             />
           </label>
           <button type="submit" disabled={submitting} style={{ ...authPrimaryButtonStyle, opacity: submitting ? 0.6 : 1 }}>
