@@ -111,6 +111,29 @@ class SupabaseClient:
         return res.data if res else None
 
     @staticmethod
+    async def link_google_sub_to_existing_email(email: str, google_sub: str) -> dict | None:
+        """
+        If a password-account row already exists for this email
+        (google_sub is null), attach this Google sub to it instead of
+        creating a second, disconnected identity. Returns the updated row,
+        or None if no matching password-only row exists (caller should then
+        create a fresh Google-only row via upsert_user_by_google_sub).
+
+        Case-insensitive on email — Postgres/Supabase auth email lookups
+        are case-insensitive by convention, and `ilike` with no wildcard
+        characters is an exact case-insensitive match.
+        """
+        client = SupabaseClient._get()
+        res = await (
+            client.table("user_profiles")
+            .update({"google_sub": google_sub})
+            .ilike("email", email)
+            .is_("google_sub", "null")
+            .execute()
+        )
+        return res.data[0] if res.data else None
+
+    @staticmethod
     async def update_last_login(user_id: str) -> None:
         from datetime import datetime, timezone
         client = SupabaseClient._get()

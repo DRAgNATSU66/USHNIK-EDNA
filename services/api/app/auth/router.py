@@ -99,13 +99,22 @@ async def google_exchange(body: GoogleExchangeRequest):
             role = UserRole(existing.get("role", UserRole.researcher))
             user_id = existing["id"]
         else:
-            created = await SupabaseClient.upsert_user_by_google_sub(
-                google_sub=claims.sub,
-                email=claims.email,
-                display_name=claims.name,
-                role=role,
+            # No Google-linked row yet — check for a password account with
+            # this email before creating a second, disconnected identity.
+            linked = await SupabaseClient.link_google_sub_to_existing_email(
+                email=claims.email, google_sub=claims.sub
             )
-            user_id = created["id"]
+            if linked:
+                role = UserRole(linked.get("role", UserRole.researcher))
+                user_id = linked["id"]
+            else:
+                created = await SupabaseClient.upsert_user_by_google_sub(
+                    google_sub=claims.sub,
+                    email=claims.email,
+                    display_name=claims.name,
+                    role=role,
+                )
+                user_id = created["id"]
         await SupabaseClient.update_last_login(user_id)
     except RuntimeError:
         # Supabase not configured (local dev without .env) — continue with defaults

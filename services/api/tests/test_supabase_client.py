@@ -61,6 +61,52 @@ async def test_get_user_returns_none_on_empty():
 
 
 @pytest.mark.anyio
+async def test_link_google_sub_to_existing_email_updates_matching_row():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chain = MagicMock()
+    chain.update = MagicMock(return_value=chain)
+    chain.ilike = MagicMock(return_value=chain)
+    chain.is_ = MagicMock(return_value=chain)
+    chain.execute = AsyncMock(
+        return_value=MagicMock(data=[{"id": "existing-uuid", "role": "curator", "google_sub": "g-sub-999"}])
+    )
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(return_value=chain)
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.link_google_sub_to_existing_email("alice@example.com", "g-sub-999")
+
+    mock_client.table.assert_called_with("user_profiles")
+    chain.update.assert_called_with({"google_sub": "g-sub-999"})
+    chain.ilike.assert_called_with("email", "alice@example.com")
+    chain.is_.assert_called_with("google_sub", "null")
+    assert result == {"id": "existing-uuid", "role": "curator", "google_sub": "g-sub-999"}
+
+
+@pytest.mark.anyio
+async def test_link_google_sub_to_existing_email_returns_none_when_no_match():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chain = MagicMock()
+    chain.update = MagicMock(return_value=chain)
+    chain.ilike = MagicMock(return_value=chain)
+    chain.is_ = MagicMock(return_value=chain)
+    chain.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(return_value=chain)
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.link_google_sub_to_existing_email("nobody@example.com", "g-sub-000")
+
+    assert result is None
+
+
+@pytest.mark.anyio
 async def test_get_user_by_id_returns_profile():
     from app.db.supabase_client import SupabaseClient
     import app.db.supabase_client as sc_module

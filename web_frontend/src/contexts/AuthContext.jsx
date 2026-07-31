@@ -103,7 +103,22 @@ export function AuthProvider({ children }) {
       password,
       options: { data: { full_name: displayName } },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      // The handle_new_user trigger blocks signup for an email already
+      // linked to a Google account, raising an exception prefixed like
+      // this. Supabase's own signup-trigger errors are notoriously
+      // inconsistent about surfacing the raised message text verbatim
+      // (some configurations return it as-is, others collapse it to a
+      // generic "Database error saving new user"), so this match is a
+      // best-effort translation, not a guarantee — verify against a real
+      // Supabase project during manual testing.
+      if (error.message?.includes("EMAIL_LINKED_TO_GOOGLE")) {
+        throw new Error(
+          "This email is already registered. Please continue with Google instead."
+        );
+      }
+      throw new Error(error.message);
+    }
     if (!data.session) {
       throw new Error("Check your email to confirm your account, then sign in.");
     }
