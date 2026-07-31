@@ -39,6 +39,13 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(() => {
+    // End the underlying Supabase session too — otherwise it survives
+    // (auto-refreshing, persisted in localStorage) even after the app-level
+    // JWT is cleared, which the public /reset-password page could hijack.
+    // Fire-and-forget: don't await or let a network hiccup block logout.
+    try {
+      supabase?.auth.signOut().catch(() => {});
+    } catch {}
     try {
       localStorage.removeItem("sv_access_token");
       localStorage.removeItem("sv_user_profile");
