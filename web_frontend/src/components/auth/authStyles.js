@@ -22,11 +22,34 @@ export const authColors = {
   infoBorder: "rgba(59,158,255,0.3)",
 };
 
+/**
+ * "Liquid Glass" recipe: a raised, frosted surface with a bright specular
+ * highlight along the top edge (the "sheen"), a soft inner shadow along the
+ * bottom for depth, and a diffuse drop shadow tinted to the surface's own
+ * color. This is the shared visual language for every raised interactive
+ * element on the auth pages (buttons, pills) — tint the gradient/shadow
+ * colors per element, keep the same layering everywhere else, so new
+ * buttons/toggles/etc. read as part of the same system.
+ */
+function liquidGlass({ top, bottom, border, highlight, innerShadow, outerShadow, blur = 16 }) {
+  return {
+    background: `linear-gradient(180deg, ${top} 0%, ${bottom} 100%)`,
+    border: `1px solid ${border}`,
+    backdropFilter: `blur(${blur}px) saturate(160%)`,
+    WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`,
+    boxShadow: `inset 0 1.5px 1px ${highlight}, inset 0 -2px 6px ${innerShadow}, ${outerShadow}`,
+  };
+}
+
+// Inputs need this same recessed-glass look (see .sv-auth-input in
+// index.css, not here): pseudo-classes like :focus and :-webkit-autofill
+// have to override the base box-shadow/background, and inline styles beat
+// any CSS class rule regardless of selector, so an input's glass material
+// can't live in this JS object the way buttons' does — only layout and
+// typography stay inline here.
 export const authInputStyle = {
   padding: "13px 16px",
-  border: `1px solid ${authColors.border}`,
   borderRadius: 12,
-  background: authColors.inputBg,
   fontFamily: "inherit",
   fontSize: "14.5px",
   color: authColors.textPrimary,
@@ -51,14 +74,7 @@ export const authPrimaryButtonStyle = {
   marginTop: 8,
   width: "100%",
   padding: "14px 0",
-  border: "1px solid rgba(255,255,255,0.28)",
   borderRadius: 999,
-  background:
-    "linear-gradient(180deg, rgba(64,160,255,0.95) 0%, rgba(20,110,255,0.80) 55%, rgba(10,90,225,0.88) 100%)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  boxShadow:
-    "inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -2px 6px rgba(10,60,170,0.4), 0 8px 28px rgba(20,110,255,0.42)",
   color: "#FFFFFF",
   textShadow: "0 1px 2px rgba(8,50,140,0.4)",
   fontFamily: "inherit",
@@ -69,8 +85,20 @@ export const authPrimaryButtonStyle = {
   alignItems: "center",
   justifyContent: "center",
   gap: 10,
+  ...liquidGlass({
+    top: "rgba(120,185,255,0.95)",
+    bottom: "rgba(20,110,255,0.88)",
+    border: "rgba(255,255,255,0.40)",
+    highlight: "rgba(255,255,255,0.65)",
+    innerShadow: "rgba(10,60,170,0.35)",
+    outerShadow: "0 12px 32px rgba(20,110,255,0.50)",
+    blur: 18,
+  }),
 };
 
+// The real Google OAuth widget renders its own button chrome — we can't
+// apply this style to it directly (see Login.jsx/Signup.jsx), but this is
+// kept as the target look for anything wrapping/adjacent to it.
 export const authGoogleButtonStyle = {
   display: "flex",
   alignItems: "center",
@@ -78,33 +106,38 @@ export const authGoogleButtonStyle = {
   gap: 10,
   width: "100%",
   padding: "13px 0",
-  border: `1px solid ${authColors.ghostBorder}`,
   borderRadius: 999,
-  background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.05), 0 6px 18px rgba(0,0,0,0.28)",
   fontFamily: "inherit",
   fontSize: "14.5px",
   fontWeight: 500,
   color: authColors.textPrimary,
+  ...liquidGlass({
+    top: "rgba(255,255,255,0.24)",
+    bottom: "rgba(255,255,255,0.06)",
+    border: "rgba(255,255,255,0.34)",
+    highlight: "rgba(255,255,255,0.55)",
+    innerShadow: "rgba(0,0,0,0.10)",
+    outerShadow: "0 8px 24px rgba(0,0,0,0.30)",
+  }),
 };
 
 export const authGhostButtonStyle = {
   display: "inline-flex",
   alignItems: "center",
   padding: "9px 20px",
-  border: `1px solid ${authColors.ghostBorder}`,
   borderRadius: 999,
   color: authColors.textPrimary,
   fontWeight: 500,
   textDecoration: "none",
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.05), 0 4px 14px rgba(0,0,0,0.25)",
+  ...liquidGlass({
+    top: "rgba(255,255,255,0.16)",
+    bottom: "rgba(255,255,255,0.04)",
+    border: "rgba(255,255,255,0.28)",
+    highlight: "rgba(255,255,255,0.45)",
+    innerShadow: "rgba(0,0,0,0.08)",
+    outerShadow: "0 6px 18px rgba(0,0,0,0.25)",
+    blur: 14,
+  }),
 };
 
 export const authDividerStyle = {
