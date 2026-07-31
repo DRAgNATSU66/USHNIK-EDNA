@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 // Pages
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import JobProgress from "./pages/JobProgress";
@@ -31,6 +32,7 @@ function AppRoutes() {
       {/* Public */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
       {/* Protected: any authenticated user */}
       <Route
