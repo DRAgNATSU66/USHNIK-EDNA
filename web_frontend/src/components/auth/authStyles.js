@@ -96,9 +96,11 @@ export const authPrimaryButtonStyle = {
   }),
 };
 
-// The real Google OAuth widget renders its own button chrome — we can't
-// apply this style to it directly (see Login.jsx/Signup.jsx), but this is
-// kept as the target look for anything wrapping/adjacent to it.
+// Our own button (triggers useGoogleLogin's auth-code popup — see
+// Login.jsx/Signup.jsx), not Google's rendered widget, so it can carry the
+// exact same liquid-glass recipe as authPrimaryButtonStyle — just tinted
+// black/charcoal instead of blue, per the original theme="filled_black"
+// look it replaces.
 export const authGoogleButtonStyle = {
   display: "flex",
   alignItems: "center",
@@ -110,14 +112,15 @@ export const authGoogleButtonStyle = {
   fontFamily: "inherit",
   fontSize: "14.5px",
   fontWeight: 500,
-  color: authColors.textPrimary,
+  color: "#FFFFFF",
+  cursor: "pointer",
   ...liquidGlass({
-    top: "rgba(255,255,255,0.24)",
-    bottom: "rgba(255,255,255,0.06)",
-    border: "rgba(255,255,255,0.34)",
-    highlight: "rgba(255,255,255,0.55)",
-    innerShadow: "rgba(0,0,0,0.10)",
-    outerShadow: "0 8px 24px rgba(0,0,0,0.30)",
+    top: "rgba(72,74,82,0.92)",
+    bottom: "rgba(8,9,13,0.95)",
+    border: "rgba(255,255,255,0.22)",
+    highlight: "rgba(255,255,255,0.38)",
+    innerShadow: "rgba(0,0,0,0.45)",
+    outerShadow: "0 8px 24px rgba(0,0,0,0.45)",
   }),
 };
 

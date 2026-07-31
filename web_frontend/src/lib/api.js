@@ -71,9 +71,9 @@ async function request(method, path, opts = {}) {
 // Auth
 // ---------------------------------------------------------------------------
 
-/** Exchange a Google ID token for a Synth Veda JWT + user profile. */
-export const authGoogleExchange = (id_token) =>
-  request("POST", "/auth/google/exchange", { body: { id_token } });
+/** Exchange a Google OAuth 2.0 authorization code for a Synth Veda JWT + user profile. */
+export const authGoogleCodeExchange = (code) =>
+  request("POST", "/auth/google/code-exchange", { body: { code } });
 
 /** Get current user profile from JWT (validates token). */
 export const authMe = () => request("GET", "/auth/me");

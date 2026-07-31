@@ -54,3 +54,48 @@ async def verify_google_id_token(id_token: str) -> GoogleClaims:
         name=claims.get("name"),
         picture=claims.get("picture"),
     )
+
+
+async def exchange_code_for_claims(code: str) -> GoogleClaims:
+    """
+    Exchange an OAuth 2.0 authorization code — from the client-side
+    useGoogleLogin({ flow: 'auth-code' }) popup, used by our own
+    custom-styled Google button instead of Google's rendered widget — for
+    an ID token, then verify it exactly as verify_google_id_token does.
+
+    redirect_uri is the literal string "postmessage": Google's documented
+    convention for the JS popup auth-code flow, where the code isn't tied
+    to a real redirect URL (see
+    https://developers.google.com/identity/oauth2/web/guides/use-code-model).
+
+    Raises ValueError if the exchange or the resulting token's verification
+    fails, or if GOOGLE_CLIENT_SECRET is not configured.
+    """
+    settings = get_settings()
+    if not settings.google_client_id or not settings.google_client_secret:
+        raise ValueError("GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET is not configured")
+
+    import requests
+
+    try:
+        resp = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": "postmessage",
+                "grant_type": "authorization_code",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        token_data = resp.json()
+    except Exception as exc:
+        raise ValueError(f"Google code exchange failed: {exc}") from exc
+
+    id_token_str = token_data.get("id_token")
+    if not id_token_str:
+        raise ValueError("Google code exchange did not return an id_token")
+
+    return await verify_google_id_token(id_token_str)

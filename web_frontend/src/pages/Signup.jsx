@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { useGoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { useAuth } from "../contexts/AuthContext";
 import AuthLayout from "../components/auth/AuthLayout";
 import {
@@ -9,6 +9,7 @@ import {
   authLabelStyle,
   authLabelTextStyle,
   authPrimaryButtonStyle,
+  authGoogleButtonStyle,
   authDividerStyle,
   authErrorStyle,
   authInfoStyle,
@@ -16,37 +17,50 @@ import {
 
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || "";
 
+function GoogleGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+    </svg>
+  );
+}
+
 function SignupForm() {
-  const { isAuthenticated, loading, loginWithGoogle, signUpWithPassword } = useAuth();
+  const { isAuthenticated, loading, loginWithGoogleCode, signUpWithPassword } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  useEffect(() => {
-    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
-  }, [isAuthenticated, loading, navigate]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setSubmitting(true);
-    setError("");
-    try {
-      await loginWithGoogle(credentialResponse.credential);
-      navigate("/dashboard", { replace: true });
-    } catch (err) {
-      setError(err.message || "Sign-up failed. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  useEffect(() => {
+    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+  }, [isAuthenticated, loading, navigate]);
 
-  const handleGoogleError = () => {
-    setError("Google sign-up was cancelled or failed. Please try again.");
-  };
+  const googleLogin = useGoogleLogin({
+    flow: "auth-code",
+    onSuccess: async (codeResponse) => {
+      setSubmitting(true);
+      setError("");
+      try {
+        await loginWithGoogleCode(codeResponse.code);
+        navigate("/dashboard", { replace: true });
+      } catch (err) {
+        setError(err.message || "Sign-up failed. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    onError: () => {
+      setError("Google sign-up was cancelled or failed. Please try again.");
+    },
+  });
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -87,15 +101,15 @@ function SignupForm() {
 
       {GOOGLE_CLIENT_ID && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            theme="filled_black"
-            shape="pill"
-            size="large"
-            text="signup_with"
-            width={400}
-          />
+          <button
+            type="button"
+            onClick={() => googleLogin()}
+            disabled={submitting}
+            style={{ ...authGoogleButtonStyle, opacity: submitting ? 0.6 : 1 }}
+          >
+            <GoogleGlyph />
+            Sign up with Google
+          </button>
           <div style={authDividerStyle}>
             <span style={{ flex: 1, height: 1, background: authColors.dividerLine }} />
             OR

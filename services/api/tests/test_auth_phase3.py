@@ -238,6 +238,127 @@ async def test_google_exchange_creates_new_row_when_no_email_match(client):
     mock_upsert.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# exchange_code_for_claims unit tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.anyio
+async def test_exchange_code_for_claims_missing_secret():
+    from app.auth.google import exchange_code_for_claims
+
+    with patch("app.auth.google.get_settings") as mock_cfg:
+        mock_cfg.return_value = MagicMock(google_client_id="id", google_client_secret="")
+        with pytest.raises(ValueError, match="not configured"):
+            await exchange_code_for_claims("some-code")
+
+
+@pytest.mark.anyio
+async def test_exchange_code_for_claims_success():
+    from app.auth.google import exchange_code_for_claims
+
+    fake_claims = GoogleClaims(
+        sub="g-sub-code-001", email="coder@example.com",
+        email_verified=True, name="Coder", picture=None,
+    )
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json = MagicMock(return_value={"id_token": "the-id-token", "access_token": "unused"})
+
+    with patch("app.auth.google.get_settings") as mock_cfg, \
+         patch("requests.post", return_value=mock_token_resp) as mock_post, \
+         patch("app.auth.google.verify_google_id_token", AsyncMock(return_value=fake_claims)) as mock_verify:
+        mock_cfg.return_value = MagicMock(google_client_id="cid", google_client_secret="csecret")
+        claims = await exchange_code_for_claims("auth-code-abc")
+
+    mock_post.assert_called_once()
+    posted_data = mock_post.call_args.kwargs["data"]
+    assert posted_data["code"] == "auth-code-abc"
+    assert posted_data["redirect_uri"] == "postmessage"
+    assert posted_data["grant_type"] == "authorization_code"
+    mock_verify.assert_called_once_with("the-id-token")
+    assert claims is fake_claims
+
+
+@pytest.mark.anyio
+async def test_exchange_code_for_claims_http_error():
+    from app.auth.google import exchange_code_for_claims
+
+    with patch("app.auth.google.get_settings") as mock_cfg, \
+         patch("requests.post", side_effect=Exception("network down")):
+        mock_cfg.return_value = MagicMock(google_client_id="cid", google_client_secret="csecret")
+        with pytest.raises(ValueError, match="code exchange failed"):
+            await exchange_code_for_claims("auth-code-abc")
+
+
+@pytest.mark.anyio
+async def test_exchange_code_for_claims_missing_id_token_in_response():
+    from app.auth.google import exchange_code_for_claims
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json = MagicMock(return_value={"access_token": "no-id-token-here"})
+
+    with patch("app.auth.google.get_settings") as mock_cfg, \
+         patch("requests.post", return_value=mock_token_resp):
+        mock_cfg.return_value = MagicMock(google_client_id="cid", google_client_secret="csecret")
+        with pytest.raises(ValueError, match="did not return an id_token"):
+            await exchange_code_for_claims("auth-code-abc")
+
+
+# ---------------------------------------------------------------------------
+# /auth/google/code-exchange endpoint tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.anyio
+async def test_google_code_exchange_with_valid_code(client):
+    fake_claims = GoogleClaims(
+        sub="g-sub-code-002", email="codeuser@example.com",
+        email_verified=True, name="Code User", picture=None,
+    )
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
+         patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
+         patch("app.auth.router.SupabaseClient.link_google_sub_to_existing_email", AsyncMock(return_value=None)), \
+         patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub",
+               AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000005"})), \
+         patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
+        resp = await client.post("/auth/google/code-exchange", json={"code": "valid-code"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert data["user"]["email"] == "codeuser@example.com"
+    assert data["user"]["user_id"] == "00000000-0000-0000-0000-000000000005"
+
+
+@pytest.mark.anyio
+async def test_google_code_exchange_invalid_code_returns_401(client):
+    with patch("app.auth.router.exchange_code_for_claims",
+               AsyncMock(side_effect=ValueError("Google code exchange failed: bad code"))):
+        resp = await client.post("/auth/google/code-exchange", json={"code": "bad-code"})
+
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_google_code_exchange_links_existing_password_account_by_email(client):
+    """Same account-linking rule as the id_token flow: shared helper, must match."""
+    fake_claims = GoogleClaims(
+        sub="g-sub-code-003", email="curator2@example.com",
+        email_verified=True, name="Curator Two", picture=None,
+    )
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
+         patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
+         patch("app.auth.router.SupabaseClient.link_google_sub_to_existing_email",
+               AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000006", "role": "curator"})), \
+         patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub") as mock_upsert, \
+         patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
+        resp = await client.post("/auth/google/code-exchange", json={"code": "valid-code"})
+
+    assert resp.status_code == 200
+    assert resp.json()["user"]["role"] == "curator"
+    mock_upsert.assert_not_called()
+
+
 @pytest.mark.anyio
 async def test_google_exchange_supabase_unavailable_still_works(client):
     """If Supabase is down, the exchange should succeed with default researcher role."""

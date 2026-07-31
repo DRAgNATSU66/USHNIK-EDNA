@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from .deps import get_current_user
-from .google import verify_google_id_token
+from .google import GoogleClaims, exchange_code_for_claims, verify_google_id_token
 from .supabase_auth import verify_supabase_access_token
 from ..db import get_db
 from .jwt import create_access_token
@@ -24,6 +24,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class GoogleExchangeRequest(BaseModel):
     id_token: str
+
+
+class GoogleCodeExchangeRequest(BaseModel):
+    code: str
 
 
 class SupabaseExchangeRequest(BaseModel):
@@ -66,29 +70,23 @@ class VerifyExpeditionRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# POST /auth/google/exchange
+# Shared: Google claims -> Synth Veda JWT
 # ---------------------------------------------------------------------------
 
-@router.post("/google/exchange", response_model=TokenResponse)
-async def google_exchange(body: GoogleExchangeRequest):
+async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenResponse:
     """
-    Exchange a Google ID token (from client-side OAuth) for a Synth Veda JWT.
+    Look up or create the user_profiles row for a verified set of Google
+    claims, mint a Synth Veda JWT, and return the TokenResponse. Shared by
+    both /auth/google/exchange (id_token, from the old widget flow) and
+    /auth/google/code-exchange (authorization code, from our own custom
+    liquid-glass button) — the account-linking rules must stay identical
+    regardless of which flow produced the claims.
 
-    Flow:
-      1. Verify Google ID token signature + audience (google-auth library).
-      2. Look up or create user_profile in Supabase, keyed by Google `sub`.
-         user_profiles.id is a Postgres-generated uuid — NOT Google's sub
-         (which is a numeric string, not a uuid, and this app never creates
-         Supabase Auth users). The generated id is what every other table's
-         user_profiles(id) foreign key expects.
-      3. Mint a JWT embedding the user's current role, subject = that uuid.
-      4. Update last_login timestamp.
+    user_profiles.id is a Postgres-generated uuid — NOT Google's sub (which
+    is a numeric string, not a uuid, and this app never creates Supabase
+    Auth users for the Google path). The generated id is what every other
+    table's user_profiles(id) foreign key expects.
     """
-    try:
-        claims = await verify_google_id_token(body.id_token)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
-
     # Supabase user lookup / upsert (safe to call even when Supabase is not
     # configured — SupabaseClient raises RuntimeError which we catch below)
     role = UserRole.researcher  # default for new users
@@ -132,6 +130,50 @@ async def google_exchange(body: GoogleExchangeRequest):
         extra={"email": user.email, "role": user.role, "name": user.display_name},
     )
     return TokenResponse(access_token=token, user=user)
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/google/exchange
+# ---------------------------------------------------------------------------
+
+@router.post("/google/exchange", response_model=TokenResponse)
+async def google_exchange(body: GoogleExchangeRequest):
+    """
+    Exchange a Google ID token (from client-side OAuth) for a Synth Veda JWT.
+    Verifies the ID token's signature + audience (google-auth library), then
+    delegates to _token_response_for_google_claims for the account lookup.
+    """
+    try:
+        claims = await verify_google_id_token(body.id_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+
+    return await _token_response_for_google_claims(claims)
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/google/code-exchange
+# ---------------------------------------------------------------------------
+
+@router.post("/google/code-exchange", response_model=TokenResponse)
+async def google_code_exchange(body: GoogleCodeExchangeRequest):
+    """
+    Exchange a Google OAuth 2.0 authorization code (from our own
+    custom-styled Google button, using useGoogleLogin's popup auth-code
+    flow) for a Synth Veda JWT.
+
+    Unlike /auth/google/exchange, the client here never sees a Google
+    credential directly — it only gets a one-time code, which this endpoint
+    exchanges server-side (using GOOGLE_CLIENT_SECRET) for an ID token that
+    is then verified exactly as the widget-flow token is. Same account
+    lookup rules apply via _token_response_for_google_claims.
+    """
+    try:
+        claims = await exchange_code_for_claims(body.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+
+    return await _token_response_for_google_claims(claims)
 
 
 # ---------------------------------------------------------------------------

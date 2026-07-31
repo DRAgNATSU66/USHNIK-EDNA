@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authGoogleExchange, authMe, authSupabaseExchange } from "../lib/api";
+import { authGoogleCodeExchange, authMe, authSupabaseExchange } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
@@ -55,12 +55,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Exchange a Google ID token (from @react-oauth/google) for a Synth Veda JWT.
-   * Stores the token and user profile in localStorage.
+   * Exchange a Google OAuth 2.0 authorization code (from our own
+   * custom-styled button using useGoogleLogin's auth-code popup flow) for
+   * a Synth Veda JWT. Stores the token and user profile in localStorage.
    */
-  const loginWithGoogle = useCallback(async (googleIdToken) => {
+  const loginWithGoogleCode = useCallback(async (code) => {
     setAuthError(null);
-    const data = await authGoogleExchange(googleIdToken);
+    const data = await authGoogleCodeExchange(code);
     _persist(data.access_token, data.user);
     return data.user;
   }, []);
@@ -190,7 +191,7 @@ export function AuthProvider({ children }) {
         isAdmin,
         isCurator,
         isExpeditionOp,
-        loginWithGoogle,
+        loginWithGoogleCode,
         loginWithPassword,
         signUpWithPassword,
         requestPasswordReset,
