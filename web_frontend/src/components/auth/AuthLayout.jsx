@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import HelixCanvas from "./HelixCanvas";
-import { authColors } from "./authStyles";
+import { authColors, authGhostButtonStyle } from "./authStyles";
 
 export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref, children }) {
   return (
@@ -26,7 +26,8 @@ export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref
           display: "grid",
           gridTemplateColumns: "minmax(320px,500px) minmax(0,1fr)",
           overflow: "hidden",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+          border: `1px solid ${authColors.cardBorder}`,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.6), 0 0 80px rgba(20,110,255,0.08)",
         }}
       >
         {/* Left: dark DNA panel */}
@@ -47,13 +48,13 @@ export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(90% 70% at 15% 100%, rgba(41,171,226,0.20) 0%, rgba(12,18,32,0) 60%), radial-gradient(70% 50% at 90% 8%, rgba(109,91,208,0.22) 0%, rgba(12,18,32,0) 55%)",
+                "radial-gradient(90% 70% at 15% 100%, rgba(20,110,255,0.22) 0%, rgba(2,6,15,0) 60%), radial-gradient(70% 50% at 90% 8%, rgba(59,158,255,0.16) 0%, rgba(2,6,15,0) 55%)",
             }}
           />
           <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-              <path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke={authColors.accentAmber} strokeWidth="2" strokeLinecap="round" />
-              <path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke={authColors.accentPurple} strokeWidth="2" strokeLinecap="round" />
+              <path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke={authColors.accentBlue} strokeWidth="2" strokeLinecap="round" />
+              <path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke={authColors.accentCyan} strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span style={{ fontWeight: 600, letterSpacing: "0.22em", fontSize: 13 }}>SYNTH VEDA</span>
           </div>
@@ -68,7 +69,7 @@ export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref
               Precision eDNA sequencing and AI-driven analysis, from sample to insight.
             </p>
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-              <span style={{ width: 22, height: 4, borderRadius: 2, background: authColors.accentPurple }} />
+              <span style={{ width: 22, height: 4, borderRadius: 2, background: authColors.accentBlue }} />
               <span style={{ width: 8, height: 4, borderRadius: 2, background: "rgba(245,245,243,0.25)" }} />
               <span style={{ width: 8, height: 4, borderRadius: 2, background: "rgba(245,245,243,0.25)" }} />
             </div>
@@ -77,21 +78,9 @@ export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref
 
         {/* Right: form */}
         <div style={{ display: "flex", flexDirection: "column", padding: "44px clamp(32px,7vw,96px) 36px", boxSizing: "border-box", minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, fontSize: 13, color: authColors.textMuted }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, fontSize: 13, color: authColors.topRightPrompt }}>
             <span>{topRightPrompt}</span>
-            <Link
-              to={topRightHref}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "9px 20px",
-                border: `1px solid ${authColors.border}`,
-                borderRadius: 999,
-                color: authColors.textPrimary,
-                fontWeight: 500,
-                textDecoration: "none",
-              }}
-            >
+            <Link to={topRightHref} style={authGhostButtonStyle}>
               {topRightLabel}
             </Link>
           </div>
@@ -101,8 +90,8 @@ export default function AuthLayout({ topRightPrompt, topRightLabel, topRightHref
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: authColors.textMuted }}>
             <span>© 2026 Synth Veda Labs</span>
             <div style={{ display: "flex", gap: 18 }}>
-              <a href="#" style={{ color: authColors.textMuted }}>Privacy</a>
-              <a href="#" style={{ color: authColors.textMuted }}>Terms</a>
+              <a href="#" style={{ color: authColors.textSecondary }}>Privacy</a>
+              <a href="#" style={{ color: authColors.textSecondary }}>Terms</a>
             </div>
           </div>
         </div>

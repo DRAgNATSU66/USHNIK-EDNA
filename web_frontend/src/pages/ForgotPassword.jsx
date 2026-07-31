@@ -39,7 +39,7 @@ function ForgotPasswordForm() {
         Reset your password
       </h2>
       <p style={{ margin: "0 0 32px", fontSize: 15, lineHeight: 1.55, color: authColors.textSecondary }}>
-        Enter your email and we'll send you a link to get back into your <span style={{ color: authColors.accentPurple }}>analysis workspace</span>.
+        Enter your email and we'll send you a link to get back into your <span style={{ color: authColors.accentBlue }}>analysis workspace</span>.
       </p>
 
       {sent ? (
@@ -53,7 +53,7 @@ function ForgotPasswordForm() {
             <input
               type="email"
               required
-              placeholder="you@institution.org"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={authInputStyle}
@@ -68,7 +68,7 @@ function ForgotPasswordForm() {
       {error && <div style={authErrorStyle}>{error}</div>}
 
       <p style={{ marginTop: 24, fontSize: 13, color: authColors.textMuted, textAlign: "center" }}>
-        <Link to="/login" style={{ color: authColors.accentPurple }}>Back to sign in</Link>
+        <Link to="/login" style={{ color: authColors.accentBlue }}>Back to sign in</Link>
       </p>
     </>
   );

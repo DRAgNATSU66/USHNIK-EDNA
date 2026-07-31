@@ -78,7 +78,7 @@ function SignupForm() {
         Create your account
       </h2>
       <p style={{ margin: "0 0 32px", fontSize: 15, lineHeight: 1.55, color: authColors.textSecondary }}>
-        Start building your <span style={{ color: authColors.accentPurple }}>analysis workspace</span>.
+        Start building your <span style={{ color: authColors.accentBlue }}>analysis workspace</span>.
       </p>
 
       {GOOGLE_CLIENT_ID && (
@@ -93,9 +93,9 @@ function SignupForm() {
             width={400}
           />
           <div style={authDividerStyle}>
-            <span style={{ flex: 1, height: 1, background: authColors.border }} />
+            <span style={{ flex: 1, height: 1, background: authColors.dividerLine }} />
             OR
-            <span style={{ flex: 1, height: 1, background: authColors.border }} />
+            <span style={{ flex: 1, height: 1, background: authColors.dividerLine }} />
           </div>
         </div>
       )}
@@ -117,7 +117,7 @@ function SignupForm() {
           <input
             type="email"
             required
-            placeholder="you@institution.org"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={authInputStyle}

@@ -60,7 +60,7 @@ function LoginForm() {
         Welcome back
       </h2>
       <p style={{ margin: "0 0 32px", fontSize: 15, lineHeight: 1.55, color: authColors.textSecondary }}>
-        Sign in to access your <span style={{ color: authColors.accentPurple }}>analysis workspace</span>.
+        Sign in to access your <span style={{ color: authColors.accentBlue }}>analysis workspace</span>.
       </p>
 
       {GOOGLE_CLIENT_ID && (
@@ -75,9 +75,9 @@ function LoginForm() {
             width={400}
           />
           <div style={authDividerStyle}>
-            <span style={{ flex: 1, height: 1, background: authColors.border }} />
+            <span style={{ flex: 1, height: 1, background: authColors.dividerLine }} />
             OR
-            <span style={{ flex: 1, height: 1, background: authColors.border }} />
+            <span style={{ flex: 1, height: 1, background: authColors.dividerLine }} />
           </div>
         </div>
       )}
@@ -88,7 +88,7 @@ function LoginForm() {
           <input
             type="email"
             required
-            placeholder="you@institution.org"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={authInputStyle}
@@ -97,7 +97,7 @@ function LoginForm() {
         <label style={authLabelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={authLabelTextStyle}>Password</span>
-            <Link to="/forgot-password" style={{ fontSize: "12.5px", color: authColors.accentPurple }}>
+            <Link to="/forgot-password" style={{ fontSize: "12.5px", color: authColors.accentBlue }}>
               Forgot password?
             </Link>
           </div>

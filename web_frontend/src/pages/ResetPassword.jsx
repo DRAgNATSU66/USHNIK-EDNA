@@ -48,7 +48,7 @@ function ResetPasswordForm() {
         Set a new password
       </h2>
       <p style={{ margin: "0 0 32px", fontSize: 15, lineHeight: 1.55, color: authColors.textSecondary }}>
-        Choose a new password for your <span style={{ color: authColors.accentPurple }}>analysis workspace</span>.
+        Choose a new password for your <span style={{ color: authColors.accentBlue }}>analysis workspace</span>.
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -102,7 +102,7 @@ function InvalidResetLink() {
         This password reset link is invalid or has expired.
       </div>
       <p style={{ marginTop: 24, fontSize: 13, color: authColors.textMuted, textAlign: "center" }}>
-        <Link to="/forgot-password" style={{ color: authColors.accentPurple }}>Request a new reset link</Link>
+        <Link to="/forgot-password" style={{ color: authColors.accentBlue }}>Request a new reset link</Link>
       </p>
     </>
   );

@@ -95,3 +95,6 @@ infra/terraform/.terraform.lock.hcl
 
 # Subagent-driven-development scratch workspace
 .superpowers/
+
+# Local upload storage (test/dev artifacts when object storage isn't configured)
+services/api/uploads/
