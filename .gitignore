@@ -92,3 +92,6 @@ infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/terraform.tfvars
 infra/terraform/.terraform.lock.hcl
+
+# Subagent-driven-development scratch workspace
+.superpowers/

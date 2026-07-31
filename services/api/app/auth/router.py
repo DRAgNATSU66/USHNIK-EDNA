@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from datetime import datetime, timezone
 from typing import Annotated, Optional
@@ -7,10 +8,11 @@ from pydantic import BaseModel
 
 from .deps import get_current_user
 from .google import verify_google_id_token
+from .supabase_auth import verify_supabase_access_token
 from ..db import get_db
 from .jwt import create_access_token
 from .session import create_expedition_session, verify_expedition_session, OFFLINE_SESSION_DAYS
-from ..db.supabase_client import SupabaseClient
+from ..db.supabase_client import SupabaseClient, SupabaseUnavailableError
 from ..models.user import UserProfile, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -22,6 +24,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class GoogleExchangeRequest(BaseModel):
     id_token: str
+
+
+class SupabaseExchangeRequest(BaseModel):
+    access_token: str
 
 
 class TokenResponse(BaseModel):
@@ -111,6 +117,61 @@ async def google_exchange(body: GoogleExchangeRequest):
         display_name=claims.name,
         role=role,
         google_sub=claims.sub,
+    )
+    token = create_access_token(
+        subject=user.user_id,
+        extra={"email": user.email, "role": user.role, "name": user.display_name},
+    )
+    return TokenResponse(access_token=token, user=user)
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/supabase/exchange
+# ---------------------------------------------------------------------------
+
+@router.post("/supabase/exchange", response_model=TokenResponse)
+async def supabase_exchange(body: SupabaseExchangeRequest):
+    """
+    Exchange a Supabase Auth session access token (from client-side
+    supabase-js signUp/signInWithPassword/updateUser) for a Synth Veda JWT.
+
+    The `handle_new_user` Postgres trigger auto-creates the user_profiles
+    row when Supabase Auth creates the underlying auth.users row, so by the
+    time this runs the profile usually already exists. If it hasn't landed
+    yet (trigger race on the very first request right after signup), retry
+    once after a short delay before falling back to default researcher
+    values — mirroring how /auth/google/exchange tolerates Supabase being
+    unavailable.
+    """
+    try:
+        claims = await verify_supabase_access_token(body.access_token)
+    except SupabaseUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth service temporarily unavailable. Please try again.",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+
+    role = UserRole.researcher
+    display_name = None
+    try:
+        profile = await SupabaseClient.get_user_by_id(claims.user_id)
+        if profile is None:
+            await asyncio.sleep(0.5)
+            profile = await SupabaseClient.get_user_by_id(claims.user_id)
+        if profile:
+            role = UserRole(profile.get("role", UserRole.researcher))
+            display_name = profile.get("display_name")
+        await SupabaseClient.update_last_login(claims.user_id)
+    except RuntimeError:
+        pass
+
+    user = UserProfile(
+        user_id=claims.user_id,
+        email=claims.email,
+        display_name=display_name,
+        role=role,
     )
     token = create_access_token(
         subject=user.user_id,

@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { useNavigate } from "react-router-dom";
-import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { healthCheck } from "../lib/api";
-
-const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || "";
 
 const css = `
 :root{--primary-blue:#0066ff;--secondary-cyan:#00d4ff;--accent-green:#00ff88;--deep-ocean:#001133;--dark-blue:#002266;--glass-border:rgba(255,255,255,0.1);--text-primary:#ffffff;--text-secondary:#b3d9ff;--text-muted:#7eb3ff;--gradient-primary:linear-gradient(135deg,#0066ff 0%,#00d4ff 100%);--gradient-bg:radial-gradient(ellipse at center,#002266 0%,#001133 100%);}
@@ -24,31 +21,28 @@ body{font-family:'Inter',system-ui,Segoe UI,Roboto;color:var(--text-primary);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 .sv-divider{border:none;border-top:1px solid rgba(255,255,255,0.08);margin:1.25rem 0;}
 .sv-footer{margin-top:1.5rem;color:var(--text-muted);font-size:13px;text-align:center;}
-.sv-error{margin-top:12px;padding:10px;border-radius:8px;font-size:13px;text-align:center;background:rgba(255,80,80,0.08);color:#ff9b9b;border:1px solid rgba(255,80,80,0.15);}
-.sv-no-oauth{padding:16px;border-radius:12px;border:1px dashed rgba(255,255,255,0.12);text-align:center;color:var(--text-muted);font-size:13px;line-height:1.6;}
-.sv-no-oauth code{background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--secondary-cyan);}
+.sv-cta-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.sv-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 28px;border-radius:999px;font-weight:600;font-size:14px;text-decoration:none;transition:transform 0.2s ease;}
+.sv-btn:hover{transform:translateY(-2px);text-decoration:none;}
+.sv-btn-primary{background:var(--gradient-primary);color:#ffffff;box-shadow:0 10px 30px rgba(0,102,255,0.4);}
+.sv-btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-primary);border:1px solid var(--glass-border);}
 .app-scroll::-webkit-scrollbar{width:12px;}
 .app-scroll::-webkit-scrollbar-track{background:transparent;}
 .app-scroll::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#00d4ff 0%,#0066ff 100%);border-radius:999px;min-height:28px;}
 .app-scroll{scrollbar-width:thin;scrollbar-color:#00d4ff transparent;}
 `;
 
-function LandingInner() {
-  const { isAuthenticated, loginWithGoogle, loading, authError, setAuthError } = useAuth();
+export default function Landing() {
+  const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
   const bgCanvasRef = useRef(null);
-  const rafRef = useRef(null);
-  const rendererRef = useRef(null);
   const [backendStatus, setBackendStatus] = useState("Checking...");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [signingIn, setSigningIn] = useState(false);
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
   }, [isAuthenticated, loading, navigate]);
 
-  // Online/offline events
   useEffect(() => {
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
@@ -57,14 +51,12 @@ function LandingInner() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  // Health check
   useEffect(() => {
     healthCheck()
       .then(() => setBackendStatus("Connected"))
       .catch(() => setBackendStatus("Unreachable"));
   }, []);
 
-  // Three.js breathing sphere
   useEffect(() => {
     const canvas = bgCanvasRef.current;
     if (!canvas) return;
@@ -74,7 +66,6 @@ function LandingInner() {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    rendererRef.current = renderer;
 
     const palette = [
       new THREE.Color(0x00ffaa), new THREE.Color(0x00d4ff),
@@ -116,7 +107,6 @@ function LandingInner() {
       sphere.rotation.y += 0.0005;
       renderer.render(scene, camera);
     };
-    rafRef.current = rafId;
     animate();
 
     const onResize = () => {
@@ -131,23 +121,6 @@ function LandingInner() {
       try { pGeom.dispose(); pMat.dispose(); renderer.dispose(); } catch {}
     };
   }, []);
-
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setSigningIn(true);
-    setAuthError(null);
-    try {
-      await loginWithGoogle(credentialResponse.credential);
-      navigate("/dashboard", { replace: true });
-    } catch (err) {
-      setAuthError(err.message || "Sign-in failed. Please try again.");
-    } finally {
-      setSigningIn(false);
-    }
-  };
-
-  const handleGoogleError = () => {
-    setAuthError("Google sign-in was cancelled or failed. Please try again.");
-  };
 
   return (
     <>
@@ -172,46 +145,16 @@ function LandingInner() {
 
           <div className="sv-card">
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 6, color: "var(--text-primary)" }}>
-              Sign in to continue
+              Get started
             </h2>
             <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 20 }}>
-              Authentication is required to submit samples and view results.
+              Sign in or create an account to submit samples and view results.
             </p>
 
-            {GOOGLE_CLIENT_ID ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                {signingIn ? (
-                  <div style={{ color: "var(--secondary-cyan)", fontSize: 14, padding: "10px 0" }}>
-                    Verifying with backend...
-                  </div>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    useOneTap
-                    theme="filled_blue"
-                    shape="rectangular"
-                    size="large"
-                    text="signin_with"
-                    width={320}
-                  />
-                )}
-                {authError && <div className="sv-error">{authError}</div>}
-              </div>
-            ) : (
-              <div className="sv-no-oauth">
-                <div style={{ fontSize: 24, marginBottom: 10 }}>🔑</div>
-                <strong style={{ color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>
-                  Google OAuth not configured
-                </strong>
-                Set <code>VITE_GOOGLE_CLIENT_ID</code> in{" "}
-                <code>web_frontend/.env</code> and restart the dev server.
-                <br />
-                <span style={{ fontSize: 12, marginTop: 8, display: "block", color: "#5a8fb3" }}>
-                  See <code>.env.example</code> for the required variables.
-                </span>
-              </div>
-            )}
+            <div className="sv-cta-row">
+              <Link to="/login" className="sv-btn sv-btn-primary">Sign in</Link>
+              <Link to="/signup" className="sv-btn sv-btn-secondary">Create account</Link>
+            </div>
 
             <hr className="sv-divider" />
 
@@ -227,20 +170,5 @@ function LandingInner() {
         </div>
       </div>
     </>
-  );
-}
-
-export default function Landing() {
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <GoogleOAuthProvider clientId="__placeholder__">
-        <LandingInner />
-      </GoogleOAuthProvider>
-    );
-  }
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <LandingInner />
-    </GoogleOAuthProvider>
   );
 }

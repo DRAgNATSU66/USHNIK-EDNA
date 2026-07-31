@@ -61,6 +61,97 @@ async def test_get_user_returns_none_on_empty():
 
 
 @pytest.mark.anyio
+async def test_get_user_by_id_returns_profile():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chain = MagicMock()
+    chain.select = MagicMock(return_value=chain)
+    chain.eq = MagicMock(return_value=chain)
+    chain.maybe_single = MagicMock(return_value=chain)
+    chain.execute = AsyncMock(return_value=MagicMock(data={"id": "u1", "role": "researcher"}))
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(return_value=chain)
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.get_user_by_id("u1")
+    mock_client.table.assert_called_with("user_profiles")
+    assert result == {"id": "u1", "role": "researcher"}
+
+
+@pytest.mark.anyio
+async def test_get_user_by_id_returns_none_on_empty():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chain = MagicMock()
+    chain.select = MagicMock(return_value=chain)
+    chain.eq = MagicMock(return_value=chain)
+    chain.maybe_single = MagicMock(return_value=chain)
+    chain.execute = AsyncMock(return_value=MagicMock(data=None))
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(return_value=chain)
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.get_user_by_id("missing")
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_get_auth_user_returns_user_on_success():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    fake_user = MagicMock(id="u1", email="a@b.com")
+    mock_client = MagicMock()
+    mock_client.auth = MagicMock()
+    mock_client.auth.get_user = AsyncMock(return_value=MagicMock(user=fake_user))
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.get_auth_user("valid-token")
+    assert result is fake_user
+
+
+@pytest.mark.anyio
+async def test_get_auth_user_returns_none_on_invalid_token():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    mock_client = MagicMock()
+    mock_client.auth = MagicMock()
+    mock_client.auth.get_user = AsyncMock(side_effect=Exception("invalid JWT"))
+
+    with patch.object(sc_module, "_client", mock_client):
+        result = await SupabaseClient.get_auth_user("bad-token")
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_get_auth_user_raises_supabase_unavailable_on_transport_error():
+    """
+    A transient Supabase outage (network timeout, DNS error, 5xx) must be
+    distinguishable from a rejected token — gotrue surfaces these as
+    AuthRetryableError. get_auth_user should re-raise as
+    SupabaseUnavailableError instead of collapsing it into `None`.
+    """
+    from gotrue.errors import AuthRetryableError
+    from app.db.supabase_client import SupabaseClient, SupabaseUnavailableError
+    import app.db.supabase_client as sc_module
+
+    mock_client = MagicMock()
+    mock_client.auth = MagicMock()
+    mock_client.auth.get_user = AsyncMock(
+        side_effect=AuthRetryableError("Connection timed out", 0)
+    )
+
+    with patch.object(sc_module, "_client", mock_client):
+        with pytest.raises(SupabaseUnavailableError):
+            await SupabaseClient.get_auth_user("some-token")
+
+
+@pytest.mark.anyio
 async def test_get_supabase_raises_when_not_configured():
     from app.db.supabase_client import SupabaseClient
     import app.db.supabase_client as sc_module

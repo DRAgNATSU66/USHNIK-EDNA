@@ -78,6 +78,10 @@ export const authGoogleExchange = (id_token) =>
 /** Get current user profile from JWT (validates token). */
 export const authMe = () => request("GET", "/auth/me");
 
+/** Exchange a Supabase Auth session access token for a Synth Veda JWT + user profile. */
+export const authSupabaseExchange = (access_token) =>
+  request("POST", "/auth/supabase/exchange", { body: { access_token } });
+
 /** Redeem an admin invite key to elevate role. */
 export const authRedeemKey = (key) =>
   request("POST", "/auth/admin-key/redeem", { body: { key } });
