@@ -34,3 +34,6 @@ data/*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Subagent-driven-development scratch workspace
+.superpowers/
