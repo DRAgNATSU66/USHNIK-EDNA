@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF}
+input::placeholder{color:#37455E}
+select{appearance:none;-webkit-appearance:none}
+option{background:#0A1220;color:#F5F5F3}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#16233A;border-radius:8px}
+.field{padding:13px 15px;border:1px solid #17253D;border-radius:3px;background:#080F1C;font-family:inherit;font-size:14px;color:#F5F5F3;outline:none;transition:border-color .15s,box-shadow .15s}
+.field:focus{border-color:#3B9EFF;box-shadow:0 0 0 3px rgba(59,158,255,0.18)}
+.field:hover{border-color:#22364F}
+.slab{position:relative}
+.slab::before{content:'';position:absolute;left:0;top:2px;width:3px;height:16px;background:linear-gradient(#5AA9FF,#1F6FE0);border-radius:2px}
+@keyframes haloBreathe{0%,100%{opacity:0.55;transform:scale(0.9)}50%{opacity:1;transform:scale(1.2)}}
+</style>
+</helmet>
+<div style="min-height:100vh;position:relative;overflow:hidden;padding:60px 24px 80px;box-sizing:border-box">
+  {{ matrixCanvas }}
+  <!-- ambient glows -->
+  <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(52% 40% at 50% -4%, rgba(20,110,255,0.14) 0%, rgba(2,6,15,0) 60%), radial-gradient(46% 46% at 96% 44%, rgba(40,130,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+  <!-- static DNA render behind the content -->
+
+  <div data-screen-label="Upload &amp; Analyze" style="position:relative;width:840px;max-width:100%;margin:0 auto;display:flex;flex-direction:column;gap:44px">
+
+    <!-- Header -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
+      <div style="display:flex;align-items:center;gap:11px">
+        <svg width="22" height="22" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+        <span style="font-weight:600;letter-spacing:0.28em;font-size:12px;color:#C7D3E6">SYNTH VEDA</span>
+      </div>
+      <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.03em;line-height:1.05">New Analysis</h1>
+      <div style="display:flex;align-items:center;gap:12px;font-size:13.5px;color:#7A8699">
+        <span>Welcome back, <span style="color:#DCE6F5;font-weight:500">Dr. Esther Howard</span></span>
+        <span style="width:4px;height:4px;border-radius:50%;background:#33455F"></span>
+        <span>esther.howard@synthveda.org</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border:1px solid #1C3357;border-radius:6px;background:rgba(20,110,255,0.10);color:#7FBFFF;font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase"><span style="width:5px;height:5px;border-radius:50%;background:#3B9EFF;box-shadow:0 0 6px #3B9EFF"></span>Lead Researcher</span>
+      </div>
+    </div>
+
+    <!-- DNA hero with floating cards -->
+    <div style="position:relative;height:360px;display:flex;align-items:center;justify-content:center;margin:-8px 0 -6px">
+      <div style="position:absolute;width:520px;height:340px;border-radius:50%;background:radial-gradient(closest-side, rgba(20,110,255,0.26), rgba(2,6,15,0) 72%);filter:blur(6px);animation:haloBreathe 10s ease-in-out infinite;will-change:transform,opacity"></div>
+      <img src="./dna.png" alt="DNA double helix" style="position:relative;height:340px;width:auto;filter:drop-shadow(0 20px 50px rgba(20,110,255,0.35))">
+      <div style="position:absolute;left:0;top:24px;display:flex;flex-direction:column;gap:5px;padding:14px 18px;border-radius:12px;border:1px solid #1B2C46;background:rgba(9,15,27,0.8);backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,0.4)">
+        <span style="font-size:20px;font-weight:700;color:#F5F9FF;letter-spacing:-0.01em">FASTA · JSON</span>
+        <span style="font-size:12.5px;color:#7A8699">Read formats</span>
+      </div>
+      <div style="position:absolute;left:0;bottom:14px;display:flex;flex-direction:column;gap:5px;padding:14px 18px;border-radius:12px;border:1px solid #1B2C46;background:rgba(9,15,27,0.8);backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,0.4)">
+        <span style="font-size:20px;font-weight:700;color:#F5F9FF;letter-spacing:-0.01em">Sugar phosphate</span>
+        <span style="font-size:12.5px;color:#7A8699">Backbone</span>
+      </div>
+      <div style="position:absolute;right:0;top:20px;display:flex;flex-direction:column;gap:5px;padding:14px 18px;border-radius:12px;border:1px solid #1B2C46;background:rgba(9,15,27,0.8);backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,0.4)">
+        <span style="font-size:20px;font-weight:700;color:#F5F9FF;letter-spacing:-0.01em">mRNA · tRNA</span>
+        <span style="font-size:12.5px;color:#7A8699">Transcripts</span>
+      </div>
+      <div style="position:absolute;right:0;bottom:14px;display:flex;flex-direction:column;gap:5px;padding:14px 18px;border-radius:12px;border:1px solid #1B2C46;background:rgba(9,15,27,0.8);backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,0.4)">
+        <span style="font-size:20px;font-weight:700;color:#F5F9FF;letter-spacing:-0.01em">Peptide bonds</span>
+        <span style="font-size:12.5px;color:#7A8699">Residue links</span>
+      </div>
+    </div>
+
+    <!-- Upload dropzone -->
+    <div onClick="{{ pickFile }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="{{ dropStyle }}">
+      <div style="{{ chipStyle }}">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 15V4m0 0-4 4m4-4 4 4" stroke="#BFE0FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="#BFE0FF" stroke-width="1.7" stroke-linecap="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;align-items:center">
+        <span style="font-size:18px;font-weight:600;color:#EAF2FF;letter-spacing:-0.01em">{{ dropTitle }}</span>
+        <span style="font-size:12.5px;color:#61708A;letter-spacing:0.01em">FASTA <span style="color:#48566E">.fasta .fa .fastq</span> &nbsp;·&nbsp; JSON <span style="color:#48566E">.json .jsonl</span> &nbsp;·&nbsp; up to 500&nbsp;MB</span>
+      </div>
+      {{ fileInput }}
+    </div>
+
+    <!-- Environmental Metadata -->
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div class="slab" style="display:flex;align-items:baseline;gap:12px;padding-left:16px;border-bottom:1px solid #15243C;padding-bottom:14px">
+        <h2 style="margin:0;font-size:15px;font-weight:600;letter-spacing:0.02em">Environmental Metadata</h2>
+        <span style="font-size:11.5px;color:#5A6C86;letter-spacing:0.02em">Optional — improves classification accuracy</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px 24px">
+        <sc-for list="{{ metaFields }}" as="f" hint-placeholder-count="8">
+          <label style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:10.5px;font-weight:600;letter-spacing:0.11em;text-transform:uppercase;color:#75849B">{{ f.label }}</span>
+            <input type="text" class="field" placeholder="{{ f.ph }}">
+          </label>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- Analysis Mode + Model -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:44px">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="slab" style="padding-left:16px;border-bottom:1px solid #15243C;padding-bottom:14px">
+          <h2 style="margin:0;font-size:15px;font-weight:600;letter-spacing:0.02em">Analysis Mode</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ modes }}" as="m" hint-placeholder-count="2">
+            <div onClick="{{ m.select }}" style="{{ m.style }}">
+              <span style="{{ m.radio }}"><span style="{{ m.dot }}"></span></span>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:14.5px;font-weight:600;color:#EAF2FF">{{ m.title }}</span>
+                <span style="font-size:12.5px;line-height:1.5;color:#7A8699">{{ m.desc }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="slab" style="padding-left:16px;border-bottom:1px solid #15243C;padding-bottom:14px">
+          <h2 style="margin:0;font-size:15px;font-weight:600;letter-spacing:0.02em">Processing Model</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ models }}" as="md" hint-placeholder-count="3">
+            <div onClick="{{ md.select }}" style="{{ md.style }}">
+              <span style="{{ md.radio }}"><span style="{{ md.dot }}"></span></span>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <span style="font-size:14px;font-weight:600;color:#EAF2FF">{{ md.name }}</span>
+                  <span style="{{ md.tagStyle }}">{{ md.tag }}</span>
+                </div>
+                <span style="font-size:12px;line-height:1.45;color:#7A8699">{{ md.desc }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:20px;border-top:1px solid #101E32">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px">
+        <button onClick="{{ noop }}" style="{{ submitStyle }}" style-hover="{{ ctaHover }}">
+          Submit for Analysis
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <button onClick="{{ reset }}" style="padding:15px 30px;border-radius:12px;border:1px solid #22364F;background:transparent;color:#AFC0D6;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer;transition:all .15s" style-hover="{{ ghostHover }}">Reset</button>
+      </div>
+      <span style="font-size:12.5px;color:#4A5B74;display:flex;align-items:center;gap:7px"><span style="width:6px;height:6px;border-radius:50%;background:#2E67B8"></span>{{ readyText }}</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:900,&quot;height&quot;:1080}}">
+class Component extends DCLogic {
+  state = { drag: false, fileName: null, mode: 0, model: 0 };
+
+  pickFile = () => { if (this.fileEl) this.fileEl.click(); };
+  onFile = (e) => { const f = e.target.files && e.target.files[0]; if (f) this.setState({ fileName: f.name }); };
+  onDragOver = (e) => { e.preventDefault(); if (!this.state.drag) this.setState({ drag: true }); };
+  onDragLeave = (e) => { e.preventDefault(); this.setState({ drag: false }); };
+  onDrop = (e) => { e.preventDefault(); const f = e.dataTransfer.files && e.dataTransfer.files[0]; this.setState({ drag: false, fileName: f ? f.name : this.state.fileName }); };
+  reset = () => { this.setState({ fileName: null, mode: 0, model: 0 }); if (this.fileEl) this.fileEl.value = ''; };
+
+  initMatrix(cv) {
+    cancelAnimationFrame(this.mraf);
+    const ctx = cv.getContext('2d');
+    const glyphs = 'ACGT01ACGT广コソヲ10'.split('');
+    let cols, drops, fs, W, H, dpr;
+    const size = () => {
+      const p = cv.parentElement;
+      W = p.clientWidth; H = p.scrollHeight || p.clientHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fs = 12;
+      cols = Math.ceil(W / fs);
+      const rows = Math.ceil(H / fs);
+      drops = new Array(cols).fill(0).map(() => ({
+        y: Math.random() * -rows,
+        speed: 0.25 + Math.random() * 0.65,
+        len: 8 + ((Math.random() * 10) | 0),
+      }));
+    };
+    size();
+    this._msize = size;
+    window.addEventListener('resize', size);
+    let last = 0;
+    const draw = (t) => {
+      if (t - last > 33) {
+        last = t;
+        ctx.clearRect(0, 0, W, H);
+        ctx.font = fs + 'px monospace';
+        const rows = Math.ceil(H / fs);
+        for (let i = 0; i < cols; i++) {
+          const d = drops[i];
+          const headRow = Math.floor(d.y);
+          for (let k = 0; k < d.len; k++) {
+            const r = headRow - k;
+            if (r < 0) continue;
+            const yy = r * fs;
+            const f = 1 - k / d.len;          // 1 at head (bottom), 0 at tail (top)
+            const g = glyphs[(((r * 31 + i * 7 + (k === 0 ? (t / 120) | 0 : 0)) % glyphs.length) + glyphs.length) % glyphs.length | 0];
+            if (k === 0) {
+              ctx.fillStyle = 'rgba(220,242,255,1)';
+            } else {
+              ctx.fillStyle = 'rgba(72,168,255,' + (0.65 * f).toFixed(3) + ')';
+            }
+            ctx.fillText(g, i * fs, yy);
+          }
+          d.y += d.speed;
+          if ((d.y - d.len) > rows) { d.y = -(Math.random() * 12); d.speed = 0.25 + Math.random() * 0.65; d.len = 8 + ((Math.random() * 10) | 0); }
+        }
+      }
+      this.mraf = requestAnimationFrame(draw);
+    };
+    this.mraf = requestAnimationFrame(draw);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.mraf); if (this._msize) window.removeEventListener('resize', this._msize); }
+
+  renderVals() {
+    const { drag, fileName, mode, model } = this.state;
+    const dropStyle = {
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px',
+      padding: '48px 24px', borderRadius: '16px', cursor: 'pointer', textAlign: 'center',
+      border: `1.5px dashed ${drag ? '#3B9EFF' : '#24374F'}`,
+      background: drag
+        ? 'radial-gradient(120% 140% at 50% 0%, rgba(20,110,255,0.16), rgba(6,11,22,0.85))'
+        : 'linear-gradient(180deg, rgba(11,18,33,0.85), rgba(6,11,22,0.85))',
+      boxShadow: drag
+        ? '0 0 0 4px rgba(59,158,255,0.10), 0 18px 50px rgba(20,110,255,0.22)'
+        : 'inset 0 1px 0 rgba(120,170,255,0.05), 0 12px 40px rgba(0,0,0,0.35)',
+      transition: 'all .18s ease',
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+    };
+    const chipStyle = {
+      width: '62px', height: '62px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: drag ? 'linear-gradient(180deg, rgba(80,175,255,0.42), rgba(20,110,255,0.22))' : 'linear-gradient(180deg, rgba(50,120,220,0.24), rgba(16,90,210,0.10))',
+      border: '1px solid rgba(90,170,255,0.32)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 22px rgba(20,110,255,0.20)',
+      transition: 'all .18s ease',
+    };
+    const submitStyle = {
+      padding: '15px 34px', borderRadius: '12px', border: '1px solid rgba(150,200,255,0.35)',
+      background: 'linear-gradient(180deg, rgba(64,160,255,0.98) 0%, rgba(20,110,255,0.9) 55%, rgba(12,92,225,0.95) 100%)',
+      boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -2px 6px rgba(10,60,170,0.4), 0 12px 34px rgba(20,110,255,0.42)',
+      color: '#FFFFFF', textShadow: '0 1px 2px rgba(8,50,140,0.4)', fontFamily: 'inherit',
+      fontSize: '15px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+      transition: 'all .15s ease',
+    };
+    const matrixCanvas = React.createElement('canvas', {
+      ref: (el) => { if (el && el !== this.mcv) { this.mcv = el; setTimeout(() => this.initMatrix(el), 60); } },
+      style: { position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity: 0.36, zIndex: 0 },
+    });
+    const fileInput = React.createElement('input', {
+      type: 'file', accept: '.fasta,.fa,.fastq,.json,.jsonl',
+      ref: (el) => { this.fileEl = el; }, onChange: this.onFile, style: { display: 'none' },
+    });
+    const modeData = [
+      { title: 'Online Full', desc: 'Full cloud analysis with every model. Best for publishable results.' },
+      { title: 'Abyss Synced', desc: 'Process data synced from an offline Abyss Mode field expedition.' },
+    ];
+    const modes = modeData.map((m, i) => {
+      const on = i === mode;
+      return {
+        title: m.title, desc: m.desc, select: () => this.setState({ mode: i, model: 0 }),
+        style: `display:flex;gap:14px;padding:16px 18px;height:88px;box-sizing:border-box;align-items:flex-start;overflow:hidden;border-radius:12px;cursor:pointer;transition:all .15s ease;border:1px solid ${on ? '#2E67B8' : '#152439'};background:${on ? 'linear-gradient(180deg, rgba(20,110,255,0.14), rgba(9,16,30,0.5))' : 'rgba(8,14,26,0.5)'};box-shadow:${on ? 'inset 0 1px 0 rgba(120,180,255,0.16), 0 8px 24px rgba(20,110,255,0.12)' : 'none'}`,
+        radio: `flex:0 0 auto;width:18px;height:18px;margin-top:1px;border-radius:50%;border:1.5px solid ${on ? '#3B9EFF' : '#2C3E5C'};display:flex;align-items:center;justify-content:center;background:${on ? 'rgba(59,158,255,0.15)' : 'transparent'};transition:all .15s`,
+        dot: `width:8px;height:8px;border-radius:50%;background:${on ? '#3B9EFF' : 'transparent'};box-shadow:${on ? '0 0 8px rgba(59,158,255,0.9)' : 'none'}`,
+      };
+    });
+    const modelsByMode = [
+      [
+        { tag: 'Main', name: 'AbyssNet v3', desc: 'Full ensemble, species-level resolution. Best for publishable results.' },
+        { tag: 'Fallback', name: 'MetaGen Ensemble', desc: 'Consensus voting fallback if AbyssNet is unavailable.' },
+      ],
+      [
+        { tag: 'Main', name: 'AbyssNet Lite', desc: 'Offline-trained weights synced from the expedition unit.' },
+        { tag: 'Fallback', name: 'MetaGen Lite', desc: 'Fast genus-level fallback for field-collected reads.' },
+      ],
+    ];
+    const models = modelsByMode[mode].map((md, i) => {
+      const on = i === model;
+      return {
+        name: md.name, desc: md.desc, tag: md.tag, tagStyle: `flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;color:${i === 0 ? '#7FBFFF' : '#8C9AB2'};background:${i === 0 ? 'rgba(59,158,255,0.14)' : 'rgba(140,154,178,0.12)'};border:1px solid ${i === 0 ? '#1E3B60' : '#2A374C'}`,
+        select: () => this.setState({ model: i }),
+        style: `display:flex;gap:13px;padding:16px 18px;height:88px;box-sizing:border-box;align-items:flex-start;overflow:hidden;border-radius:12px;cursor:pointer;transition:all .15s ease;border:1px solid ${on ? '#2E67B8' : '#152439'};background:${on ? 'linear-gradient(180deg, rgba(20,110,255,0.13), rgba(9,16,30,0.5))' : 'rgba(8,14,26,0.4)'};box-shadow:${on ? 'inset 0 1px 0 rgba(120,180,255,0.14), 0 8px 22px rgba(20,110,255,0.10)' : 'none'}`,
+        radio: `flex:0 0 auto;width:17px;height:17px;margin-top:1px;border-radius:50%;border:1.5px solid ${on ? '#3B9EFF' : '#2C3E5C'};display:flex;align-items:center;justify-content:center;background:${on ? 'rgba(59,158,255,0.15)' : 'transparent'};transition:all .15s`,
+        dot: `width:7.5px;height:7.5px;border-radius:50%;background:${on ? '#3B9EFF' : 'transparent'};box-shadow:${on ? '0 0 8px rgba(59,158,255,0.9)' : 'none'}`,
+      };
+    });
+    const metaFields = [
+      { label: 'Location label', ph: 'Indian Ocean, Site 7' },
+      { label: 'Date', ph: 'YYYY-MM-DD' },
+      { label: 'Time', ph: 'HH:MM' },
+      { label: 'Latitude, Longitude', ph: '-18.432, 73.211' },
+      { label: 'Depth (m)', ph: '2500' },
+      { label: 'Source type', ph: 'water, sediment' },
+      { label: 'Habitat', ph: 'hydrothermal_vent' },
+      { label: 'Salinity (ppt)', ph: '35.2' },
+      { label: 'Temperature (°C)', ph: '4.5' },
+    ];
+    return {
+      matrixCanvas, fileInput, dropStyle, chipStyle, submitStyle, modes, models, metaFields,
+      dropTitle: fileName || 'Click to select, or drag & drop your sequence file',
+      readyText: fileName ? 'File ready — 1 sequence set' : 'Awaiting sequence file',
+      pickFile: this.pickFile, onDragOver: this.onDragOver, onDragLeave: this.onDragLeave, onDrop: this.onDrop,
+      reset: this.reset, noop: () => {},
+      ctaHover: { background: 'linear-gradient(180deg, rgba(100,180,255,1) 0%, rgba(40,125,255,0.92) 55%, rgba(20,110,255,0.98) 100%)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.5), inset 0 -2px 6px rgba(10,60,170,0.35), 0 14px 40px rgba(40,125,255,0.55)' },
+      ghostHover: { background: 'rgba(255,255,255,0.05)', borderColor: '#33486A', color: '#F5F5F3' },
+    };
+  }
+}
+</script>
+</body>
+</html>

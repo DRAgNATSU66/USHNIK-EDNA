@@ -17,6 +17,12 @@ html, body {
   50% { transform: translateY(-12px); }
 }
 
+/* Breathing glow halo behind the Upload page's DNA hero image */
+@keyframes sv-halo-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
 /* Auth page inputs (Login/Signup/Forgot/Reset): recessed "liquid glass"
    material — same frosted/blur language as the buttons (see authStyles.js
    liquidGlass()), just sunk into the surface instead of raised off it.
@@ -61,7 +67,7 @@ html, body {
 .sv-upload-field {
   padding: 13px 15px;
   border: 1px solid #17253D;
-  border-radius: 10px;
+  border-radius: 3px;
   background: #080F1C;
   font-family: inherit;
   font-size: 14px;
@@ -96,4 +102,11 @@ html, body {
 
 .sv-upload-field[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Render the native date/time picker (icon + popup) in dark mode instead
+   of the browser default light chrome, where the browser supports it. */
+.sv-upload-field[type="date"],
+.sv-upload-field[type="time"] {
+  color-scheme: dark;
 }

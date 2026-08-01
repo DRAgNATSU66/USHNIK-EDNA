@@ -13,9 +13,7 @@ export const uploadColors = {
   labelText: "#75849B",
   sectionBorder: "#15243C",
   sectionSubtext: "#5A6C86",
-  cardBorderInactive: "#182B45",
   cardBorderActive: "#2E67B8",
-  cardBgInactive: "rgba(7,13,24,0.9)",
   cardTitle: "#EAF2FF",
   cardDesc: "#7A8699",
   radioInactive: "#2C3E5C",
@@ -125,23 +123,25 @@ export function uploadDropzoneChipStyle(drag) {
   };
 }
 
-function radioCard(active, { padding, borderRadius = 12 }) {
+// Fixed-height (88px) so a 2-line description never pushes row heights
+// out of alignment between the Analysis Mode and Processing Model columns.
+function radioCard(active, { padding, gap }) {
   return {
     display: "flex",
-    gap: 14,
+    gap,
     padding,
-    borderRadius,
+    height: 88,
+    boxSizing: "border-box",
+    alignItems: "flex-start",
+    overflow: "hidden",
+    borderRadius: 12,
     cursor: "pointer",
     transition: "all .15s ease",
-    border: `1px solid ${active ? uploadColors.cardBorderActive : uploadColors.cardBorderInactive}`,
+    border: `1px solid ${active ? uploadColors.cardBorderActive : "#152439"}`,
     background: active
-      ? "linear-gradient(180deg, rgba(18,70,150,0.9), rgba(9,16,30,0.94))"
-      : uploadColors.cardBgInactive,
-    backdropFilter: "blur(4px)",
-    WebkitBackdropFilter: "blur(4px)",
-    boxShadow: active
-      ? "inset 0 1px 0 rgba(120,180,255,0.16), 0 8px 24px rgba(20,110,255,0.14)"
-      : "0 6px 18px rgba(0,0,0,0.35)",
+      ? "linear-gradient(180deg, rgba(20,110,255,0.14), rgba(9,16,30,0.5))"
+      : "rgba(8,14,26,0.5)",
+    boxShadow: active ? "inset 0 1px 0 rgba(120,180,255,0.16), 0 8px 24px rgba(20,110,255,0.12)" : "none",
   };
 }
 
@@ -172,11 +172,52 @@ function radioDot(active, size) {
 }
 
 // Analysis Mode cards — the larger of the two card sizes.
-export const modeCardStyle = (active) => radioCard(active, { padding: "16px 18px" });
+export const modeCardStyle = (active) => radioCard(active, { padding: "16px 18px", gap: 14 });
 export const modeRadioOuterStyle = (active) => radioOuter(active, 18);
 export const modeRadioDotStyle = (active) => radioDot(active, 8);
 
-// Processing Model cards — slightly smaller.
-export const modelCardStyle = (active) => radioCard(active, { padding: "14px 16px" });
+// Processing Model cards — slightly smaller, plus a Main/Fallback tag.
+export const modelCardStyle = (active) => radioCard(active, { padding: "16px 18px", gap: 13 });
 export const modelRadioOuterStyle = (active) => radioOuter(active, 17);
 export const modelRadioDotStyle = (active) => radioDot(active, 7.5);
+
+// isMain: true for the "Main" model in a mode's list, false for "Fallback".
+export const modelTagStyle = (isMain) => ({
+  flex: "0 0 auto",
+  fontSize: "9.5px",
+  fontWeight: 700,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  padding: "2px 7px",
+  borderRadius: 5,
+  color: isMain ? "#7FBFFF" : "#8C9AB2",
+  background: isMain ? "rgba(59,158,255,0.14)" : "rgba(140,154,178,0.12)",
+  border: `1px solid ${isMain ? "#1E3B60" : "#2A374C"}`,
+});
+
+// The four floating info cards around the DNA hero image.
+export const heroCardStyle = {
+  position: "absolute",
+  display: "flex",
+  flexDirection: "column",
+  gap: 5,
+  padding: "14px 18px",
+  borderRadius: 12,
+  border: "1px solid #1B2C46",
+  background: "rgba(9,15,27,0.8)",
+  backdropFilter: "blur(8px)",
+  WebkitBackdropFilter: "blur(8px)",
+  boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+};
+
+export const heroCardTitleStyle = {
+  fontSize: 20,
+  fontWeight: 700,
+  color: "#F5F9FF",
+  letterSpacing: "-0.01em",
+};
+
+export const heroCardSubtitleStyle = {
+  fontSize: "12.5px",
+  color: uploadColors.cardDesc,
+};

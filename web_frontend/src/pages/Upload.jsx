@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
+import MatrixRain from "../components/upload/MatrixRain";
 import { useAuth } from "../contexts/AuthContext";
 import { createUpload, createAnalysisJob } from "../lib/api";
-import helixCut from "../assets/helix-cut.png";
+import dnaHero from "../assets/dna.png";
 import {
   uploadColors,
   uploadSlabHeaderStyle,
@@ -18,17 +19,27 @@ import {
   modelCardStyle,
   modelRadioOuterStyle,
   modelRadioDotStyle,
+  modelTagStyle,
+  heroCardStyle,
+  heroCardTitleStyle,
+  heroCardSubtitleStyle,
 } from "./uploadStyles";
 
 const VALID_EXTS = [".fasta", ".fa", ".fastq", ".json", ".jsonl"];
 const MAX_SIZE_MB = 500;
 const MAX_SIZE = MAX_SIZE_MB * 1024 * 1024;
 
+// "Date", "Time", and the combined "Latitude, Longitude" field are handled
+// separately from this list (see META_FIELDS below + parseLatLong) since
+// they need custom input types / parsing before hitting the backend, which
+// only accepts separate `latitude`/`longitude` floats and has no date/time
+// field at all yet (see the note above handleSubmit).
 const META_FIELDS = [
   { key: "location_label", label: "Location label", type: "text", placeholder: "Indian Ocean, Site 7" },
+  { key: "date", label: "Date", type: "date", placeholder: "" },
+  { key: "time", label: "Time", type: "time", placeholder: "" },
+  { key: "lat_long", label: "Latitude, Longitude", type: "text", placeholder: "-18.432, 73.211" },
   { key: "depth_meters", label: "Depth (m)", type: "number", placeholder: "2500" },
-  { key: "latitude", label: "Latitude", type: "number", placeholder: "-18.432" },
-  { key: "longitude", label: "Longitude", type: "number", placeholder: "73.211" },
   { key: "source_type", label: "Source type", type: "text", placeholder: "water, sediment" },
   { key: "habitat", label: "Habitat", type: "text", placeholder: "hydrothermal_vent" },
   { key: "salinity_ppt", label: "Salinity (ppt)", type: "number", placeholder: "35.2" },
@@ -36,8 +47,8 @@ const META_FIELDS = [
 ];
 
 const MODES = [
-  { value: "online_full", title: "Online Full", desc: "Full cloud analysis with every model. Recommended for final, publishable results." },
-  { value: "abyss_synced", title: "Abyss Synced", desc: "Process data synced down from an offline Abyss Mode field expedition." },
+  { value: "online_full", title: "Online Full", desc: "Full cloud analysis with every model. Best for publishable results." },
+  { value: "abyss_synced", title: "Abyss Synced", desc: "Process data synced from an offline Abyss Mode field expedition." },
 ];
 
 // Processing Model is a design-only concept for now — the backend's
@@ -47,17 +58,21 @@ const MODES = [
 // routing), not something to fake here.
 const MODELS_BY_MODE = {
   online_full: [
-    { name: "AbyssNet v3 — Deep taxonomy", desc: "Full ensemble, species-level resolution. Best for publishable results." },
-    { name: "CoralClassifier", desc: "Reef & benthic specialist, high-confidence coral clades." },
-    { name: "PelagicNet", desc: "Open-water and planktonic communities." },
-    { name: "MetaGen Ensemble", desc: "All models combined with consensus voting." },
+    { name: "AbyssNet v3", tag: "Main", desc: "Full ensemble, species-level resolution. Best for publishable results." },
+    { name: "MetaGen Ensemble", tag: "Fallback", desc: "Consensus voting fallback if AbyssNet is unavailable." },
   ],
   abyss_synced: [
-    { name: "AbyssNet Lite — On-device", desc: "Offline-trained weights synced from the expedition unit." },
-    { name: "MetaGen Lite", desc: "Fast genus-level screen for field-collected reads." },
-    { name: "EdgeTaxon Compact", desc: "Low-memory model matched to Abyss Mode captures." },
+    { name: "AbyssNet Lite", tag: "Main", desc: "Offline-trained weights synced from the expedition unit." },
+    { name: "MetaGen Lite", tag: "Fallback", desc: "Fast genus-level fallback for field-collected reads." },
   ],
 };
+
+const HERO_CARDS = [
+  { title: "FASTA · JSON", subtitle: "Read formats", pos: { left: 0, top: 24 } },
+  { title: "Sugar phosphate", subtitle: "Backbone", pos: { left: 0, bottom: 14 } },
+  { title: "mRNA · tRNA", subtitle: "Transcripts", pos: { right: 0, top: 20 } },
+  { title: "Peptide bonds", subtitle: "Residue links", pos: { right: 0, bottom: 14 } },
+];
 
 function validateFile(file) {
   if (!file) return "No file selected.";
@@ -67,6 +82,19 @@ function validateFile(file) {
   }
   if (file.size > MAX_SIZE) return `File exceeds ${MAX_SIZE_MB} MB limit.`;
   return null;
+}
+
+// "-18.432, 73.211" -> { latitude, longitude } — returns {} (and silently
+// drops the field, same as leaving it blank) if it doesn't parse cleanly.
+// This is optional metadata, not a validated form field, so a malformed
+// entry just doesn't get sent rather than blocking submission.
+function parseLatLong(value) {
+  const parts = value.split(",").map((s) => s.trim());
+  if (parts.length !== 2) return {};
+  const latitude = parseFloat(parts[0]);
+  const longitude = parseFloat(parts[1]);
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) return {};
+  return { latitude, longitude };
 }
 
 function UploadIcon() {
@@ -90,6 +118,15 @@ function SlabHeader({ title, subtitle }) {
           {subtitle}
         </span>
       )}
+    </div>
+  );
+}
+
+function HeroCard({ title, subtitle, pos }) {
+  return (
+    <div style={{ ...heroCardStyle, ...pos }}>
+      <span style={heroCardTitleStyle}>{title}</span>
+      <span style={heroCardSubtitleStyle}>{subtitle}</span>
     </div>
   );
 }
@@ -154,8 +191,20 @@ export default function Upload() {
     try {
       const formData = new FormData();
       formData.append("file", file, file.name);
-      for (const [k, v] of Object.entries(meta)) {
+
+      // date/time have no backend field yet — not sent (see META_FIELDS
+      // comment). lat_long gets parsed and split into the two fields the
+      // backend actually accepts.
+      const { date, time, lat_long, ...rest } = meta;
+      for (const [k, v] of Object.entries(rest)) {
         if (v !== "" && v !== null) formData.append(k, v);
+      }
+      if (lat_long) {
+        const { latitude, longitude } = parseLatLong(lat_long);
+        if (latitude !== undefined) {
+          formData.append("latitude", latitude);
+          formData.append("longitude", longitude);
+        }
       }
 
       const upload = await createUpload(formData);
@@ -173,6 +222,7 @@ export default function Upload() {
     <div style={{ background: uploadColors.pageBg, minHeight: "100vh" }}>
       <NavBar />
       <div style={{ minHeight: "calc(100vh - 56px)", position: "relative", overflow: "hidden", padding: "60px 24px 80px", boxSizing: "border-box" }}>
+        <MatrixRain />
         {/* ambient glows */}
         <div
           style={{
@@ -182,12 +232,6 @@ export default function Upload() {
             background:
               "radial-gradient(52% 40% at 50% -4%, rgba(20,110,255,0.14) 0%, rgba(2,6,15,0) 60%), radial-gradient(46% 46% at 96% 44%, rgba(40,130,255,0.10) 0%, rgba(2,6,15,0) 60%)",
           }}
-        />
-        {/* static DNA render behind the content */}
-        <img
-          src={helixCut}
-          alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "fill", opacity: 0.26, pointerEvents: "none" }}
         />
 
         <div style={{ position: "relative", width: 840, maxWidth: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 44 }}>
@@ -222,6 +266,25 @@ export default function Upload() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* DNA hero with floating cards */}
+          <div style={{ position: "relative", height: 360, display: "flex", alignItems: "center", justifyContent: "center", margin: "-8px 0 -6px" }}>
+            <div
+              style={{
+                position: "absolute", width: 520, height: 340, borderRadius: "50%",
+                background: "radial-gradient(closest-side, rgba(20,110,255,0.26), rgba(2,6,15,0) 72%)",
+                filter: "blur(6px)", animation: "sv-halo-breathe 10s ease-in-out infinite", willChange: "transform, opacity",
+              }}
+            />
+            <img
+              src={dnaHero}
+              alt="DNA double helix"
+              style={{ position: "relative", height: 340, width: "auto", filter: "drop-shadow(0 20px 50px rgba(20,110,255,0.35))" }}
+            />
+            {HERO_CARDS.map((c) => (
+              <HeroCard key={c.title} {...c} />
+            ))}
           </div>
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 44 }}>
@@ -280,7 +343,7 @@ export default function Upload() {
             </div>
 
             {/* Analysis Mode + Processing Model */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: 44 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 44 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <SlabHeader title="Analysis Mode" />
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -310,8 +373,11 @@ export default function Upload() {
                         <span style={modelRadioOuterStyle(active)}>
                           <span style={modelRadioDotStyle(active)} />
                         </span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: uploadColors.cardTitle }}>{md.name}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: uploadColors.cardTitle }}>{md.name}</span>
+                            <span style={modelTagStyle(i === 0)}>{md.tag}</span>
+                          </div>
                           <span style={{ fontSize: 12, lineHeight: 1.45, color: uploadColors.cardDesc }}>{md.desc}</span>
                         </div>
                       </div>
