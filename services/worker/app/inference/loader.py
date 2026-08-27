@@ -22,6 +22,7 @@ Supported base models (Windows-compatible, no custom Triton/FlashAttention):
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -30,13 +31,23 @@ from .models import ModelRegistryEntry
 
 logger = logging.getLogger(__name__)
 
+# DNABERT-2's custom modeling code falls back to plain PyTorch attention when
+# Triton is unavailable -- but if a `triton` package is importable in this
+# environment while its JIT compiler isn't (e.g. no C compiler on PATH, the
+# case on this project's Windows training host), it takes the Triton path
+# and crashes instead of falling back. Force the ImportError so it degrades
+# the way the architecture actually intends. No-op if triton was never
+# going to import here anyway. See services/worker/training/finetune.py for
+# the reproduction that surfaced this.
+sys.modules.setdefault("triton", None)  # type: ignore[arg-type]
+
 # ---------------------------------------------------------------------------
 # Optional torch / transformers import
 # ---------------------------------------------------------------------------
 
 try:
     import torch
-    from transformers import AutoModel, AutoTokenizer
+    from transformers import AutoConfig, AutoModel, AutoModelForMaskedLM, AutoTokenizer
     _TORCH_AVAILABLE = True
     logger.info("torch %s available — model inference enabled", torch.__version__)
 except ImportError:
@@ -114,8 +125,13 @@ def clear_cache() -> None:
 # ---------------------------------------------------------------------------
 
 def _load(entry: ModelRegistryEntry) -> tuple[Any, Any] | None:
-    uri = entry.artifact_uri
-    assert uri is not None  # already checked by caller
+    # The BACKBONE comes from base_model (an HF Hub ID or local model dir —
+    # config.json + weights). artifact_uri is the per-route HEAD weights
+    # (.pt/.bin, a bare state_dict) — see heads.get_head, which predictor.py
+    # calls separately. Loading a bare state_dict here via AutoModel would
+    # fail outright, so these two must never be conflated.
+    uri = entry.base_model
+    assert entry.artifact_uri is not None  # already checked by caller (is_runnable)
 
     logger.info("Loading model %s from %s ...", entry.model_id, uri)
     try:
@@ -130,15 +146,34 @@ def _load(entry: ModelRegistryEntry) -> tuple[Any, Any] | None:
         local_path = _resolve_local(uri)
 
         load_kwargs: dict[str, Any] = {
-            "trust_remote_code": False,  # never trust remote code for security
+            # Only True when the registry entry explicitly allowlists this
+            # base_model (see ModelRegistryEntry.trusted_remote_code) — e.g.
+            # DNABERT-2 ships custom modeling code and needs this to load at
+            # all, but that trust must never silently extend to other models.
+            "trust_remote_code": entry.trusted_remote_code,
         }
-        if device == "cpu":
-            load_kwargs["torch_dtype"] = torch.float32
-        else:
-            load_kwargs["torch_dtype"] = torch.float16
+        # Always load in fp32. Loading straight into fp16 on CUDA was tried
+        # and reverted — DNABERT-2's custom modeling code (and likely other
+        # trust_remote_code models with hand-written layers, e.g. newly-
+        # initialized pooler weights that don't inherit the load dtype)
+        # isn't guaranteed fp16-safe end to end, and crashes ("expected
+        # scalar type Half but found Float") rather than degrading. A 117M
+        # model in fp32 is a non-issue on an 8GB GPU for single-sequence
+        # inference; mixed precision belongs in training (autocast), where
+        # it's applied safely op-by-op instead of forced at load time.
+        load_kwargs["torch_dtype"] = torch.float32
 
-        tokenizer = AutoTokenizer.from_pretrained(local_path or uri, **load_kwargs)
-        model = AutoModel.from_pretrained(local_path or uri, **load_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(local_path or uri, trust_remote_code=load_kwargs["trust_remote_code"])
+        config = AutoConfig.from_pretrained(local_path or uri, trust_remote_code=load_kwargs["trust_remote_code"])
+        if "AutoModel" not in getattr(config, "auto_map", {}) and getattr(config, "model_type", None) == "esm":
+            # Some ESM-family repos (e.g. Nucleotide Transformer) only map
+            # AutoModelForMaskedLM to their custom gated-FFN encoder class,
+            # not plain AutoModel — see finetune.py for the full story on
+            # why AutoModel silently resolves to the wrong (non-gated)
+            # architecture here and fails to load the checkpoint weights.
+            model = AutoModelForMaskedLM.from_pretrained(local_path or uri, **load_kwargs).esm
+        else:
+            model = AutoModel.from_pretrained(local_path or uri, **load_kwargs)
         model.eval()
         model.to(device)
 

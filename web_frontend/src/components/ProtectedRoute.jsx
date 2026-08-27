@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   if (requiredRole && !requiredRole(user?.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/upload" replace />;
   }
 
   return children;

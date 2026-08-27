@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes stepPulse{0%,100%{opacity:0.55}50%{opacity:1}}
+input[type=range].nvslider{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:linear-gradient(90deg,#146EFF,#0A2447);outline:none}
+input[type=range].nvslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+input[type=range].nvslider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+</style>
+</helmet>
+<div data-screen-label="Analysis Report" style="min-height:100vh;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 50% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%), radial-gradient(50% 40% at 90% 100%, rgba(59,158,255,0.06) 0%, rgba(2,6,15,0) 55%)"></div>
+  <div style="position:relative;max-width:1320px;margin:0 auto;padding:28px 40px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+
+    <!-- 1. Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:22px">
+        <div style="display:flex;align-items:center;gap:11px">
+          <svg width="24" height="24" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-weight:600;letter-spacing:0.22em;font-size:12px">SYNTH VEDA</span>
+        </div>
+        <div style="width:1px;height:28px;background:#14233C"></div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.01em">Analysis Report</h1>
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.1em;padding:4px 12px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.10);color:#6FBAFF">{{ methodology }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:#7A8699">
+            <span style="color:#B8BECB">{{ filename }}</span><span style="color:#3D4A61">·</span><span>Run ID {{ runId }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onClick="{{ noop }}" style="display:flex;align-items:center;gap:9px;padding:8px 18px 8px 9px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38), 0 2px 8px rgba(0,0,0,0.35);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer" style-hover="{{ ghostHover }}">
+          <span style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 12h10" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+          Export JSON
+        </button>
+        <button onClick="{{ noop }}" style="display:flex;align-items:center;gap:9px;padding:8px 18px 8px 9px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38), 0 2px 8px rgba(0,0,0,0.35);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer" style-hover="{{ ghostHover }}">
+          <span style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 12h10" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+          Export CSV
+        </button>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border:1px solid #14233C;border-radius:999px;background:rgba(8,16,32,0.6)">
+          <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#146EFF,#7FD4FF);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#04101F">AR</div>
+          <div style="display:flex;flex-direction:column;line-height:1.2">
+            <span style="font-size:12.5px;font-weight:500">Dr. A. Rao</span>
+            <span style="font-size:10.5px;color:#7A8699">Marine Genomics</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Disclaimer banner (reusable) -->
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;border-radius:6px;border:1px solid rgba(217,150,60,0.28);background:linear-gradient(180deg, rgba(217,150,60,0.07), rgba(217,150,60,0.03))">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M8 1.5 15 14H1L8 1.5z" stroke="#E0A85C" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.6v.4" stroke="#E0A85C" stroke-width="1.4" stroke-linecap="round"></path></svg>
+      <p style="margin:0;font-size:12.5px;line-height:1.65;color:#C8B79A;text-wrap:pretty"><span style="font-weight:600;color:#E0A85C">Interpretation notice.</span> Results are preliminary and require expert confirmation. Read counts show relative abundance — not exact population, age, size, or live/dead status. Detections indicate recent presence (roughly 1–14 days before collection) and are subject to DNA degradation. Spatial results reflect the water body sampled, not exact organism coordinates — eDNA drifts with currents.</p>
+    </div>
+
+    <!-- 3. Negative control badge -->
+    <div style="display:flex;align-items:center;gap:10px">
+      <sc-if value="{{ negControl }}" hint-placeholder-val="{{ true }}">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:500;padding:5px 14px;border-radius:999px;border:1px solid rgba(70,200,150,0.3);background:rgba(70,200,150,0.08);color:#5FD9A9"><span style="width:6px;height:6px;border-radius:50%;background:#5FD9A9"></span>Negative control: Included</span>
+      </sc-if>
+      <sc-if value="{{ noNegControl }}" hint-placeholder-val="{{ false }}">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:500;padding:5px 14px;border-radius:999px;border:1px solid rgba(217,150,60,0.32);background:rgba(217,150,60,0.08);color:#E0A85C"><span style="width:6px;height:6px;border-radius:50%;background:#E0A85C"></span>Negative control: Not included — contamination cross-check unavailable</span>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
+      <!-- LOADING STATE -->
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="padding:22px 26px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px">
+            <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">PIPELINE IN PROGRESS</span>
+            <span style="font-size:12.5px;color:#7A8699">{{ etaLabel }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0">
+            <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;flex:1;min-width:0">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0">
+                  <div style="{{ st.dotStyle }}">{{ st.mark }}</div>
+                  <span style="{{ st.labelStyle }}">{{ st.label }}</span>
+                </div>
+                <sc-if value="{{ st.hasBar }}" hint-placeholder-val="{{ true }}">
+                  <div style="flex:1;height:2px;margin:0 12px 24px;border-radius:1px;background:#14233C;overflow:hidden"><div style="{{ st.barStyle }}"></div></div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;height:6px;border-radius:3px;background:#0A1526;overflow:hidden"><div style="width:58%;height:100%;border-radius:3px;background:linear-gradient(90deg,#146EFF,#3B9EFF);box-shadow:0 0 12px rgba(59,158,255,0.5)"></div></div>
+            <span style="font-size:12.5px;color:#7A8699;flex-shrink:0">58% · 1.2 GB of 2.1 GB processed</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px">
+          <sc-for list="{{ skels6 }}" as="s" hint-placeholder-count="6">
+            <div style="height:118px;border-radius:9px;border:1px solid #14233C;background:linear-gradient(90deg,#060A14 25%,#0B1424 50%,#060A14 75%);background-size:800px 100%;animation:shimmer 1.6s linear infinite"></div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="height:220px;border-radius:9px;border:1px solid #14233C;background:linear-gradient(90deg,#060A14 25%,#0B1424 50%,#060A14 75%);background-size:800px 100%;animation:shimmer 1.6s linear infinite"></div>
+          <div style="height:220px;border-radius:9px;border:1px solid #14233C;background:linear-gradient(90deg,#060A14 25%,#0B1424 50%,#060A14 75%);background-size:800px 100%;animation:shimmer 1.6s linear infinite"></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isReport }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <!-- 4. KPI row -->
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">TOTAL SEQUENCES</span>
+            <span style="font-size:26px;font-weight:600;letter-spacing:-0.02em">10.0M</span>
+            <span style="font-size:11.5px;color:#3D4A61">raw reads ingested</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">PASSED QC</span>
+            <span style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:#5FD9A9">92.4%</span>
+            <span style="font-size:11.5px;color:#3D4A61">9.24M reads retained</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">ROUTE RICHNESS</span>
+            <span style="font-size:26px;font-weight:600;letter-spacing:-0.02em">14</span>
+            <span style="font-size:11.5px;color:#3D4A61">triage buckets, pre-taxonomic</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">CONTAMINATION</span>
+            <span style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:#E0A85C">3.1%</span>
+            <span style="font-size:11.5px;color:#3D4A61">dominant: human_domestic</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid #2E67B8;background:linear-gradient(180deg, rgba(20,110,255,0.12), #060A14)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#6FBAFF">eDNA TARGET STATUS</span>
+            <span style="display:flex;align-items:center;gap:8px;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:#3B9EFF"><span style="width:8px;height:8px;border-radius:50%;background:#3B9EFF;box-shadow:0 0 10px rgba(59,158,255,0.9)"></span>Detected</span>
+            <span style="font-size:11.5px;color:#7A8699">Detection window: ~1–14 days prior to collection</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">NOVELTY</span>
+            <span style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:#7FD4FF">{{ noveltyPct }}%</span>
+            <input type="range" class="nvslider" min="40" max="97" value="{{ threshold }}" onChange="{{ onThreshold }}" onInput="{{ onThreshold }}">
+            <span style="font-size:11px;color:#3D4A61">similarity threshold: {{ threshold }}%</span>
+          </div>
+        </div>
+
+        <!-- 5 + 6: QC and Triage panels -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="display:flex;flex-direction:column;gap:16px;padding:22px 24px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">QUALITY CONTROL SUMMARY</span>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+              <sc-for list="{{ qcMetrics }}" as="m" hint-placeholder-count="5">
+                <div style="display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:4px;border:1px solid #101D33;background:rgba(8,14,26,0.5)">
+                  <span style="font-size:10.5px;letter-spacing:0.06em;color:#7A8699">{{ m.label }}</span>
+                  <span style="font-size:17px;font-weight:600">{{ m.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#7A8699">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7h8M7 3.5 10.5 7 7 10.5" stroke="#3B9EFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span>0.76M of 10M reads filtered — <a href="#">full attrition breakdown in Researcher Mode</a></span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;padding:22px 24px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+            <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">TRIAGE CATEGORY DISTRIBUTION</span>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <sc-for list="{{ triage }}" as="t" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="width:190px;flex-shrink:0;font-size:12.5px;color:#B8BECB;font-family:ui-monospace,monospace">{{ t.name }}</span>
+                  <div style="flex:1;height:8px;border-radius:4px;background:#0A1526;overflow:hidden"><div style="{{ t.barStyle }}"></div></div>
+                  <span style="width:62px;text-align:right;font-size:12px;color:#7A8699;flex-shrink:0">{{ t.count }}</span>
+                  <span style="width:46px;text-align:right;font-size:12px;font-weight:600;color:#F5F5F3;flex-shrink:0">{{ t.pct }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. Novelty preview -->
+        <div style="display:flex;flex-direction:column;gap:14px;padding:22px 24px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22)">
+          <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">POSSIBLE NOVELTY — PREVIEW</span>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <sc-for list="{{ novelty }}" as="n" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:6px;border:1px solid #152439;background:rgba(8,14,26,0.5)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                  <span style="font-size:13px;font-weight:600;font-family:ui-monospace,monospace;color:#F5F5F3">{{ n.id }}</span>
+                  <span style="font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid rgba(127,212,255,0.3);background:rgba(127,212,255,0.08);color:#7FD4FF">{{ n.nov }} novel</span>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.08);color:#6FBAFF">{{ n.route }}</span>
+                  <span style="{{ n.tagStyle }}">{{ n.tag }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#7A8699">
+                  <span>align {{ n.align }}</span><span>E-value {{ n.eval }}</span>
+                </div>
+                <span style="font-size:11px;color:#3D4A61;line-height:1.5">{{ n.reasons }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <a href="#" style="align-self:flex-end;font-size:12.5px;display:inline-flex;align-items:center;gap:6px">View all 38 in Novelty DNA <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h8M7 3.5 10.5 7 7 10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- 8. Provenance footer -->
+    <div style="display:flex;justify-content:center;padding:6px 0 4px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;pageState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;report&quot;,&quot;options&quot;:[&quot;report&quot;,&quot;processing&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Page state&quot;},&quot;negativeControl&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;methodology&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Metabarcoding&quot;,&quot;options&quot;:[&quot;Metabarcoding&quot;,&quot;Targeted qPCR&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Run&quot;}}">
+class Component extends DCLogic {
+  state = { threshold: 85 };
+  renderVals() {
+    const t = this.state.threshold;
+    const noveltyPct = (0.3 + Math.pow((t - 40) / 57, 1.9) * 11.6).toFixed(1);
+    const isProcessing = (this.props.pageState ?? 'report') === 'processing';
+    const negControl = this.props.negativeControl ?? true;
+    const bar = (w, c) => `width:${w}%;height:100%;border-radius:4px;background:${c};box-shadow:0 0 8px ${c}55`;
+    const stepsDef = [
+      { label: 'QC filtering', s: 'done' },
+      { label: 'Trimming', s: 'done' },
+      { label: 'OTU/ASV Clustering', s: 'active' },
+      { label: 'Taxonomic Matching', s: 'todo' },
+    ];
+    const steps = stepsDef.map((d, i) => {
+      const done = d.s === 'done', active = d.s === 'active';
+      return {
+        label: d.label, mark: done ? '✓' : String(i + 1), hasBar: i < stepsDef.length - 1,
+        dotStyle: `width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1px solid ${done || active ? '#2E67B8' : '#14233C'};background:${done ? 'rgba(20,110,255,0.25)' : active ? 'rgba(20,110,255,0.14)' : 'rgba(8,14,26,0.6)'};color:${done || active ? '#7FD4FF' : '#3D4A61'};${active ? 'animation:stepPulse 1.8s ease-in-out infinite;box-shadow:0 0 14px rgba(59,158,255,0.4);' : ''}`,
+        labelStyle: `font-size:11px;letter-spacing:0.04em;color:${done || active ? '#B8BECB' : '#3D4A61'};white-space:nowrap`,
+        barStyle: `height:100%;background:linear-gradient(90deg,#146EFF,#3B9EFF);width:${done ? 100 : active ? 45 : 0}%`,
+      };
+    });
+    return {
+      methodology: this.props.methodology ?? 'Metabarcoding',
+      filename: 'stn14_bay-of-bengal_0812.fasta', runId: 'SV-2026-08A-4417',
+      noop: () => {},
+      ghostHover: { background: 'linear-gradient(180deg, #6BB2FF 0%, #3B8DFF 48%, #1E6FEB 100%)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -3px 8px rgba(8,50,140,0.4), 0 12px 36px rgba(59,141,255,0.55), 0 2px 8px rgba(0,0,0,0.35)' },
+      negControl, noNegControl: !negControl,
+      isProcessing, isReport: !isProcessing,
+      etaLabel: '~4 min remaining · stage 3 of 4', steps, skels6: [1, 2, 3, 4, 5, 6],
+      threshold: t, noveltyPct,
+      onThreshold: (e) => this.setState({ threshold: +e.target.value }),
+      qcMetrics: [
+        { label: 'TOTAL SEQ', value: '10.0M' }, { label: 'PASSED QC', value: '9.24M' },
+        { label: 'LOW QUALITY', value: '0.76M' }, { label: 'MEAN LEN', value: '412 bp' },
+        { label: 'MEAN GC', value: '0.47' },
+      ],
+      triage: [
+        { name: 'animal_general', count: '4.61M', pct: '49.9%', barStyle: bar(49.9, '#3B9EFF') },
+        { name: 'bacteria_pathogen', count: '1.94M', pct: '21.0%', barStyle: bar(21, '#146EFF') },
+        { name: 'plant', count: '1.42M', pct: '15.4%', barStyle: bar(15.4, '#7FD4FF') },
+        { name: 'human_domestic_contamination', count: '0.29M', pct: '3.1%', barStyle: bar(3.1, '#E0A85C') },
+        { name: 'misc_unknown', count: '0.98M', pct: '10.6%', barStyle: bar(10.6, '#2A4A7A') },
+      ],
+      novelty: [
+        { id: 'SEQ-88412', nov: '96.2%', route: 'animal_general', tag: 'preserve_sample', align: '312', eval: '2e-41', reasons: 'no reference match above threshold · high read depth · stable cluster', tagStyle: 'font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid rgba(70,200,150,0.3);background:rgba(70,200,150,0.08);color:#5FD9A9' },
+        { id: 'SEQ-73056', nov: '91.7%', route: 'misc_unknown', tag: 'cloud confirm needed', align: '287', eval: '8e-37', reasons: 'partial 16S overlap · chimera check passed · low regional priors', tagStyle: 'font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid rgba(217,150,60,0.32);background:rgba(217,150,60,0.08);color:#E0A85C' },
+        { id: 'SEQ-60931', nov: '88.4%', route: 'bacteria_pathogen', tag: 'preserve_sample', align: '298', eval: '5e-39', reasons: 'divergent marker region · replicate concordance high', tagStyle: 'font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid rgba(70,200,150,0.3);background:rgba(70,200,150,0.08);color:#5FD9A9' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

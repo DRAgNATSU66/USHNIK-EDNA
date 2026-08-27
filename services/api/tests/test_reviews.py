@@ -69,6 +69,22 @@ async def test_review_decision_not_found(client, admin_token):
 
 
 @pytest.mark.anyio
+async def test_reviews_by_sequence_requires_auth(client):
+    resp = await client.get("/reviews/by-sequence", params={"analysis_id": "ana_001", "sequence_id": "seq_001"})
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_reviews_by_sequence_not_found(client, researcher_token):
+    resp = await client.get(
+        "/reviews/by-sequence",
+        params={"analysis_id": "ana_nonexistent", "sequence_id": "seq_001"},
+        headers={"Authorization": f"Bearer {researcher_token}"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
 async def test_models_status(client):
     resp = await client.get("/models/status")
     assert resp.status_code == 200

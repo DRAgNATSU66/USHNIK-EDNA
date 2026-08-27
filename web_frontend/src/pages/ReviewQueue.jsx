@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import NavBar from "../components/NavBar";
+import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getReviewStats, getReviewQueue, triageReview,
@@ -234,7 +234,7 @@ export default function ReviewQueue() {
 
   return (
     <div style={PAGE}>
-      <NavBar />
+      <SidebarMenu />
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "2rem 1.5rem" }}>
         <h1 style={{
           fontSize: "1.75rem", fontWeight: 800, marginBottom: 8,

@@ -14,6 +14,8 @@ and is tolerant of missing or extra keys.
 """
 from __future__ import annotations
 
+import csv
+import io
 import math
 from datetime import datetime, timezone
 from typing import Any
@@ -29,6 +31,7 @@ from .models import (
     ReviewStatusSummary,
     RouteDistributionEntry,
     SampleMetadata,
+    TaxonomicAssignmentEntry,
     REPORT_DISCLAIMER,
 )
 
@@ -36,12 +39,20 @@ from .models import (
 _NOVELTY_THRESHOLD = 0.45
 # Threshold for including a sequence in the contamination warnings section.
 _CONTAMINATION_THRESHOLD = 0.50
+# Species Correction confidence tiers (SYNTHVEDA_BUILD_SPEC.md 2.3:
+# "Amber/Red = <80% confidence or contaminant flag"). Spec doesn't split
+# amber vs red explicitly; red additionally requires either a contamination
+# flag or a confidence low enough to be effectively unclassified.
+_TIER_GREEN_MIN = 0.80
+_TIER_RED_MAX = 0.50
 
 
 def build_report(
     analysis_doc: dict[str, Any],
     reviews: list[dict[str, Any]],
     source_file: str | None = None,
+    location_label: str | None = None,
+    depth_meters: float | None = None,
 ) -> AnalysisReport:
     """
     Assemble a full AnalysisReport from a stored analysis document and its reviews.
@@ -50,13 +61,16 @@ def build_report(
         analysis_doc: raw MongoDB document from the analysis_results collection.
         reviews: list of raw MongoDB review documents for this analysis_id.
         source_file: optional filename from the upload document.
+        location_label: optional sample site label from the upload document.
+        depth_meters: optional sampling depth from the upload document.
     """
     results: list[dict] = analysis_doc.get("results", [])
 
-    metadata = _build_metadata(analysis_doc, source_file)
+    metadata = _build_metadata(analysis_doc, source_file, location_label, depth_meters)
     qc = _build_qc_summary(results)
     route_dist = _build_route_distribution(results)
     known = _build_known_species(results)
+    assignments = _build_taxonomic_assignments(results)
     novelty = _build_novelty_table(results)
     contamination = _build_contamination_warnings(results)
     biodiversity = _build_biodiversity(results)
@@ -68,6 +82,7 @@ def build_report(
         qc_summary=qc,
         route_distribution=route_dist,
         known_species=known,
+        taxonomic_assignments=assignments,
         possible_novelty=novelty,
         contamination_warnings=contamination,
         biodiversity=biodiversity,
@@ -80,7 +95,12 @@ def build_report(
 # Section builders
 # ---------------------------------------------------------------------------
 
-def _build_metadata(doc: dict, source_file: str | None) -> SampleMetadata:
+def _build_metadata(
+    doc: dict,
+    source_file: str | None,
+    location_label: str | None = None,
+    depth_meters: float | None = None,
+) -> SampleMetadata:
     created_at = doc.get("created_at")
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
@@ -94,6 +114,8 @@ def _build_metadata(doc: dict, source_file: str | None) -> SampleMetadata:
         user_id=doc.get("user_id"),
         mode=doc.get("mode", "online_full"),
         source_file=source_file,
+        location_label=location_label,
+        depth_meters=depth_meters,
         created_at=created_at,
         model_version_set=doc.get("model_version_set"),
     )
@@ -165,6 +187,42 @@ def _build_known_species(results: list[dict]) -> list[KnownSpeciesEntry]:
     return entries
 
 
+def _confidence_tier(confidence: float, contamination_flagged: bool) -> str:
+    """Green/amber/red per SYNTHVEDA_BUILD_SPEC.md 2.3."""
+    if contamination_flagged or confidence < _TIER_RED_MAX:
+        return "red"
+    if confidence >= _TIER_GREEN_MIN:
+        return "green"
+    return "amber"
+
+
+def _build_taxonomic_assignments(results: list[dict]) -> list[TaxonomicAssignmentEntry]:
+    """
+    Every sequence's automated call, not just the "known_species" subset --
+    Species Correction needs the full confidence spectrum (green/amber/red)
+    to review, not a pre-filtered "confident matches only" list.
+    """
+    entries = []
+    for r in results:
+        if r.get("route") == "low_quality" or r.get("result_class") == "low_quality_unusable":
+            continue
+        confidence = round(float(r.get("confidence", 0.0)), 4)
+        contamination_flagged = bool(r.get("contamination_flagged"))
+        entries.append(TaxonomicAssignmentEntry(
+            sequence_id=r.get("sequence_id", "unknown"),
+            route=r.get("route", "misc_unknown"),
+            predicted_taxon=r.get("predicted_taxon"),
+            confidence=confidence,
+            confidence_tier=_confidence_tier(confidence, contamination_flagged),
+            length=int(r.get("length", 0)),
+            contamination_flagged=contamination_flagged,
+            model_version_used=r.get("model_version_used"),
+            reason_codes=r.get("reason_codes", []),
+        ))
+    # Sort: most confident first (mirrors the mockup's default "Confidence score" sort).
+    return sorted(entries, key=lambda e: -e.confidence)
+
+
 def _build_novelty_table(results: list[dict]) -> list[PossibleNoveltyEntry]:
     entries = []
     for r in results:
@@ -179,6 +237,7 @@ def _build_novelty_table(results: list[dict]) -> list[PossibleNoveltyEntry]:
                 requires_cloud_confirmation=bool(r.get("requires_cloud_confirmation", True)),
                 reason_codes=r.get("novelty_reason_codes", r.get("reason_codes", [])),
                 contamination_score=round(float(r.get("contamination_score", 0.0)), 4),
+                sequence=r.get("sequence", ""),
             ))
     # Sort: highest novelty first
     return sorted(entries, key=lambda e: -e.novelty_score)
@@ -292,3 +351,63 @@ def _build_review_status(reviews: list[dict]) -> ReviewStatusSummary:
         auto_novelty_reviews=auto_novelty,
         auto_contamination_reviews=auto_contamination,
     )
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+_CSV_COLUMNS = [
+    "sequence_id", "route", "category", "predicted_taxon", "confidence",
+    "novelty_score", "novelty_level", "contamination_score", "contamination_type",
+    "model_version_used", "reason_codes",
+]
+
+
+def build_report_csv(report: AnalysisReport) -> str:
+    """
+    Flatten a report's per-sequence sections (known species, possible
+    novelty, contamination warnings) into one CSV, one row per sequence.
+    A sequence flagged in more than one section (e.g. both novel and
+    contaminated) gets a single merged row with a comma-joined category
+    list, rather than being duplicated per section.
+    """
+    rows: dict[str, dict[str, Any]] = {}
+
+    def _row(sequence_id: str) -> dict[str, Any]:
+        return rows.setdefault(sequence_id, {col: "" for col in _CSV_COLUMNS} | {
+            "sequence_id": sequence_id, "category": set(),
+        })
+
+    for e in report.known_species:
+        r = _row(e.sequence_id)
+        r["category"].add("known_species")
+        r["route"] = e.route
+        r["predicted_taxon"] = e.predicted_taxon or ""
+        r["confidence"] = e.confidence
+        r["model_version_used"] = e.model_version_used or ""
+        r["reason_codes"] = "; ".join(e.reason_codes)
+
+    for e in report.possible_novelty:
+        r = _row(e.sequence_id)
+        r["category"].add("possible_novelty")
+        r["route"] = e.route
+        r["novelty_score"] = e.novelty_score
+        r["novelty_level"] = e.novelty_level
+        r["reason_codes"] = "; ".join(e.reason_codes) or r["reason_codes"]
+
+    for e in report.contamination_warnings:
+        r = _row(e.sequence_id)
+        r["category"].add("contamination")
+        r["route"] = e.route
+        r["contamination_score"] = e.contamination_score
+        r["contamination_type"] = e.contamination_type or ""
+        r["reason_codes"] = "; ".join(e.reason_codes) or r["reason_codes"]
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS)
+    writer.writeheader()
+    for r in sorted(rows.values(), key=lambda r: r["sequence_id"]):
+        r["category"] = ", ".join(sorted(r["category"]))
+        writer.writerow(r)
+    return buf.getvalue()

@@ -36,7 +36,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+    if (!loading && isAuthenticated) navigate("/upload", { replace: true });
   }, [isAuthenticated, loading, navigate]);
 
   const googleLogin = useGoogleLogin({
@@ -46,7 +46,7 @@ function LoginForm() {
       setError("");
       try {
         await loginWithGoogleCode(codeResponse.code);
-        navigate("/dashboard", { replace: true });
+        navigate("/upload", { replace: true });
       } catch (err) {
         setError(err.message || "Sign-in failed. Please try again.");
       } finally {
@@ -64,7 +64,7 @@ function LoginForm() {
     setError("");
     try {
       await loginWithPassword(email, password);
-      navigate("/dashboard", { replace: true });
+      navigate("/upload", { replace: true });
     } catch (err) {
       setError(err.message || "Sign-in failed. Please try again.");
     } finally {

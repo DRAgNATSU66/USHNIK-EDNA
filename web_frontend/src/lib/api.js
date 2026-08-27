@@ -55,15 +55,20 @@ async function request(method, path, opts = {}) {
     try {
       const err = await resp.json();
       detail = err.detail || err.message || detail;
-    } catch {}
+    } catch {
+      // Error body wasn't JSON -- keep the generic "HTTP {status}" detail.
+    }
     const e = new Error(detail);
     e.status = resp.status;
     throw e;
   }
 
   const ct = resp.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return resp.json();
-  // Return raw Response for non-JSON (e.g., file downloads)
+  const isDownload = (resp.headers.get("content-disposition") || "").includes("attachment");
+  if (ct.includes("application/json") && !isDownload) return resp.json();
+  // Return raw Response for non-JSON, and for JSON marked as a file download
+  // (e.g. /export/json, which is application/json but must stay a Response
+  // so callers can call .blob() on it) -- content-type alone isn't enough.
   return resp;
 }
 
@@ -116,6 +121,10 @@ export const getAnalysis = (analysis_id) =>
 // Reports
 // ---------------------------------------------------------------------------
 
+/** List the current user's own analyses, most recent first (summary fields only). */
+export const listReports = (limit) =>
+  request("GET", "/reports", { params: { limit } });
+
 export const getReport = (analysis_id) =>
   request("GET", `/reports/${analysis_id}`);
 
@@ -134,6 +143,10 @@ export const getContaminationWarnings = (analysis_id) =>
 export const exportReportJson = (analysis_id) =>
   request("GET", `/reports/${analysis_id}/export/json`);
 
+/** Returns a raw Response — caller should create object URL for download. */
+export const exportReportCsv = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/csv`);
+
 // ---------------------------------------------------------------------------
 // Reviews
 // ---------------------------------------------------------------------------
@@ -145,6 +158,13 @@ export const getReviewQueue = (params) =>
 
 export const getReview = (review_id) =>
   request("GET", `/reviews/${review_id}`);
+
+/** Correction history for one sequence -- conflict detection + version history. */
+export const listReviewsForSequence = (analysis_id, sequence_id) =>
+  request("GET", "/reviews/by-sequence", { params: { analysis_id, sequence_id } });
+
+export const submitReview = (data) =>
+  request("POST", "/reviews", { body: data });
 
 export const triageReview = (review_id, data) =>
   request("POST", `/reviews/${review_id}/triage`, { body: data });
@@ -160,6 +180,16 @@ export const createTrainingBatch = (data) =>
 
 export const freezeTrainingBatch = (batch_id) =>
   request("POST", `/reviews/batch/${batch_id}/freeze`, { body: {} });
+
+// ---------------------------------------------------------------------------
+// Field Log (notes + team discussion)
+// ---------------------------------------------------------------------------
+
+export const listFieldEntries = (analysis_id, kind) =>
+  request("GET", "/field-log/entries", { params: { analysis_id, kind } });
+
+export const createFieldEntry = (data) =>
+  request("POST", "/field-log/entries", { body: data });
 
 // ---------------------------------------------------------------------------
 // Models

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import NavBar from "../components/NavBar";
 import MatrixRain from "../components/upload/MatrixRain";
+import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
 import { createUpload, createAnalysisJob } from "../lib/api";
 import dnaHero from "../assets/dna.png";
@@ -220,8 +220,8 @@ export default function Upload() {
 
   return (
     <div style={{ background: uploadColors.pageBg, minHeight: "100vh" }}>
-      <NavBar />
-      <div style={{ minHeight: "calc(100vh - 56px)", position: "relative", overflow: "hidden", padding: "60px 24px 80px", boxSizing: "border-box" }}>
+      <SidebarMenu />
+      <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", padding: "60px 24px 80px", boxSizing: "border-box" }}>
         <MatrixRain />
         {/* ambient glows */}
         <div

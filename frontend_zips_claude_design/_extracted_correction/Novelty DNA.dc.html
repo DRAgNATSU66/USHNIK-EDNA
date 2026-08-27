@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+input[type=range].nvslider{-webkit-appearance:none;appearance:none;width:180px;height:4px;border-radius:2px;background:linear-gradient(90deg,#146EFF,#0A2447);outline:none}
+input[type=range].nvslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+input[type=range].nvslider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+select.svsel{padding:8px 12px;border:1px solid #17253D;border-radius:3px;background:#080F1C;color:#F5F5F3;font-family:inherit;font-size:12.5px;outline:none;cursor:pointer}
+</style>
+</helmet>
+<div data-screen-label="Novelty DNA" style="min-height:100vh;display:flex;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+
+  <!-- Sidebar -->
+  <div style="position:relative;width:260px;flex-shrink:0;border-right:1px solid #0C1526;background:rgba(4,8,17,0.85);display:flex;flex-direction:column;padding:22px 18px;box-sizing:border-box;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:20px">
+      <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:11.5px">SYNTH VEDA</span>
+    </div>
+    <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4 4.5 7 1.5l3 3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Upload Analysis</a>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;border-left:2px solid #3B9EFF;background:rgba(20,110,255,0.10)">
+        <span style="display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#F5F5F3">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M5.5 1.5h3v4l3 5.5a1.4 1.4 0 0 1-1.2 2H3.7a1.4 1.4 0 0 1-1.2-2l3-5.5v-4z" stroke="#3B9EFF" stroke-width="1.3" stroke-linejoin="round"></path></svg>Researcher Mode</span>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5 9 4.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:6px 0 2px 30px">
+        <span style="padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#3B9EFF;background:rgba(20,110,255,0.08)">Novelty DNA</span>
+        <a href="#" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Species correction</a>
+        <a href="#" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Comments</a>
+      </div>
+    </div>
+    <a href="#" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <span style="display:flex;align-items:center;gap:11px"><svg width="15" height="15" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.2" stroke="currentColor" stroke-width="1.3"></rect><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg>Partner Report</span>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 3 7.5 6 4.5 9" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #0C1526;padding:14px 8px 4px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;line-height:1.35">
+        <span style="font-size:13px;font-weight:600">Ushnik Chakrabarti</span>
+        <span style="font-size:11px;color:#7A8699">ushnik1p2h3d@gmail.com</span>
+      </div>
+      <a href="#" style="display:flex;align-items:center;gap:9px;font-size:13px;color:#B8BECB" style-hover="{{ navHover }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 12H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2.5M9 10l3-3-3-3M12 7H5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Sign out</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="position:relative;flex:1;min-width:0;padding:30px 38px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+    <!-- 1. Header -->
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">RESEARCHER MODE</div>
+      <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Novelty DNA</h1>
+      <p style="margin:0;font-size:13.5px;color:#7A8699">Sequences with no confident reference match — review, confirm, or discard candidates below.</p>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:#7A8699">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#3B9EFF" stroke-width="1.2"></circle><path d="M7 4.5v3l2 1.4" stroke="#3B9EFF" stroke-width="1.2" stroke-linecap="round"></path></svg>
+        Checked against: <span style="color:#B8BECB">MarineGenomeDB v4.2</span> · <span style="color:#B8BECB">SILVA 16S v138.2</span>
+      </div>
+    </div>
+
+    <!-- 2. Filter bar -->
+    <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">NOVELTY THRESHOLD · <span style="color:#7FD4FF;font-weight:600">{{ threshold }}%</span></span>
+        <input type="range" class="nvslider" min="40" max="97" value="{{ threshold }}" onInput="{{ onThreshold }}" onChange="{{ onThreshold }}">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">ROUTE</span>
+        <select class="svsel" value="{{ route }}" onChange="{{ onRoute }}">
+          <option value="All">All routes</option><option value="animal_general">animal_general</option><option value="bacteria_pathogen">bacteria_pathogen</option><option value="plant">plant</option><option value="misc_unknown">misc_unknown</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">SORT BY</span>
+        <select class="svsel" value="{{ sort }}" onChange="{{ onSort }}">
+          <option value="novelty">Novelty %</option><option value="evalue">E-value</option><option value="date">Collection date</option>
+        </select>
+      </div>
+      <div style="flex:1"></div>
+      <button onClick="{{ toggleBulk }}" style="{{ bulkBtnStyle }}">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.3"></rect><path d="M4.5 7l2 2 3.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Bulk select
+      </button>
+    </div>
+
+    <!-- Contextual bulk action bar -->
+    <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:16px;padding:12px 18px;border-radius:9px;border:1px solid #2E67B8;background:linear-gradient(180deg, rgba(20,110,255,0.16), rgba(9,16,30,0.7))">
+        <span style="font-size:13px;color:#B8BECB"><span style="font-weight:600;color:#F5F5F3">{{ selCount }}</span> selected</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11.5px;color:#7A8699">est. cost {{ selCost }} credits</span>
+        <button onClick="{{ noop }}" style="display:flex;align-items:center;gap:9px;padding:8px 18px 8px 9px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38), 0 2px 8px rgba(0,0,0,0.35);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer" style-hover="{{ solidHover }}">
+          <span style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M4 8.5a3 3 0 0 1 .4-5.97 3.5 3.5 0 0 1 6.7 1.05A2.75 2.75 0 0 1 10.5 9H4z" stroke="#FFFFFF" stroke-width="1.3" stroke-linejoin="round"></path><path d="M7 11.5V7M5.3 9l1.7-1.7L8.7 9" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+          Cloud Confirm Selected
+        </button>
+      </div>
+    </sc-if>
+
+    <!-- 3. Candidate list -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:12px;letter-spacing:0.08em;color:#7A8699">{{ countLabel }}</span>
+      </div>
+      <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+            <div style="{{ r.cardStyle }}" onClick="{{ r.open }}">
+              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <sc-if value="{{ r.showCheck }}" hint-placeholder-val="{{ false }}">
+                  <div onClick="{{ r.toggleSel }}" style="{{ r.checkStyle }}">{{ r.checkMark }}</div>
+                </sc-if>
+                <span style="font-size:13.5px;font-weight:600;font-family:ui-monospace,monospace;width:64px">{{ r.id }}</span>
+                <span style="{{ r.novStyle }}">{{ r.nov }}% novel</span>
+                <span style="font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.08);color:#6FBAFF">{{ r.route }}</span>
+                <span style="{{ r.tagStyle }}">{{ r.tag }}</span>
+                <div style="flex:1"></div>
+                <button onClick="{{ r.confirm }}" style="display:flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid rgba(160,205,255,0.4);border-radius:10px;background:linear-gradient(180deg, rgba(69,154,245,0.28) 0%, rgba(13,87,209,0.22) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,0.2);font-family:inherit;font-size:12px;font-weight:600;color:#BFDCFF;cursor:pointer" style-hover="{{ confirmHover }}">
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M4 8.5a3 3 0 0 1 .4-5.97 3.5 3.5 0 0 1 6.7 1.05A2.75 2.75 0 0 1 10.5 9H4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path><path d="M7 11.5V7.5M5.4 9.1 7 7.5l1.6 1.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  Cloud Confirm<span style="font-weight:400;color:#7FA8D9">· ~{{ r.cost }} cr</span>
+                </button>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:12px">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">SITE</span><span style="font-size:12px;color:#B8BECB">{{ r.site }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">DEPTH</span><span style="font-size:12px;color:#B8BECB">{{ r.depth }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">CLOSEST MATCH</span><span style="font-size:12px;color:#B8BECB;font-style:italic">{{ r.match }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">IDENTITY</span><span style="font-size:12px;color:#B8BECB">{{ r.ident }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">E-VALUE</span><span style="font-size:12px;color:#B8BECB;font-family:ui-monospace,monospace">{{ r.eval }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">COVERAGE</span><span style="font-size:12px;color:#B8BECB">{{ r.cov }}</span></div>
+              </div>
+              <div style="margin-top:9px;font-size:11px;color:#3D4A61">{{ r.reasons }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:60px 20px;border-radius:9px;border:1px dashed #17253D;background:rgba(6,10,20,0.4)">
+          <svg width="30" height="30" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#2A4A7A" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#17253D" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:14px;font-weight:500;color:#B8BECB">No candidates match the current threshold</span>
+          <span style="font-size:12.5px;color:#7A8699">Try lowering the similarity cutoff below {{ threshold }}%.</span>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="flex:1"></div>
+    <!-- 6. Footer -->
+    <div style="display:flex;justify-content:center;padding:8px 0 2px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+
+  <!-- 4. Deep Alignment Viewer drawer -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(2,4,9,0.6);backdrop-filter:blur(3px);z-index:40"></div>
+    <div style="position:fixed;top:0;right:0;bottom:0;width:600px;max-width:92vw;z-index:41;display:flex;flex-direction:column;gap:18px;padding:26px 30px;box-sizing:border-box;border-left:1px solid #1C2E4C;background:#050912;box-shadow:-30px 0 80px rgba(0,0,0,0.6);overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:11px;letter-spacing:0.08em;color:#7A8699">DEEP ALIGNMENT VIEWER</span>
+          <span style="font-size:19px;font-weight:600;font-family:ui-monospace,monospace">{{ dId }}</span>
+        </div>
+        <button onClick="{{ closeDrawer }}" style="width:32px;height:32px;border-radius:8px;border:1px solid #17253D;background:#080F1C;color:#B8BECB;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="{{ navHover }}">✕</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <span style="{{ dNovStyle }}">{{ dNov }}% novel</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.08);color:#6FBAFF">{{ dRoute }}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <div style="display:flex;flex-direction:column;gap:3px;padding:12px;border-radius:4px;border:1px solid #101D33;background:rgba(8,14,26,0.5)"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">ALIGNMENT IDENTITY</span><span style="font-size:16px;font-weight:600">{{ dIdent }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:3px;padding:12px;border-radius:4px;border:1px solid #101D33;background:rgba(8,14,26,0.5)"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">E-VALUE</span><span style="font-size:16px;font-weight:600;font-family:ui-monospace,monospace">{{ dEval }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:3px;padding:12px;border-radius:4px;border:1px solid #101D33;background:rgba(8,14,26,0.5)"><span style="font-size:10px;letter-spacing:0.07em;color:#3D4A61">QUERY COVERAGE</span><span style="font-size:16px;font-weight:600">{{ dCov }}</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">RAW SEQUENCE (FASTA)</span>
+        <div style="padding:14px 16px;border-radius:4px;border:1px solid #101D33;background:#04070E;font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.7;color:#8FB4E6;word-break:break-all">&gt;{{ dId }}|{{ dSite }}|novelty={{ dNov }}%
+{{ dFasta }}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">ALIGNMENT VS CLOSEST HIT — <span style="font-style:italic;color:#B8BECB">{{ dMatch }}</span></span>
+          <span style="font-size:10.5px;color:#3D4A61"><span style="color:#5FD9A9">■</span> match · <span style="color:#FF7B7B">■</span> mismatch</span>
+        </div>
+        <div style="padding:14px 16px;border-radius:4px;border:1px solid #101D33;background:#04070E;font-family:ui-monospace,monospace;font-size:12px;line-height:1.9;overflow-x:auto">
+          <div style="display:flex;gap:10px"><span style="color:#3D4A61;flex-shrink:0;width:38px">query</span><div style="display:flex;flex-wrap:wrap">
+            <sc-for list="{{ dQuery }}" as="b" hint-placeholder-count="10"><span style="{{ b.style }}">{{ b.ch }}</span></sc-for>
+          </div></div>
+          <div style="display:flex;gap:10px"><span style="color:#3D4A61;flex-shrink:0;width:38px">ref</span><div style="display:flex;flex-wrap:wrap">
+            <sc-for list="{{ dRef }}" as="b" hint-placeholder-count="10"><span style="{{ b.style }}">{{ b.ch }}</span></sc-for>
+          </div></div>
+        </div>
+      </div>
+      <button onClick="{{ noop }}" style="align-self:flex-start;display:flex;align-items:center;gap:9px;padding:8px 18px 8px 9px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer" style-hover="{{ solidHover }}">
+        <span style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M4 8.5a3 3 0 0 1 .4-5.97 3.5 3.5 0 0 1 6.7 1.05A2.75 2.75 0 0 1 10.5 9H4z" stroke="#FFFFFF" stroke-width="1.3" stroke-linejoin="round"></path><path d="M7 11.5V7M5.3 9l1.7-1.7L8.7 9" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+        Cloud Confirm <span style="font-weight:400;opacity:0.8">· ~{{ dCost }} credits</span>
+      </button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { threshold: 75, route: 'All', sort: 'novelty', bulk: false, selected: {}, drawer: null };
+  data() {
+    return [
+      { id: 'NV-001', nov: 96.2, route: 'animal_general', site: 'Stn 14 · Bay of Bengal', depth: '1,840 m', match: 'Bathymodiolus (Mytilidae)', ident: '71.4%', eval: '2e-41', evalN: 2e-41, cov: '88%', tag: 'preserve_sample', good: true, cost: 2, date: 20260812, reasons: 'low_model_confidence, high_quality_sequence, not_contamination' },
+      { id: 'NV-002', nov: 93.8, route: 'misc_unknown', site: 'Stn 09 · Andaman Trench', depth: '3,120 m', match: 'Unclassified Thaumarchaeota', ident: '64.9%', eval: '8e-37', evalN: 8e-37, cov: '81%', tag: 'cloud confirm needed', good: false, cost: 3, date: 20260809, reasons: 'partial_16s_overlap, chimera_check_passed, low_regional_priors' },
+      { id: 'NV-003', nov: 91.5, route: 'bacteria_pathogen', site: 'Stn 14 · Bay of Bengal', depth: '1,840 m', match: 'Vibrio (Vibrionaceae)', ident: '73.0%', eval: '5e-39', evalN: 5e-39, cov: '90%', tag: 'preserve_sample', good: true, cost: 2, date: 20260812, reasons: 'divergent_marker_region, replicate_concordance_high' },
+      { id: 'NV-004', nov: 87.3, route: 'animal_general', site: 'Stn 11 · Ninety East Ridge', depth: '2,450 m', match: 'Ophiura (Ophiuridae)', ident: '76.8%', eval: '3e-33', evalN: 3e-33, cov: '77%', tag: 'cloud confirm needed', good: false, cost: 2, date: 20260810, reasons: 'single_replicate_only, high_quality_sequence' },
+      { id: 'NV-005', nov: 81.9, route: 'plant', site: 'Stn 02 · Coastal shelf', depth: '210 m', match: 'Ulva (Ulvaceae)', ident: '79.2%', eval: '1e-29', evalN: 1e-29, cov: '84%', tag: 'preserve_sample', good: true, cost: 1, date: 20260805, reasons: 'not_contamination, seasonal_prior_low' },
+      { id: 'NV-006', nov: 74.6, route: 'misc_unknown', site: 'Stn 09 · Andaman Trench', depth: '3,120 m', match: 'Unclassified Ciliophora', ident: '82.5%', eval: '6e-25', evalN: 6e-25, cov: '69%', tag: 'cloud confirm needed', good: false, cost: 3, date: 20260809, reasons: 'low_coverage, borderline_identity' },
+      { id: 'NV-007', nov: 68.2, route: 'bacteria_pathogen', site: 'Stn 05 · Estuary mouth', depth: '45 m', match: 'Shewanella (Shewanellaceae)', ident: '85.1%', eval: '4e-22', evalN: 4e-22, cov: '92%', tag: 'cloud confirm needed', good: false, cost: 1, date: 20260803, reasons: 'borderline_identity, high_read_depth' },
+      { id: 'NV-008', nov: 55.4, route: 'plant', site: 'Stn 02 · Coastal shelf', depth: '210 m', match: 'Zostera (Zosteraceae)', ident: '89.7%', eval: '2e-18', evalN: 2e-18, cov: '95%', tag: 'likely_variant', good: true, cost: 1, date: 20260805, reasons: 'close_to_threshold, regional_species_expected' },
+    ];
+  }
+  seq(seed, n) {
+    const B = 'ACGT'; let s = '';
+    for (let i = 0; i < n; i++) { const x = Math.sin((i + 1) * (seed + 3) * 12.9898) * 43758.5453; s += B[Math.floor((x - Math.floor(x)) * 4)]; }
+    return s;
+  }
+  renderVals() {
+    const { threshold, route, sort, bulk, selected, drawer } = this.state;
+    const all = this.data();
+    let list = all.filter(c => c.nov >= threshold && (route === 'All' || c.route === route));
+    list.sort((a, b) => sort === 'novelty' ? b.nov - a.nov : sort === 'evalue' ? a.evalN - b.evalN : b.date - a.date);
+    const tier = (nov) => nov >= 90
+      ? 'font-size:11.5px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid rgba(127,212,255,0.45);background:rgba(127,212,255,0.12);color:#7FD4FF'
+      : nov >= 75
+      ? 'font-size:11.5px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid rgba(59,158,255,0.35);background:rgba(59,158,255,0.09);color:#3B9EFF'
+      : 'font-size:11.5px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(42,74,122,0.15);color:#7A8699';
+    const tagStyle = (good) => good
+      ? 'font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid rgba(70,200,150,0.3);background:rgba(70,200,150,0.08);color:#5FD9A9'
+      : 'font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid rgba(217,150,60,0.32);background:rgba(217,150,60,0.08);color:#E0A85C';
+    const rows = list.map((c) => {
+      const sel = !!selected[c.id];
+      return {
+        ...c, nov: c.nov.toFixed(1), novStyle: tier(c.nov), tagStyle: tagStyle(c.good),
+        open: () => this.setState({ drawer: c.id }),
+        confirm: (e) => { e.stopPropagation(); },
+        toggleSel: (e) => { e.stopPropagation(); this.setState(s => ({ selected: { ...s.selected, [c.id]: !s.selected[c.id] } })); },
+        showCheck: bulk,
+        checkMark: sel ? '✓' : '',
+        checkStyle: `width:20px;height:20px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${sel ? '#3B9EFF' : '#2A3B58'};background:${sel ? 'rgba(59,158,255,0.25)' : 'rgba(8,14,26,0.6)'};color:#7FD4FF`,
+        cardStyle: `display:flex;flex-direction:column;padding:16px 20px;border-radius:9px;cursor:pointer;border:1px solid ${sel ? '#2E67B8' : 'rgba(140,170,230,0.14)'};background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4), 0 18px 40px -18px rgba(20,110,255,0.22);transition:border-color .15s ease`,
+      };
+    });
+    const selCount = Object.values(selected).filter(Boolean).length;
+    const selCost = all.filter(c => selected[c.id]).reduce((a, c) => a + c.cost, 0);
+    const d = all.find(c => c.id === drawer);
+    let dQuery = [], dRef = [], dFasta = '';
+    if (d) {
+      const seed = parseInt(d.id.slice(3));
+      dFasta = this.seq(seed, 180).replace(/(.{60})/g, '$1\n');
+      const q = this.seq(seed, 60);
+      const mm = new Set(); const nMM = Math.round(60 * (1 - parseFloat(d.ident) / 100));
+      for (let i = 0; i < nMM; i++) { const x = Math.sin((i + 1) * seed * 78.233) * 43758.5453; mm.add(Math.floor((x - Math.floor(x)) * 60)); }
+      const B = 'ACGT';
+      dQuery = q.split('').map((ch, i) => ({ ch, style: mm.has(i) ? 'color:#FF7B7B;background:rgba(255,90,90,0.12)' : 'color:#5FD9A9' }));
+      dRef = q.split('').map((ch, i) => ({ ch: mm.has(i) ? B[(B.indexOf(ch) + 1) % 4] : ch, style: mm.has(i) ? 'color:#FF7B7B;background:rgba(255,90,90,0.12)' : 'color:#5FD9A9' }));
+    }
+    return {
+      threshold, route, sort, bulk,
+      onThreshold: (e) => this.setState({ threshold: +e.target.value }),
+      onRoute: (e) => this.setState({ route: e.target.value }),
+      onSort: (e) => this.setState({ sort: e.target.value }),
+      toggleBulk: () => this.setState(s => ({ bulk: !s.bulk, selected: s.bulk ? {} : s.selected })),
+      bulkBtnStyle: `display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid ${bulk ? '#2E67B8' : '#17253D'};background:${bulk ? 'rgba(20,110,255,0.18)' : '#080F1C'};color:${bulk ? '#7FD4FF' : '#B8BECB'}`,
+      hasSelection: bulk && selCount > 0, selCount, selCost,
+      rows, hasResults: rows.length > 0, noResults: rows.length === 0,
+      countLabel: `${rows.length} OF ${all.length} CANDIDATES SHOWN · THRESHOLD ≥ ${threshold}%`,
+      drawerOpen: !!d,
+      closeDrawer: () => this.setState({ drawer: null }),
+      dId: d ? d.id : '', dNov: d ? d.nov.toFixed(1) : '', dNovStyle: d ? tier(d.nov) : '', dRoute: d ? d.route : '',
+      dIdent: d ? d.ident : '', dEval: d ? d.eval : '', dCov: d ? d.cov : '', dMatch: d ? d.match : '', dSite: d ? d.site : '', dCost: d ? d.cost : '',
+      dFasta, dQuery, dRef,
+      noop: () => {},
+      navHover: { background: 'rgba(20,110,255,0.08)', color: '#F5F5F3', textDecoration: 'none' },
+      confirmHover: { background: 'linear-gradient(180deg, rgba(69,154,245,0.45) 0%, rgba(13,87,209,0.4) 100%)', color: '#FFFFFF' },
+      solidHover: { background: 'linear-gradient(180deg, #6BB2FF 0%, #3B8DFF 48%, #1E6FEB 100%)' },
+    };
+  }
+}
+</script>
+</body>
+</html>

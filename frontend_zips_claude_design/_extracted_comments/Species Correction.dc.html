@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+input::placeholder,textarea::placeholder{color:#3D4A61}
+select.svsel,input.svin{padding:8px 12px;border:1px solid #17253D;border-radius:3px;background:#080F1C;color:#F5F5F3;font-family:inherit;font-size:12.5px;outline:none}
+select.svsel{cursor:pointer}
+input.svin:focus,textarea.svta:focus{border-color:#3B9EFF;box-shadow:0 0 0 3px rgba(59,158,255,0.15)}
+textarea.svta{padding:10px 12px;border:1px solid #17253D;border-radius:3px;background:#080F1C;color:#F5F5F3;font-family:inherit;font-size:12.5px;outline:none;resize:vertical;min-height:74px}
+</style>
+</helmet>
+<div data-screen-label="Species Correction" style="min-height:100vh;display:flex;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+
+  <!-- Sidebar -->
+  <div style="position:relative;width:260px;flex-shrink:0;border-right:1px solid #0C1526;background:rgba(4,8,17,0.85);display:flex;flex-direction:column;padding:22px 18px;box-sizing:border-box;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:20px">
+      <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:11.5px">SYNTH VEDA</span>
+    </div>
+    <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4 4.5 7 1.5l3 3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Upload Analysis</a>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;border-left:2px solid #3B9EFF;background:rgba(20,110,255,0.10)">
+        <span style="display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#F5F5F3">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M5.5 1.5h3v4l3 5.5a1.4 1.4 0 0 1-1.2 2H3.7a1.4 1.4 0 0 1-1.2-2l3-5.5v-4z" stroke="#3B9EFF" stroke-width="1.3" stroke-linejoin="round"></path></svg>Researcher Mode</span>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5 9 4.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:6px 0 2px 30px">
+        <a href="Novelty DNA.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Novelty DNA</a>
+        <span style="padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#3B9EFF;background:rgba(20,110,255,0.08)">Species correction</span>
+        <a href="#" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Comments</a>
+      </div>
+    </div>
+    <a href="#" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <span style="display:flex;align-items:center;gap:11px"><svg width="15" height="15" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.2" stroke="currentColor" stroke-width="1.3"></rect><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg>Partner Report</span>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 3 7.5 6 4.5 9" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #0C1526;padding:14px 8px 4px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;line-height:1.35">
+        <span style="font-size:13px;font-weight:600">Ushnik Chakrabarti</span>
+        <span style="font-size:11px;color:#7A8699">ushnik1p2h3d@gmail.com</span>
+      </div>
+      <a href="#" style="display:flex;align-items:center;gap:9px;font-size:13px;color:#B8BECB" style-hover="{{ navHover }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 12H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2.5M9 10l3-3-3-3M12 7H5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Sign out</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="position:relative;flex:1;min-width:0;padding:30px 38px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">RESEARCHER MODE</div>
+      <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Species Correction</h1>
+      <p style="margin:0;font-size:13.5px;color:#7A8699">Review automated taxonomic assignments — verify, override, or flag low-confidence matches.</p>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:#7A8699">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#3B9EFF" stroke-width="1.2"></circle><path d="M7 4.5v3l2 1.4" stroke="#3B9EFF" stroke-width="1.2" stroke-linecap="round"></path></svg>
+        Matched against: <span style="color:#B8BECB">MarineGenomeDB v4.2</span> · <span style="color:#B8BECB">SILVA 16S v138.2</span>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding:14px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">CONFIDENCE</span>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ confChips }}" as="c" hint-placeholder-count="4">
+            <button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">ROUTE</span>
+        <select class="svsel" value="{{ route }}" onChange="{{ onRoute }}">
+          <option value="All">All routes</option><option value="animal_general">animal_general</option><option value="bacteria_pathogen">bacteria_pathogen</option><option value="plant">plant</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">SEARCH</span>
+        <input class="svin" type="text" placeholder="Sequence ID or species name…" value="{{ query }}" onInput="{{ onQuery }}" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">SORT BY</span>
+        <select class="svsel" value="{{ sort }}" onChange="{{ onSort }}">
+          <option value="conf">Confidence score</option><option value="reads">Read abundance</option><option value="date">Date</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Match table -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span style="font-size:12px;letter-spacing:0.08em;color:#7A8699">{{ countLabel }}</span>
+      <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+        <div style="border:1px solid rgba(140,170,230,0.14);border-radius:9px;background:linear-gradient(180deg, rgba(140,170,230,0.04) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 34px rgba(0,0,0,0.4)"><div style="overflow-x:auto;border-radius:9px"><div style="min-width:1080px">
+          <div style="display:grid;grid-template-columns:26px 110px 1.4fr 90px 1fr 150px 130px 110px;gap:12px;align-items:center;padding:11px 18px;border-bottom:1px solid #101D33;font-size:10px;letter-spacing:0.08em;color:#3D4A61">
+            <span></span><span>SEQ ID</span><span>AUTOMATED ASSIGNMENT</span><span>CONF.</span><span>READS · ABUND.</span><span>MATCHED AGAINST</span><span>DETECTION WINDOW</span><span></span>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+            <div onClick="{{ r.open }}" style="display:grid;grid-template-columns:26px 110px 1.4fr 90px 1fr 150px 130px 110px;gap:12px;align-items:center;padding:13px 18px;border-bottom:1px solid #0C1526;cursor:pointer;transition:background .12s ease" style-hover="{{ rowHover }}">
+              <span style="{{ r.dotStyle }}"></span>
+              <span style="font-size:12.5px;font-family:ui-monospace,monospace;color:#B8BECB">{{ r.id }}</span>
+              <span style="display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-style:italic;color:#F5F5F3">{{ r.species }}</span><span style="font-size:10.5px;color:#3D4A61">{{ r.route }}</span></span>
+              <span style="{{ r.confStyle }}">{{ r.conf }}%</span>
+              <span style="font-size:12px;color:#B8BECB">{{ r.reads }} <span style="color:#3D4A61">· {{ r.abund }}</span></span>
+              <span style="font-size:11px;color:#7A8699;font-family:ui-monospace,monospace">{{ r.db }}</span>
+              <span style="{{ r.dwStyle }}">{{ r.dw }}</span>
+              <button onClick="{{ r.open }}" style="{{ r.btnStyle }}">Review</button>
+            </div>
+          </sc-for>
+        </div></div></div>
+      </sc-if>
+      <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:60px 20px;border-radius:9px;border:1px dashed #17253D;background:rgba(6,10,20,0.4)">
+          <span style="font-size:14px;font-weight:500;color:#B8BECB">No assignments match the current filters</span>
+          <span style="font-size:12.5px;color:#7A8699">Clear the search or widen the confidence filter.</span>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="flex:1"></div>
+    <div style="display:flex;justify-content:center;padding:8px 0 2px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+
+  <!-- Manual Override drawer -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(2,4,9,0.6);backdrop-filter:blur(3px);z-index:40"></div>
+    <div style="position:fixed;top:0;right:0;bottom:0;width:620px;max-width:94vw;z-index:41;display:flex;flex-direction:column;gap:16px;padding:26px 30px 30px;box-sizing:border-box;border-left:1px solid #1C2E4C;background:#050912;box-shadow:-30px 0 80px rgba(0,0,0,0.6);overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:11px;letter-spacing:0.08em;color:#7A8699">MANUAL OVERRIDE · <span style="font-family:ui-monospace,monospace;color:#B8BECB">{{ dId }}</span></span>
+          <span style="font-size:19px;font-weight:600">Review assignment</span>
+        </div>
+        <button onClick="{{ closeDrawer }}" style="width:32px;height:32px;border-radius:8px;border:1px solid #17253D;background:#080F1C;color:#B8BECB;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="{{ navHover }}">✕</button>
+      </div>
+
+      <!-- Original assignment baseline -->
+      <div style="display:flex;flex-direction:column;gap:8px;padding:16px 18px;border-radius:6px;border:1px solid #17253D;background:rgba(8,14,26,0.5)">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">AUTOMATED ASSIGNMENT (BASELINE — UNCHANGED)</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="{{ dDotStyle }}"></span>
+          <span style="font-size:17px;font-style:italic;font-weight:600">{{ dSpecies }}</span>
+          <span style="{{ dConfStyle }}">{{ dConf }}% confidence</span>
+        </div>
+        <span style="font-size:11.5px;color:#7A8699">{{ dReads }} reads · {{ dAbund }} · matched against <span style="font-family:ui-monospace,monospace">{{ dDb }}</span></span>
+      </div>
+
+      <!-- Conflict indicator -->
+      <sc-if value="{{ dConflict }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:14px 18px;border-radius:6px;border:1px solid rgba(217,150,60,0.32);background:linear-gradient(180deg, rgba(217,150,60,0.07), rgba(217,150,60,0.03))">
+          <span style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#E0A85C">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5 15 14H1L8 1.5z" stroke="#E0A85C" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.6v.4" stroke="#E0A85C" stroke-width="1.4" stroke-linecap="round"></path></svg>
+            Prior correction exists — review before submitting a competing proposal</span>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ dProposals }}" as="p" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:4px;padding:11px 13px;border-radius:4px;border:1px solid #17253D;background:rgba(8,14,26,0.6)">
+                <span style="font-size:12.5px;font-style:italic;color:#F5F5F3">{{ p.species }}</span>
+                <span style="font-size:10.5px;color:#7A8699">{{ p.who }} · {{ p.when }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- Override form -->
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;color:#B8BECB">PROPOSED SPECIES NAME</span>
+          <input class="svin" type="text" placeholder="e.g. Thunnus obesus" value="{{ proposed }}" onInput="{{ onProposed }}" style="font-style:italic">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;color:#B8BECB">SUBMITTER ID <span style="font-weight:400;color:#3D4A61">· auto-filled, audit trail</span></span>
+          <input class="svin" type="text" value="Ushnik Chakrabarti · ushnik1p2h3d@gmail.com" disabled style="color:#7A8699;cursor:not-allowed">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;color:#B8BECB">JUSTIFICATION</span>
+          <textarea class="svta" placeholder="Cite supporting literature or DOI… e.g. doi:10.1093/icesjms/fsab123" value="{{ justif }}" onInput="{{ onJustif }}"></textarea>
+        </label>
+      </div>
+
+      <!-- Data integrity preview -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:11px;letter-spacing:0.08em;color:#7A8699">DATA INTEGRITY PREVIEW — WRITE ON SUBMIT</span>
+        <div style="padding:14px 16px;border-radius:4px;border:1px solid #101D33;background:#04070E;font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.75;overflow-x:auto">
+          <div style="color:#3D4A61">{ "sequence": "{{ dId }}", "correction": {</div>
+          <div style="color:#FF7B7B;background:rgba(255,90,90,0.07);padding:0 6px">-&nbsp;&nbsp;"assignment": "{{ dSpecies }}"</div>
+          <div style="color:#5FD9A9;background:rgba(70,200,150,0.07);padding:0 6px">+&nbsp;&nbsp;"assignment": "{{ proposedPreview }}"</div>
+          <div style="color:#3D4A61">&nbsp;&nbsp;"submitter": "u.chakrabarti", "ts": "2026-08-15T09:41Z" } }</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;align-items:center;gap:12px">
+        <sc-if value="{{ notConfirming }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ askConfirm }}" style="{{ submitStyle }}">Submit Correction</button>
+        </sc-if>
+        <sc-if value="{{ confirming }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ doSubmit }}" style="display:flex;align-items:center;gap:8px;padding:11px 22px;border:1px solid rgba(255,140,120,0.5);border-radius:12px;background:linear-gradient(180deg, #E06A4F 0%, #C24A32 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.4), 0 8px 24px rgba(224,106,79,0.35);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;cursor:pointer">Confirm — write to audit trail</button>
+          <button onClick="{{ cancelConfirm }}" style="padding:11px 16px;border:none;background:none;font-family:inherit;font-size:12.5px;color:#7A8699;cursor:pointer">Back</button>
+        </sc-if>
+        <sc-if value="{{ notConfirming }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ closeDrawer }}" style="padding:11px 18px;border:1px solid #17253D;border-radius:12px;background:#080F1C;font-family:inherit;font-size:13px;font-weight:500;color:#B8BECB;cursor:pointer" style-hover="{{ navHover }}">Cancel</button>
+          <button onClick="{{ noop }}" style="padding:11px 18px;border:1px solid rgba(217,150,60,0.32);border-radius:12px;background:rgba(217,150,60,0.07);font-family:inherit;font-size:13px;font-weight:500;color:#E0A85C;cursor:pointer">Flag for Discussion</button>
+        </sc-if>
+        <sc-if value="{{ submitted }}" hint-placeholder-val="{{ false }}">
+          <span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5FD9A9"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#5FD9A9" stroke-width="1.3"></circle><path d="M4.5 7l1.8 1.8L9.5 5.5" stroke="#5FD9A9" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Correction logged to audit trail</span>
+        </sc-if>
+      </div>
+
+      <!-- Version history -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        <span style="font-size:11px;letter-spacing:0.08em;color:#7A8699">VERSION HISTORY</span>
+        <div style="display:flex;flex-direction:column;border:1px solid #101D33;border-radius:4px;background:rgba(8,14,26,0.4)">
+          <sc-for list="{{ dHistory }}" as="h" hint-placeholder-count="3">
+            <div style="display:flex;align-items:baseline;gap:12px;padding:10px 14px;border-bottom:1px solid #0C1526;font-size:11.5px">
+              <span style="color:#3D4A61;font-family:ui-monospace,monospace;flex-shrink:0;width:118px">{{ h.when }}</span>
+              <span style="color:#B8BECB;flex-shrink:0;width:130px">{{ h.who }}</span>
+              <span style="color:#7A8699">{{ h.what }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { conf: 'All', route: 'All', query: '', sort: 'conf', drawer: null, proposed: '', justif: '', confirming: false, submitted: false };
+  data() {
+    return [
+      { id: 'ASV-8841c2', species: 'Thunnus albacares', route: 'animal_general', conf: 97.4, flag: 'g', reads: '412,806', readsN: 412806, abund: '4.47%', db: 'MarineGenomeDB v4.2', dw: '~1–14 days', date: 20260812, history: [{ when: '2026-08-12 10:02', who: 'pipeline v2.8.1', what: 'auto-assigned Thunnus albacares (97.4%)' }] },
+      { id: 'ASV-3f09aa', species: 'Sardinella longiceps', route: 'animal_general', conf: 94.1, flag: 'g', reads: '288,153', readsN: 288153, abund: '3.12%', db: 'MarineGenomeDB v4.2', dw: '~1–14 days', date: 20260812, history: [{ when: '2026-08-12 10:02', who: 'pipeline v2.8.1', what: 'auto-assigned Sardinella longiceps (94.1%)' }] },
+      { id: 'ASV-77d1e0', species: 'Zostera marina', route: 'plant', conf: 88.6, flag: 'g', reads: '96,410', readsN: 96410, abund: '1.04%', db: 'MarineGenomeDB v4.1', dw: '~1–14 days', date: 20260805, history: [{ when: '2026-08-05 14:31', who: 'pipeline v2.7.9', what: 'auto-assigned Zostera marina (88.6%)' }] },
+      { id: 'ASV-a20b77', species: 'Vibrio harveyi', route: 'bacteria_pathogen', conf: 76.2, flag: 'a', reads: '61,377', readsN: 61377, abund: '0.66%', db: 'SILVA 16S v138.2', dw: '—', date: 20260812, conflict: true, proposals: [{ species: 'Vibrio campbellii', who: 'Dr. A. Rao', when: '2026-08-13 09:12' }, { species: 'Vibrio owensii', who: 'M. Fernandes', when: '2026-08-14 16:47' }], history: [{ when: '2026-08-12 10:02', who: 'pipeline v2.8.1', what: 'auto-assigned Vibrio harveyi (76.2%)' }, { when: '2026-08-13 09:12', who: 'Dr. A. Rao', what: 'proposed Vibrio harveyi → Vibrio campbellii (doi:10.1099/ijsem.0.0042)' }, { when: '2026-08-14 16:47', who: 'M. Fernandes', what: 'proposed Vibrio harveyi → Vibrio owensii (pending review)' }] },
+      { id: 'ASV-5c33f8', species: 'Penaeus monodon', route: 'animal_general', conf: 71.8, flag: 'a', reads: '44,902', readsN: 44902, abund: '0.49%', db: 'MarineGenomeDB v4.2', dw: '—', date: 20260810, history: [{ when: '2026-08-10 11:20', who: 'pipeline v2.8.1', what: 'auto-assigned Penaeus monodon (71.8%)' }] },
+      { id: 'ASV-e19d04', species: 'Ulva lactuca', route: 'plant', conf: 68.3, flag: 'a', reads: '38,254', readsN: 38254, abund: '0.41%', db: 'MarineGenomeDB v4.1', dw: '—', date: 20260805, history: [{ when: '2026-08-05 14:31', who: 'pipeline v2.7.9', what: 'auto-assigned Ulva lactuca (68.3%)' }] },
+      { id: 'ASV-0b62c9', species: 'Homo sapiens', route: 'bacteria_pathogen', conf: 54.9, flag: 'r', reads: '12,081', readsN: 12081, abund: '0.13%', db: 'SILVA 16S v138.2', dw: '—', date: 20260812, history: [{ when: '2026-08-12 10:02', who: 'pipeline v2.8.1', what: 'auto-assigned Homo sapiens — flagged known contaminant profile' }] },
+      { id: 'ASV-c4571b', species: 'Escherichia coli', route: 'bacteria_pathogen', conf: 49.5, flag: 'r', reads: '9,447', readsN: 9447, abund: '0.10%', db: 'SILVA 16S v138.2', dw: '—', date: 20260809, history: [{ when: '2026-08-09 08:55', who: 'pipeline v2.8.1', what: 'auto-assigned Escherichia coli — low confidence, possible contaminant' }] },
+    ];
+  }
+  renderVals() {
+    const { conf, route, query, sort, drawer, proposed, justif, confirming, submitted } = this.state;
+    const all = this.data();
+    const q = query.trim().toLowerCase();
+    let list = all.filter(r => (conf === 'All' || r.flag === conf) && (route === 'All' || r.route === route) && (!q || r.id.toLowerCase().includes(q) || r.species.toLowerCase().includes(q)));
+    list.sort((a, b) => sort === 'conf' ? b.conf - a.conf : sort === 'reads' ? b.readsN - a.readsN : b.date - a.date);
+    const dotC = { g: '#5FD9A9', a: '#E0A85C', r: '#FF7B7B' };
+    const confC = { g: '#5FD9A9', a: '#E0A85C', r: '#FF7B7B' };
+    const chips = [
+      { v: 'All', label: 'All' }, { v: 'g', label: '● Green' }, { v: 'a', label: '● Amber' }, { v: 'r', label: '● Red' },
+    ];
+    const chipColor = { All: '#B8BECB', g: '#5FD9A9', a: '#E0A85C', r: '#FF7B7B' };
+    const confChips = chips.map(c => ({
+      label: c.label, pick: () => this.setState({ conf: c.v }),
+      style: `padding:8px 13px;border-radius:3px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${conf === c.v ? '#2E67B8' : '#17253D'};background:${conf === c.v ? 'rgba(20,110,255,0.16)' : '#080F1C'};color:${chipColor[c.v]}`,
+    }));
+    const rows = list.map(r => ({
+      ...r, conf: r.conf.toFixed(1),
+      open: () => this.setState({ drawer: r.id, proposed: '', justif: '', confirming: false, submitted: false }),
+      dotStyle: `width:10px;height:10px;border-radius:50%;background:${dotC[r.flag]};box-shadow:0 0 8px ${dotC[r.flag]}88`,
+      confStyle: `font-size:12.5px;font-weight:600;color:${confC[r.flag]}`,
+      dwStyle: r.flag === 'g' ? 'font-size:10.5px;padding:3px 9px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.08);color:#6FBAFF;justify-self:start' : 'font-size:11px;color:#3D4A61',
+      btnStyle: r.flag === 'g'
+        ? 'padding:6px 13px;border:1px solid #17253D;border-radius:10px;background:#080F1C;font-family:inherit;font-size:11.5px;font-weight:500;color:#7A8699;cursor:pointer'
+        : 'padding:6px 13px;border:1px solid rgba(160,205,255,0.4);border-radius:10px;background:linear-gradient(180deg, rgba(69,154,245,0.28) 0%, rgba(13,87,209,0.22) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,0.2);font-family:inherit;font-size:11.5px;font-weight:600;color:#BFDCFF;cursor:pointer',
+    }));
+    const d = all.find(r => r.id === drawer);
+    return {
+      conf, route, query, sort, confChips,
+      onRoute: (e) => this.setState({ route: e.target.value }),
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      onSort: (e) => this.setState({ sort: e.target.value }),
+      rows, hasResults: rows.length > 0, noResults: rows.length === 0,
+      countLabel: `${rows.length} OF ${all.length} MATCHED ASSIGNMENTS SHOWN`,
+      rowHover: { background: 'rgba(20,110,255,0.05)' },
+      drawerOpen: !!d,
+      closeDrawer: () => this.setState({ drawer: null, confirming: false, submitted: false }),
+      dId: d ? d.id : '', dSpecies: d ? d.species : '', dConf: d ? d.conf.toFixed(1) : '', dReads: d ? d.reads : '', dAbund: d ? d.abund : '', dDb: d ? d.db : '',
+      dDotStyle: d ? `width:10px;height:10px;border-radius:50%;background:${dotC[d.flag]};box-shadow:0 0 8px ${dotC[d.flag]}88` : '',
+      dConfStyle: d ? `font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid ${confC[d.flag]}44;background:${confC[d.flag]}14;color:${confC[d.flag]}` : '',
+      dConflict: !!(d && d.conflict), dProposals: d && d.proposals ? d.proposals : [],
+      dHistory: d ? d.history : [],
+      proposed, justif,
+      proposedPreview: proposed || '⟨proposed name⟩',
+      onProposed: (e) => this.setState({ proposed: e.target.value, submitted: false }),
+      onJustif: (e) => this.setState({ justif: e.target.value }),
+      confirming, notConfirming: !confirming && !submitted, submitted,
+      askConfirm: () => { if (this.state.proposed.trim()) this.setState({ confirming: true }); },
+      cancelConfirm: () => this.setState({ confirming: false }),
+      doSubmit: () => this.setState({ confirming: false, submitted: true }),
+      submitStyle: `display:flex;align-items:center;gap:8px;padding:11px 22px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38);font-family:inherit;font-size:13px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer;opacity:${proposed.trim() ? 1 : 0.45}`,
+      noop: () => {},
+      navHover: { background: 'rgba(20,110,255,0.08)', color: '#F5F5F3', textDecoration: 'none' },
+    };
+  }
+}
+</script>
+</body>
+</html>

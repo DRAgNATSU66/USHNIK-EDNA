@@ -40,7 +40,7 @@ export default function Landing() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+    if (!loading && isAuthenticated) navigate("/upload", { replace: true });
   }, [isAuthenticated, loading, navigate]);
 
   useEffect(() => {

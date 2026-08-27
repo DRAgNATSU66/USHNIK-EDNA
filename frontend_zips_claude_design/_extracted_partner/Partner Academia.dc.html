@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+input[type=range].nvslider{-webkit-appearance:none;appearance:none;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,#146EFF,#0A2447);outline:none}
+input[type=range].nvslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+input[type=range].nvslider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#3B9EFF;border:2px solid #DFF0FF;box-shadow:0 0 10px rgba(59,158,255,0.8);cursor:pointer}
+textarea.cite{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #17253D;border-radius:3px;background:#04070E;color:#8FB4E6;font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.7;resize:vertical;outline:none}
+</style>
+</helmet>
+<div data-screen-label="Partner Academia" style="min-height:100vh;display:flex;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+
+  <!-- Sidebar -->
+  <div style="position:relative;width:260px;flex-shrink:0;border-right:1px solid #0C1526;background:rgba(4,8,17,0.85);display:flex;flex-direction:column;padding:22px 18px;box-sizing:border-box;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:20px">
+      <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:11.5px">SYNTH VEDA</span>
+    </div>
+    <a href="Upload Analysis.dc.html" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4 4.5 7 1.5l3 3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Upload Analysis</a>
+    <a href="Novelty DNA.dc.html" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <span style="display:flex;align-items:center;gap:11px"><svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M5.5 1.5h3v4l3 5.5a1.4 1.4 0 0 1-1.2 2H3.7a1.4 1.4 0 0 1-1.2-2l3-5.5v-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>Researcher Mode</span>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 3 7.5 6 4.5 9" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;border-left:2px solid #3B9EFF;background:rgba(20,110,255,0.10)">
+        <span style="display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#F5F5F3">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.2" stroke="#3B9EFF" stroke-width="1.3"></rect><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="#3B9EFF" stroke-width="1.2" stroke-linecap="round"></path></svg>Partner Report</span>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5 9 4.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:6px 0 2px 30px">
+        <span style="padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#3B9EFF;background:rgba(20,110,255,0.08)">Academia</span>
+        <a href="Partner Legislative.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Legislative</a>
+        <a href="Partner Industrial.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Industrial</a>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #0C1526;padding:14px 8px 4px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;line-height:1.35">
+        <span style="font-size:13px;font-weight:600">Ushnik Chakrabarti</span>
+        <span style="font-size:11px;color:#7A8699">ushnik1p2h3d@gmail.com</span>
+      </div>
+      <a href="#" style="display:flex;align-items:center;gap:9px;font-size:13px;color:#B8BECB" style-hover="{{ navHover }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 12H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2.5M9 10l3-3-3-3M12 7H5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Sign out</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="position:relative;flex:1;min-width:0;padding:30px 38px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">PARTNER REPORT › ACADEMIA</div>
+      <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Publication &amp; Grant Dashboard</h1>
+      <p style="margin:0;font-size:13.5px;color:#7A8699">Peer-review-ready statistics · read-only · all claims traceable to stated parameters</p>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 16px;border-radius:6px;border:1px solid rgba(217,150,60,0.28);background:rgba(217,150,60,0.05)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M8 1.5 15 14H1L8 1.5z" stroke="#E0A85C" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.6v.4" stroke="#E0A85C" stroke-width="1.4" stroke-linecap="round"></path></svg>
+      <span style="font-size:11.5px;line-height:1.5;color:#C8B79A">Preliminary eDNA-derived results. Read counts = relative abundance; detections = recent genetic presence subject to drift and degradation. Verify against stated DB versions before citation.</span>
+    </div>
+
+    <!-- 3. Statistical validation hub -->
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">RAREFACTION CURVES</span>
+          <div style="display:flex;gap:6px"><button onClick="{{ noop }}" style="{{ vecBtn }}">SVG</button><button onClick="{{ noop }}" style="{{ vecBtn }}">EPS</button></div>
+        </div>
+        <span style="font-size:10.5px;color:#3D4A61">Species observed vs sequences analyzed — plateau indicates sufficient sequencing depth</span>
+        {{ rareSvg }}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:8px;padding:17px 19px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">ALPHA &amp; BETA DIVERSITY Δ</span>
+          <span style="font-size:13.5px;line-height:1.6;color:#D8DCE5">Site A exhibits <span style="font-weight:600;color:#7FD4FF">42% higher Chao1 richness</span> than Site B <span style="font-family:ui-monospace,monospace;color:#5FD9A9">(p &lt; 0.05)</span></span>
+          <span style="font-size:12px;line-height:1.6;color:#7A8699">Bray–Curtis dissimilarity A↔B: <span style="color:#B8BECB">0.61</span> <span style="font-family:ui-monospace,monospace;color:#5FD9A9">(PERMANOVA p = 0.003)</span></span>
+        </div>
+        <div style="display:flex;gap:14px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:5px;padding:15px 17px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+            <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">GOOD'S COVERAGE</span>
+            <span style="font-size:24px;font-weight:600;color:#5FD9A9">99.2%</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:5px;padding:15px 17px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+            <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">NETWORK MODULARITY</span>
+            <span style="font-size:24px;font-weight:600;color:#7FD4FF">0.47</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);overflow:hidden">
+          <button onClick="{{ toggleParams }}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 19px;border:none;background:none;font-family:inherit;font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB;cursor:pointer">ALGORITHM PARAMETERS <span style="color:#7A8699">{{ paramsMark }}</span></button>
+          <sc-if value="{{ paramsOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:0 19px 15px;font-family:ui-monospace,monospace;font-size:11px;color:#8FB4E6">
+              <span>BLAST E-value threshold: &lt; 1e-5</span>
+              <span>Minimum sequence length: 150 bp</span>
+              <span>ASV clustering: DADA2 v1.30 · pooled</span>
+              <span>Chimera removal: consensus (removeBimeraDenovo)</span>
+              <span>Taxonomy assignment: naive Bayes, 80% bootstrap</span>
+              <span>Rarefaction depth: 42,000 reads/sample</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Co-occurrence network -->
+    <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">SPECIES CO-OCCURRENCE NETWORK</span>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:9.5px;letter-spacing:0.07em;color:#7A8699">ABUNDANCE THRESHOLD · {{ netThr }}%</span>
+            <input type="range" class="nvslider" min="0" max="60" value="{{ netThr }}" onInput="{{ onNetThr }}">
+          </div>
+          <div style="display:flex;gap:6px"><button onClick="{{ noop }}" style="{{ vecBtn }}">SVG</button><button onClick="{{ noop }}" style="{{ vecBtn }}">EPS</button></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:10.5px;color:#7A8699">
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#3B9EFF"></span>Positive statistical co-occurrence (Spearman ρ &gt; 0.6)</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:2px dashed #FF7B7B"></span>Negative statistical co-occurrence (ρ &lt; −0.6)</span>
+        <span style="color:#3D4A61">Node radius ∝ relative DNA abundance · correlation ≠ biological interaction</span>
+      </div>
+      <canvas ref="{{ netRef }}" style="width:100%;height:340px;border-radius:6px;border:1px solid #101D33;background:#04070E"></canvas>
+      <span style="font-size:11px;color:#7A8699">{{ netLabel }}</span>
+    </div>
+
+    <!-- 5. Multi-omics overlay + 6. PD tree -->
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">MULTI-OMICS &amp; ENVIRONMENTAL OVERLAY</span>
+          <div style="display:flex;gap:6px"><button onClick="{{ noop }}" style="{{ vecBtn }}">SVG</button><button onClick="{{ noop }}" style="{{ vecBtn }}">EPS</button></div>
+        </div>
+        <span style="font-size:10.5px;color:#3D4A61;line-height:1.5">Allows visual correlation between target species DNA read count and environmental variables captured at upload (temperature, pH, salinity). Hover any point for R² / p. Correlative view — no causal claim implied.</span>
+        {{ omicsSvg }}
+        <div style="display:flex;gap:16px;font-size:10.5px;color:#7A8699">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:8px;background:rgba(59,158,255,0.35);border:1px solid #3B9EFF"></span>DNA reads (left axis)</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#E0C25C"></span>Temp °C</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#5FD9A9"></span>pH</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:2px;background:#B48CF2"></span>Salinity PSU</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">PHYLOGENETIC DIVERSITY TREE</span>
+          <div style="display:flex;gap:6px"><button onClick="{{ noop }}" style="{{ vecBtn }}">SVG</button><button onClick="{{ noop }}" style="{{ vecBtn }}">EPS</button></div>
+        </div>
+        {{ treeSvg }}
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:#7A8699">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#3B9EFF"></span>Bacteria/Archaea</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#5FD9A9"></span>Metazoa</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#7FD4FF"></span>Plantae/Algae</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#E0C25C"></span>Fungi/Protista</span>
+          <span style="color:#3D4A61">solid = densely represented · faint = sparse in sample</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;padding:12px 15px;border-radius:6px;border:1px solid #101D33;background:rgba(8,14,26,0.5)">
+          <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">FAITH'S PD INDEX</span>
+          <span style="font-size:22px;font-weight:600;color:#7FD4FF">184.6 <span style="font-size:11px;color:#3D4A61">total branch length</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Export engine -->
+    <div style="display:flex;flex-direction:column;gap:14px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">PUBLISH-READY EXPORT ENGINE</span>
+        <button onClick="{{ genArchive }}" style="{{ solidSmall }}">{{ archiveLabel }}</button>
+      </div>
+      <span style="font-size:11px;color:#3D4A61">Archive compiles raw FASTA, curated JSON ASV tables, and environmental metadata into one ZIP structured to FAIR data principles.</span>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <span style="font-size:11px;letter-spacing:0.08em;color:#7A8699">AUTO-CITATION GENERATOR</span>
+        <textarea class="cite" rows="3" readonly value="{{ citation }}"></textarea>
+        <button onClick="{{ copyCite }}" style="align-self:flex-start;padding:6px 14px;border:1px solid #17253D;border-radius:10px;background:#080F1C;font-family:inherit;font-size:11.5px;font-weight:500;color:#B8BECB;cursor:pointer" style-hover="{{ navHover }}">{{ copyLabel }}</button>
+      </div>
+    </div>
+
+    <div style="flex:1"></div>
+    <div style="display:flex;justify-content:center;padding:8px 0 2px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { paramsOpen: false, netThr: 12, copied: false, archive: 'idle' };
+  rnd(i) { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); }
+  rare() {
+    const curve = (k, c, n) => {
+      const pts = [];
+      for (let x = 0; x <= 100; x += 4) pts.push([30 + x * 4.9, 150 - k * (1 - Math.exp(-x / 26)) ]);
+      const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+      return [React.createElement('path', { key: c, d, fill: 'none', stroke: c, strokeWidth: 2, strokeLinecap: 'round' }),
+        React.createElement('text', { key: c + 't', x: 524, y: 150 - k + 4, fill: c, fontSize: 10 }, n)];
+    };
+    return React.createElement('svg', { viewBox: '0 0 590 175', style: { width: '100%', height: 'auto', display: 'block' } },
+      React.createElement('line', { x1: 30, y1: 150, x2: 520, y2: 150, stroke: '#14233C' }),
+      React.createElement('line', { x1: 30, y1: 150, x2: 30, y2: 10, stroke: '#14233C' }),
+      ...curve(118, '#3B9EFF', 'Site A'), ...curve(84, '#5FD9A9', 'Site B'),
+      React.createElement('text', { x: 275, y: 170, fill: '#3D4A61', fontSize: 9.5, textAnchor: 'middle' }, 'sequences analyzed →'),
+      React.createElement('text', { x: 14, y: 80, fill: '#3D4A61', fontSize: 9.5, transform: 'rotate(-90 14 80)', textAnchor: 'middle' }, 'species observed'));
+  }
+  omics() {
+    const X = i => 40 + i * 44;
+    const reads = [30, 42, 55, 68, 60, 48, 38, 45, 58, 72, 66, 54].map(v => 140 - v * 1.35);
+    const temp = [26, 27, 28.5, 29.5, 30, 29, 27.5, 27, 28, 29, 28, 26.5].map(v => 140 - (v - 24) * 14);
+    const ph = [8.1, 8.05, 8.0, 7.9, 7.85, 7.95, 8.0, 8.05, 7.95, 7.9, 8.0, 8.1].map(v => 140 - (v - 7.7) * 180);
+    const sal = [34.2, 34.4, 34.6, 34.9, 35.0, 34.7, 34.3, 34.1, 34.5, 34.8, 34.6, 34.3].map(v => 140 - (v - 33.8) * 55);
+    const path = (a, close) => a.map((y, i) => (i ? 'L' : 'M') + X(i) + ' ' + y.toFixed(1)).join(' ') + (close ? ` L${X(11)} 140 L${X(0)} 140 Z` : '');
+    const months = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+    const tip = (i) => `Aug point — reads vs temp: R² = 0.64, p = 0.002 · vs pH: R² = 0.41, p = 0.03`;
+    return React.createElement('svg', { viewBox: '0 0 570 165', style: { width: '100%', height: 'auto', display: 'block' } },
+      React.createElement('path', { d: path(reads, true), fill: 'rgba(59,158,255,0.22)', stroke: '#3B9EFF', strokeWidth: 1.6 }),
+      React.createElement('path', { d: path(temp), fill: 'none', stroke: '#E0C25C', strokeWidth: 1.6 }),
+      React.createElement('path', { d: path(ph), fill: 'none', stroke: '#5FD9A9', strokeWidth: 1.6 }),
+      React.createElement('path', { d: path(sal), fill: 'none', stroke: '#B48CF2', strokeWidth: 1.6 }),
+      ...reads.map((y, i) => React.createElement('circle', { key: i, cx: X(i), cy: y, r: 4, fill: '#7FD4FF', opacity: 0.9, style: { cursor: 'help' } },
+        React.createElement('title', null, tip(i)))),
+      ...months.map((m, i) => React.createElement('text', { key: 'm' + i, x: X(i), y: 158, fill: '#3D4A61', fontSize: 9, textAnchor: 'middle' }, m)),
+      React.createElement('text', { x: 8, y: 14, fill: '#3B9EFF', fontSize: 8.5 }, 'reads'),
+      React.createElement('text', { x: 532, y: 14, fill: '#7A8699', fontSize: 8.5 }, 'env vars'));
+  }
+  tree() {
+    const cx = 130, cy = 118, colors = ['#3B9EFF', '#5FD9A9', '#7FD4FF', '#E0C25C'];
+    const el = [];
+    for (let k = 0; k < 4; k++) {
+      const base = -Math.PI / 2 + k * Math.PI / 2;
+      for (let b = 0; b < 7; b++) {
+        const a = base + (b - 3) * 0.16;
+        const dense = this.rnd(k * 17 + b * 3) > 0.35;
+        const r1 = 26, r2 = 58 + this.rnd(k * 7 + b) * 40;
+        const x1 = cx + Math.cos(a) * r1, y1 = cy + Math.sin(a) * r1;
+        const x2 = cx + Math.cos(a) * r2, y2 = cy + Math.sin(a) * r2;
+        el.push(React.createElement('line', { key: k + '-' + b, x1, y1, x2, y2, stroke: colors[k], strokeWidth: dense ? 2 : 1, opacity: dense ? 0.9 : 0.28 }));
+        el.push(React.createElement('circle', { key: k + 'c' + b, cx: x2, cy: y2, r: dense ? 3.2 : 1.8, fill: colors[k], opacity: dense ? 0.95 : 0.3 }));
+        if (dense && this.rnd(b * 11 + k) > 0.5) {
+          const a2 = a + 0.09, r3 = r2 + 20;
+          el.push(React.createElement('line', { key: k + 's' + b, x1: x2, y1: y2, x2: cx + Math.cos(a2) * r3, y2: cy + Math.sin(a2) * r3, stroke: colors[k], strokeWidth: 1, opacity: 0.5 }));
+        }
+      }
+    }
+    return React.createElement('svg', { viewBox: '0 0 260 236', style: { width: '100%', maxWidth: '270px', margin: '0 auto', display: 'block' } },
+      React.createElement('circle', { cx, cy, r: 26, fill: 'none', stroke: '#14233C' }),
+      React.createElement('circle', { cx, cy, r: 3, fill: '#B8BECB' }), ...el);
+  }
+  netRef(cv) { if (cv && cv !== this._cv) { this._cv = cv; this.buildNet(); this.drawNet(); } }
+  buildNet() {
+    this._nodes = [];
+    const kinds = ['#3B9EFF', '#5FD9A9', '#7FD4FF', '#E0C25C'];
+    for (let i = 0; i < 140; i++) {
+      this._nodes.push({ x: this.rnd(i) , y: this.rnd(i + 200), ab: Math.pow(this.rnd(i + 400), 2.2) * 100, c: kinds[Math.floor(this.rnd(i + 600) * 4)] });
+    }
+    this._edges = [];
+    for (let i = 0; i < 140; i++) for (let j = i + 1; j < 140; j++) {
+      const d = Math.hypot(this._nodes[i].x - this._nodes[j].x, this._nodes[i].y - this._nodes[j].y);
+      if (d < 0.09 && this.rnd(i * 7 + j) > 0.45) this._edges.push([i, j, this.rnd(i + j * 3) > 0.24]);
+    }
+  }
+  drawNet() {
+    const cv = this._cv; if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = cv.clientWidth || 800, H = 340;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const thr = this.state.netThr;
+    const vis = this._nodes.map(n => n.ab >= thr);
+    const px = n => [20 + n.x * (W - 40), 18 + n.y * (H - 36)];
+    this._edges.forEach(([i, j, pos]) => {
+      if (!vis[i] || !vis[j]) return;
+      const [x1, y1] = px(this._nodes[i]), [x2, y2] = px(this._nodes[j]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      if (pos) { ctx.setLineDash([]); ctx.strokeStyle = 'rgba(59,158,255,0.30)'; }
+      else { ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,123,123,0.38)'; }
+      ctx.lineWidth = 1; ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    this._nodes.forEach((n, i) => {
+      if (!vis[i]) return;
+      const [x, y] = px(n);
+      const r = 2 + Math.sqrt(n.ab) * 0.85;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+      ctx.fillStyle = n.c + 'CC'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.6; ctx.stroke();
+    });
+    this._visCount = vis.filter(Boolean).length;
+  }
+  componentDidMount() { this._onR = () => this.drawNet(); window.addEventListener('resize', this._onR); }
+  componentWillUnmount() { window.removeEventListener('resize', this._onR); }
+  renderVals() {
+    const { paramsOpen, netThr, copied, archive } = this.state;
+    if (this._cv) this.drawNet();
+    const citation = 'SynthVeda eDNA Analysis Platform v2.8.1 (2026). Taxonomic assignments matched against MarineGenomeDB v4.2 and SILVA 16S v138.2 (accessed 15 Aug 2026). Run SV-2026-08A-4417; parameters: BLAST E < 1e-5, min length 150 bp, DADA2 v1.30.';
+    return {
+      navHover: { background: 'rgba(20,110,255,0.08)', color: '#F5F5F3', textDecoration: 'none' },
+      noop: () => {},
+      vecBtn: 'padding:4px 11px;border:1px solid #17253D;border-radius:8px;background:#080F1C;font-family:inherit;font-size:10.5px;font-weight:600;color:#7A8699;cursor:pointer',
+      solidSmall: 'padding:8px 18px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38);font-family:inherit;font-size:12px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer',
+      rareSvg: this.rare(), omicsSvg: this.omics(), treeSvg: this.tree(),
+      paramsOpen, paramsMark: paramsOpen ? '−' : '+',
+      toggleParams: () => this.setState(s => ({ paramsOpen: !s.paramsOpen })),
+      netThr, onNetThr: (e) => this.setState({ netThr: +e.target.value }),
+      netRef: (cv) => this.netRef(cv),
+      netLabel: `Showing nodes with relative abundance ≥ ${netThr}% of max · ${this._visCount ?? '—'} of 140 nodes visible`,
+      citation,
+      copyLabel: copied ? 'Copied ✓' : 'Copy citation',
+      copyCite: () => { navigator.clipboard && navigator.clipboard.writeText(citation); this.setState({ copied: true }); setTimeout(() => this.setState({ copied: false }), 1600); },
+      archiveLabel: archive === 'building' ? 'Compiling archive…' : archive === 'done' ? 'Archive ready ✓ (synthveda_SV-2026-08A-4417.zip)' : 'Generate Supplementary Data Archive',
+      genArchive: () => { this.setState({ archive: 'building' }); setTimeout(() => this.setState({ archive: 'done' }), 1600); },
+    };
+  }
+}
+</script>
+</body>
+</html>

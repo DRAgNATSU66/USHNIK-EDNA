@@ -163,8 +163,10 @@ def get_cls_embedding(model: Any, inputs: dict[str, Any]) -> "torch.Tensor | Non
     with torch.no_grad():
         outputs = model(**inputs)
 
-    # Most HuggingFace models expose last_hidden_state at outputs[0].
-    # Shape: (batch, seq_len, hidden)
-    last_hidden = outputs.last_hidden_state  # or outputs[0]
+    # Most HuggingFace models expose last_hidden_state as an attribute, but
+    # some custom modeling code (e.g. DNABERT-2's MosaicBERT) returns a
+    # plain tuple with no such attribute — shape (batch, seq_len, hidden)
+    # either way, so outputs[0] is the correct fallback, not just a comment.
+    last_hidden = outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else outputs[0]
     cls_embedding = last_hidden[:, 0, :]    # [CLS] is always the first token
     return cls_embedding.cpu().float()

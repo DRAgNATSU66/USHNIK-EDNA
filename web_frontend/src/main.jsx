@@ -10,8 +10,9 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
+import ResearcherMode from "./pages/ResearcherMode";
+import PartnerReport from "./pages/PartnerReport";
 import JobProgress from "./pages/JobProgress";
 import AnalysisResults from "./pages/AnalysisResults";
 import ReviewQueue from "./pages/ReviewQueue";
@@ -39,18 +40,58 @@ function AppRoutes() {
 
       {/* Protected: any authenticated user */}
       <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/upload"
         element={
           <ProtectedRoute>
             <Upload />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/researcher-mode/novelty-dna"
+        element={
+          <ProtectedRoute>
+            <ResearcherMode section="novelty-dna" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/researcher-mode/species-correction"
+        element={
+          <ProtectedRoute>
+            <ResearcherMode section="species-correction" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/researcher-mode/comments"
+        element={
+          <ProtectedRoute>
+            <ResearcherMode section="comments" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/partner-report/academia"
+        element={
+          <ProtectedRoute>
+            <PartnerReport sector="academia" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/partner-report/legislative"
+        element={
+          <ProtectedRoute>
+            <PartnerReport sector="legislative" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/partner-report/industrial"
+        element={
+          <ProtectedRoute>
+            <PartnerReport sector="industrial" />
           </ProtectedRoute>
         }
       />
@@ -110,6 +151,7 @@ function AppRoutes() {
       {/* Redirects */}
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="/analytics" element={<Navigate to="/upload" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/upload" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -49,6 +49,24 @@ async def _process_loop(db, semaphore: asyncio.Semaphore, shutdown: asyncio.Even
     print("[dispatcher] all jobs drained — exiting")
 
 
+def health_check() -> None:
+    """
+    Liveness check invoked by the Dockerfile HEALTHCHECK.
+
+    Runs as a fresh, separate process each time (Docker can't introspect the
+    running dispatcher directly), so it re-verifies Redis and Mongo are
+    reachable with the current settings rather than checking in-process
+    state. Raises on failure; the HEALTHCHECK CMD's non-zero exit marks the
+    container unhealthy.
+    """
+    import redis as redis_sync
+    from pymongo import MongoClient
+
+    settings = get_worker_settings()
+    redis_sync.from_url(settings.redis_url).ping()
+    MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=3000).admin.command("ping")
+
+
 async def main() -> None:
     settings = get_worker_settings()
 

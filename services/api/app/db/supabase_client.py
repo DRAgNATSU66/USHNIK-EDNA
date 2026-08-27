@@ -8,12 +8,15 @@ training_batches, model_versions, audit_logs.
 The service-role key is NEVER exposed to frontend. It is only used server-side.
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
+import asyncio
+from typing import Awaitable, Callable, TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from supabase import AsyncClient
 
 _client: "AsyncClient | None" = None
+
+_T = TypeVar("_T")
 
 
 class SupabaseUnavailableError(Exception):
@@ -30,6 +33,55 @@ class SupabaseUnavailableError(Exception):
     must not look like a bad-credentials failure — the account already
     exists and a "wrong token" message sends the user down a dead end.
     """
+
+
+async def _maybe_single(call: Callable[[], Awaitable[_T]]) -> _T | None:
+    """
+    Wraps a `.maybe_single().execute()` call. postgrest-py has a known bug
+    (supabase-community/postgrest-py) where a genuine "no row found" result
+    -- a real 204 No Content response, not a failure -- gets raised as
+    `APIError(code='204', message='Missing response')` instead of just
+    returning a result with `.data = None`. Callers of `.maybe_single()`
+    intend exactly that "no row" case to be a normal, valid outcome (e.g.
+    "no user_profiles row for this google_sub yet, this is their first
+    login"), so treat this specific signature as "not found", not an error.
+    Any other APIError (a real failure) is re-raised unchanged.
+    """
+    from postgrest.exceptions import APIError
+
+    try:
+        return await call()
+    except APIError as exc:
+        if exc.code == "204" and exc.message == "Missing response":
+            return None
+        raise
+
+
+async def _with_retry(call: Callable[[], Awaitable[_T]], attempts: int = 3, backoff_s: float = 0.3) -> _T:
+    """
+    Retries a raw postgrest/`client.table(...)` call on transport-level
+    connection failures. Unlike client.auth.* calls (wrapped by gotrue's own
+    AuthRetryableError handling), the raw table API has no retry protection,
+    so a single transient httpx.ConnectError -- observed here as
+    "getaddrinfo failed" even though the OS resolver (nslookup) succeeds at
+    the same moment, a known Windows/asyncio DNS quirk -- fails the whole
+    request. Retrying almost always clears it within one or two attempts.
+
+    Raises SupabaseUnavailableError (not the raw httpx exception) if every
+    attempt fails, so callers/routes only need to handle one exception type
+    for "Supabase itself is unreachable."
+    """
+    import httpx
+
+    last_exc: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return await call()
+        except httpx.ConnectError as exc:
+            last_exc = exc
+            if attempt < attempts - 1:
+                await asyncio.sleep(backoff_s * (attempt + 1))
+    raise SupabaseUnavailableError(str(last_exc)) from last_exc
 
 
 async def init_supabase() -> None:
@@ -83,7 +135,7 @@ class SupabaseClient:
         any downstream user_profiles(id) foreign keys.
         """
         client = SupabaseClient._get()
-        res = await (
+        res = await _with_retry(lambda: (
             client.table("user_profiles")
             .upsert(
                 {
@@ -95,19 +147,19 @@ class SupabaseClient:
                 on_conflict="google_sub",
             )
             .execute()
-        )
+        ))
         return res.data[0] if res.data else {}
 
     @staticmethod
     async def get_user_by_google_sub(google_sub: str) -> dict | None:
         client = SupabaseClient._get()
-        res = (
-            await client.table("user_profiles")
+        res = await _with_retry(lambda: _maybe_single(lambda: (
+            client.table("user_profiles")
             .select("*")
             .eq("google_sub", google_sub)
             .maybe_single()
             .execute()
-        )
+        )))
         return res.data if res else None
 
     @staticmethod
@@ -124,36 +176,36 @@ class SupabaseClient:
         characters is an exact case-insensitive match.
         """
         client = SupabaseClient._get()
-        res = await (
+        res = await _with_retry(lambda: (
             client.table("user_profiles")
             .update({"google_sub": google_sub})
             .ilike("email", email)
             .is_("google_sub", "null")
             .execute()
-        )
+        ))
         return res.data[0] if res.data else None
 
     @staticmethod
     async def update_last_login(user_id: str) -> None:
         from datetime import datetime, timezone
         client = SupabaseClient._get()
-        await (
+        await _with_retry(lambda: (
             client.table("user_profiles")
             .update({"last_login": datetime.now(timezone.utc).isoformat()})
             .eq("id", user_id)
             .execute()
-        )
+        ))
 
     @staticmethod
     async def get_user_by_id(user_id: str) -> dict | None:
         client = SupabaseClient._get()
-        res = (
-            await client.table("user_profiles")
+        res = await _with_retry(lambda: _maybe_single(lambda: (
+            client.table("user_profiles")
             .select("*")
             .eq("id", user_id)
             .maybe_single()
             .execute()
-        )
+        )))
         return res.data if res else None
 
     @staticmethod

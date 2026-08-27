@@ -34,7 +34,7 @@ function ResetPasswordForm() {
     setSubmitting(true);
     try {
       await confirmPasswordReset(password);
-      navigate("/dashboard", { replace: true });
+      navigate("/upload", { replace: true });
     } catch (err) {
       setError(err.message || "Could not reset password. Please try again.");
     } finally {

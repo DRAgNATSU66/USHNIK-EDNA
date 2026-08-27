@@ -1,7 +1,7 @@
 {
   "model_id": "dnabert2_fish_v1",
   "route": "fish",
-  "base_model": "zhihan1996/DNABERT-2-117M",
+  "base_model": "E:\\synthveda-data\\checkpoints\\fish\\backbone",
   "head_type": "sequence_classification",
   "embedding_dim": 768,
   "label_set_version": "v1",
@@ -10,16 +10,24 @@
     "possible_novelty",
     "low_quality_unusable"
   ],
-  "training_dataset_version": null,
-  "metrics": {},
+  "training_dataset_version": "2026-08-03-cap5000",
+  "metrics": {
+    "test_accuracy": 0.998,
+    "test_macro_f1": 0.8328,
+    "dev_loss_best": 0.0415,
+    "train_size": 4047,
+    "dev_size": 505,
+    "test_size": 505
+  },
   "thresholds": {
     "high_confidence": 0.75,
-    "low_confidence": 0.40
+    "low_confidence": 0.4
   },
-  "artifact_uri": null,
-  "checksum": null,
-  "created_at": "2026-05-26",
+  "artifact_uri": "E:\\synthveda-data\\checkpoints\\fish\\head.pt",
+  "checksum": "1eae047c3e2de65887b0dfbef5c71a0e9d6f57ab4d1755ebe6bc75a8525ba0fa",
+  "created_at": "2026-08-03",
   "promoted_by": null,
   "status": "experimental",
-  "notes": "MiFish 12S rRNA classifier. Base: DNABERT-2 117M (BPE tokeniser). Head: linear probe, 3-class. Training dataset not yet assembled — weights pending Phase 14."
+  "notes": "MiFish 12S rRNA classifier. Base: DNABERT-2 117M (BPE tokeniser). Head: linear probe, 3-class. Training dataset not yet assembled \u00e2\u20ac\u201d weights pending Phase 14.",
+  "trusted_remote_code": true
 }

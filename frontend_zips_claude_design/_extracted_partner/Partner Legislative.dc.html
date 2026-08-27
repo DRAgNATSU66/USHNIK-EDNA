@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+</style>
+</helmet>
+<div data-screen-label="Partner Legislative" style="min-height:100vh;display:flex;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+
+  <!-- Sidebar -->
+  <div style="position:relative;width:260px;flex-shrink:0;border-right:1px solid #0C1526;background:rgba(4,8,17,0.85);display:flex;flex-direction:column;padding:22px 18px;box-sizing:border-box;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:20px">
+      <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:11.5px">SYNTH VEDA</span>
+    </div>
+    <a href="Upload Analysis.dc.html" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4 4.5 7 1.5l3 3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Upload Analysis</a>
+    <a href="Novelty DNA.dc.html" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <span style="display:flex;align-items:center;gap:11px"><svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M5.5 1.5h3v4l3 5.5a1.4 1.4 0 0 1-1.2 2H3.7a1.4 1.4 0 0 1-1.2-2l3-5.5v-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>Researcher Mode</span>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 3 7.5 6 4.5 9" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;border-left:2px solid #3B9EFF;background:rgba(20,110,255,0.10)">
+        <span style="display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#F5F5F3">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.2" stroke="#3B9EFF" stroke-width="1.3"></rect><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="#3B9EFF" stroke-width="1.2" stroke-linecap="round"></path></svg>Partner Report</span>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5 9 4.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:6px 0 2px 30px">
+        <a href="Partner Academia.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Academia</a>
+        <span style="padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#3B9EFF;background:rgba(20,110,255,0.08)">Legislative</span>
+        <a href="Partner Industrial.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Industrial</a>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #0C1526;padding:14px 8px 4px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;line-height:1.35">
+        <span style="font-size:13px;font-weight:600">Ushnik Chakrabarti</span>
+        <span style="font-size:11px;color:#7A8699">ushnik1p2h3d@gmail.com</span>
+      </div>
+      <a href="#" style="display:flex;align-items:center;gap:9px;font-size:13px;color:#B8BECB" style-hover="{{ navHover }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 12H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2.5M9 10l3-3-3-3M12 7H5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Sign out</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="position:relative;flex:1;min-width:0;padding:30px 38px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">PARTNER REPORT › LEGISLATIVE</div>
+      <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">eDNA Biodiversity Analyzer</h1>
+      <p style="margin:0;font-size:13.5px;color:#7A8699">Policymaker · Regional biodiversity &amp; policy</p>
+    </div>
+
+    <!-- Disclaimer -->
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;border-radius:6px;border:1px solid rgba(217,150,60,0.28);background:linear-gradient(180deg, rgba(217,150,60,0.07), rgba(217,150,60,0.03))">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M8 1.5 15 14H1L8 1.5z" stroke="#E0A85C" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.6v.4" stroke="#E0A85C" stroke-width="1.4" stroke-linecap="round"></path></svg>
+      <p style="margin:0;font-size:12.5px;line-height:1.65;color:#C8B79A;text-wrap:pretty"><span style="font-weight:600;color:#E0A85C">How to read this report.</span> Results are preliminary. A detection means recent genetic presence in the sampled water body — not a live organism confirmed at this moment. Because DNA drifts with currents, mapped zones show the general water body of detection, not exact coordinates. Read counts indicate relative genetic abundance, not population counts.</p>
+    </div>
+
+    <!-- Map + alerts -->
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">BIODIVERSITY HOTSPOT MAP · BAY OF BENGAL</span>
+          <div style="display:flex;gap:8px">
+            <button onClick="{{ openMap }}" style="{{ smallBtn }}">Open Map</button>
+            <button onClick="{{ noop }}" style="{{ smallBtn }}">Export Region CSV</button>
+          </div>
+        </div>
+        <div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid #101D33">{{ mapSvg }}</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#7A8699">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#FF7B7B;box-shadow:0 0 8px #FF7B7B88"></span>Critical</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#E0C25C;box-shadow:0 0 8px #E0C25C88"></span>High</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#5FD9A9;box-shadow:0 0 8px #5FD9A988"></span>Medium</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#3B9EFF;box-shadow:0 0 8px #3B9EFF88"></span>Low</span>
+          <span style="color:#3D4A61">Zones show drift-diffused detection areas, not exact positions.</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">ACTIVE ALERTS</span>
+        <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+          <div onClick="{{ a.open }}" style="{{ a.style }}">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <span style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600"><span style="{{ a.dotStyle }}"></span>{{ a.title }}</span>
+              <span style="{{ a.sevStyle }}">{{ a.sev }}</span>
+            </div>
+            <span style="font-size:12px;line-height:1.5;color:#7A8699">{{ a.desc }}</span>
+            <span style="font-size:10.5px;color:#3D4A61">Detected — genetic trace consistent with presence within the last ~7–14 days</span>
+            <sc-if value="{{ a.boundary }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:10.5px;color:#E0A85C">⚠ Near maritime boundary — origin uncertain due to current drift (spatial uncertainty only)</span>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- Trends -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">INDICATOR SPECIES TREND</span>
+          <span style="font-size:12px;font-weight:600;color:#5FD9A9">+8% YTD</span>
+        </div>
+        <span style="font-size:10.5px;color:#3D4A61">Target species DNA presence · as of 15 Aug 2026</span>
+        {{ lineSvg }}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">HABITAT-ASSOCIATED TAXA DECLINE</span>
+        <span style="font-size:10.5px;color:#3D4A61;line-height:1.5">Decline in DNA signatures associated with vulnerable ecosystems — an early-warning proxy, not a direct habitat measurement · as of 15 Aug 2026</span>
+        {{ barSvg }}
+      </div>
+    </div>
+
+    <!-- Economic risk -->
+    <div style="display:flex;flex-direction:column;gap:14px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">ECONOMIC RISK &amp; COMPLIANCE EXPOSURE</span>
+        <div style="display:flex;gap:8px">
+          <button onClick="{{ runFeasibility }}" style="{{ solidSmall }}">{{ feasLabel }}</button>
+          <button onClick="{{ noop }}" style="{{ smallBtn }}">Export Report</button>
+          <button onClick="{{ noop }}" style="{{ smallBtn }}">Export CSV</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        <sc-for list="{{ econ }}" as="e" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:6px;padding:15px 17px;border-radius:6px;border:1px solid #101D33;background:rgba(8,14,26,0.5)">
+            <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">{{ e.k }}</span>
+            <span style="font-size:21px;font-weight:600;letter-spacing:-0.01em">{{ e.v }}</span>
+            <span style="font-size:10px;padding:3px 9px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.06);color:#7A8699;align-self:flex-start">{{ e.basis }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex:1"></div>
+    <div style="display:flex;justify-content:center;padding:8px 0 2px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+
+  <!-- Fullscreen map modal -->
+  <sc-if value="{{ mapOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeMap }}" style="position:fixed;inset:0;background:rgba(2,4,9,0.75);backdrop-filter:blur(4px);z-index:40"></div>
+    <div style="position:fixed;inset:5%;z-index:41;display:flex;flex-direction:column;gap:14px;padding:22px 26px;border-radius:12px;border:1px solid #1C2E4C;background:#050912;box-shadow:0 40px 120px rgba(0,0,0,0.7)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">BIODIVERSITY HOTSPOT MAP · FULLSCREEN</span>
+        <div style="display:flex;gap:8px">
+          <button onClick="{{ noop }}" style="{{ smallBtn }}">Export CSV</button>
+          <button onClick="{{ noop }}" style="{{ smallBtn }}">Export PNG</button>
+          <button onClick="{{ closeMap }}" style="{{ smallBtn }}">Close ✕</button>
+        </div>
+      </div>
+      <div style="flex:1;border-radius:6px;overflow:hidden;border:1px solid #101D33;display:flex">{{ mapSvgBig }}</div>
+    </div>
+  </sc-if>
+
+  <!-- Alert detail modal -->
+  <sc-if value="{{ alertOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeAlert }}" style="position:fixed;inset:0;background:rgba(2,4,9,0.7);backdrop-filter:blur(4px);z-index:40"></div>
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:92vw;z-index:41;display:flex;flex-direction:column;gap:16px;padding:24px 28px;border-radius:12px;border:1px solid #1C2E4C;background:#050912;box-shadow:0 40px 120px rgba(0,0,0,0.7)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600"><span style="{{ mDotStyle }}"></span>{{ mTitle }}</span>
+        <button onClick="{{ closeAlert }}" style="width:30px;height:30px;border-radius:8px;border:1px solid #17253D;background:#080F1C;color:#B8BECB;font-size:14px;cursor:pointer" style-hover="{{ navHover }}">✕</button>
+      </div>
+      <p style="margin:0;font-size:13px;line-height:1.65;color:#B8BECB">{{ mDetail }}</p>
+      <span style="font-size:11px;color:#3D4A61">Detected — genetic trace consistent with presence within the last ~7–14 days.</span>
+      <div style="padding:12px 15px;border-radius:6px;border:1px solid rgba(59,158,255,0.25);background:rgba(20,110,255,0.07);font-size:12.5px;color:#9FC6F5"><span style="font-weight:600;color:#6FBAFF">Suggested action:</span> {{ mAction }}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:6px;border:1px solid #101D33;background:rgba(8,14,26,0.5)">
+        <span style="font-size:10.5px;letter-spacing:0.08em;color:#7A8699">CRYPTOGRAPHIC CHAIN OF CUSTODY</span>
+        <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-family:ui-monospace,monospace;color:#B8BECB">
+          <span>source: stn14_bay-of-bengal_0812.fasta</span>
+          <span>uploaded by: M. Fernandes · 2026-08-12 10:02 UTC</span>
+          <span style="word-break:break-all">sha-256: 9f3a…c41e77b2</span>
+          <span style="display:flex;align-items:center;gap:7px;color:#5FD9A9"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#5FD9A9" stroke-width="1.3"></circle><path d="M4.5 7l1.8 1.8L9.5 5.5" stroke="#5FD9A9" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Hash verified — file unaltered since upload</span>
+        </div>
+      </div>
+      <button onClick="{{ noop }}" style="{{ solidSmall }};align-self:flex-start">Generate Alert PDF</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { mapOpen: false, alert: null, feas: 'idle' };
+  sevC() { return { Critical: '#FF7B7B', High: '#E0C25C', Medium: '#5FD9A9', Low: '#3B9EFF' }; }
+  alertsData() {
+    return [
+      { id: 1, title: 'Protected Species — Sector 3', sev: 'Critical', desc: 'IUCN Red List species DNA detected within active construction zone.', action: 'Temporary halt of dredging in Sector 3 pending field survey and secondary sampling.', boundary: false },
+      { id: 2, title: 'Invasive Species — Sector 7', sev: 'High', desc: 'Invasive bivalve DNA signature rising across two consecutive samples.', action: 'Field survey and sample removal; increase monitoring frequency to weekly.', boundary: true },
+      { id: 3, title: 'Coastal Stabilization Risk — Estuary N', sev: 'Medium', desc: 'Inferred from mangrove/seagrass indicator taxa decline (not a direct physical measurement).', action: 'Commission indicator-taxa resampling before permitting review.', boundary: false },
+      { id: 4, title: 'Invasive Species — Outer Shelf', sev: 'Low', desc: 'Trace invasive copepod DNA at detection threshold; single sample only.', action: 'No action required; retest at next scheduled collection.', boundary: false },
+    ];
+  }
+  map(w, h) {
+    const C = this.sevC();
+    const zone = (x, y, r, c, o) => React.createElement('circle', { key: c + x, cx: x, cy: y, r, fill: `url(#g${c.slice(1)})`, opacity: o });
+    const grads = ['#FF7B7B', '#E0C25C', '#5FD9A9', '#3B9EFF'].map(c =>
+      React.createElement('radialGradient', { id: 'g' + c.slice(1), key: c },
+        React.createElement('stop', { offset: '0%', stopColor: c, stopOpacity: 0.75 }),
+        React.createElement('stop', { offset: '45%', stopColor: c, stopOpacity: 0.28 }),
+        React.createElement('stop', { offset: '100%', stopColor: c, stopOpacity: 0 })));
+    return React.createElement('svg', { viewBox: '0 0 640 380', style: { width: '100%', height: 'auto', display: 'block', background: '#04101F' }, preserveAspectRatio: 'xMidYMid slice' },
+      React.createElement('defs', null, ...grads),
+      // coastline
+      React.createElement('path', { d: 'M0 40 C90 60 130 30 180 70 C220 105 200 150 240 170 C270 185 260 230 300 250 L300 380 L0 380 Z', fill: '#0A1526', stroke: '#1C2E4C', strokeWidth: 1.5 }),
+      React.createElement('path', { d: 'M640 0 L640 200 C590 190 570 150 540 130 C505 108 520 60 480 40 C450 25 460 0 460 0 Z', fill: '#0A1526', stroke: '#1C2E4C', strokeWidth: 1.5 }),
+      // EEZ boundary dashed
+      React.createElement('path', { d: 'M380 0 C400 90 470 180 620 260', fill: 'none', stroke: '#3D4A61', strokeWidth: 1.2, strokeDasharray: '6 5' }),
+      React.createElement('text', { x: 500, y: 150, fill: '#3D4A61', fontSize: 10, fontFamily: 'ui-monospace,monospace' }, 'EEZ boundary'),
+      // heat zones
+      zone(330, 210, 70, '#FF7B7B', 1), zone(455, 120, 58, '#E0C25C', 1), zone(210, 300, 52, '#5FD9A9', 0.9), zone(540, 300, 44, '#3B9EFF', 0.85),
+      React.createElement('text', { x: 330, y: 214, fill: '#FFD4D4', fontSize: 10, textAnchor: 'middle', fontWeight: 600 }, 'Sector 3'),
+      React.createElement('text', { x: 455, y: 124, fill: '#F2E4B8', fontSize: 10, textAnchor: 'middle', fontWeight: 600 }, 'Sector 7'),
+      React.createElement('text', { x: 455, y: 96, fill: '#E0A85C', fontSize: 8.5, textAnchor: 'middle' }, '⚠ near maritime boundary — origin uncertain (drift)'),
+      React.createElement('text', { x: 210, y: 304, fill: '#CDEFDF', fontSize: 10, textAnchor: 'middle', fontWeight: 600 }, 'Estuary N'),
+      React.createElement('text', { x: 540, y: 304, fill: '#BFDCFF', fontSize: 10, textAnchor: 'middle', fontWeight: 600 }, 'Outer Shelf'),
+      React.createElement('text', { x: 14, y: 368, fill: '#3D4A61', fontSize: 9.5, fontFamily: 'ui-monospace,monospace' }, 'Bay of Bengal · zones = drift-diffused probability radii'));
+  }
+  line() {
+    const pts = [30, 34, 31, 38, 42, 40, 46, 44, 50, 53, 51, 56];
+    const X = i => 34 + i * 46, Y = v => 130 - v * 1.7;
+    const d = pts.map((v, i) => (i ? 'L' : 'M') + X(i) + ' ' + Y(v)).join(' ');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return React.createElement('svg', { viewBox: '0 0 570 150', style: { width: '100%', height: 'auto', display: 'block' } },
+      React.createElement('path', { d: d + ' L' + X(11) + ' 140 L' + X(0) + ' 140 Z', fill: 'rgba(59,158,255,0.10)' }),
+      React.createElement('path', { d, fill: 'none', stroke: '#3B9EFF', strokeWidth: 2, strokeLinecap: 'round' }),
+      ...pts.map((v, i) => React.createElement('circle', { key: i, cx: X(i), cy: Y(v), r: 2.6, fill: '#7FD4FF' })),
+      ...months.map((m, i) => React.createElement('text', { key: m, x: X(i), y: 148, fill: '#3D4A61', fontSize: 9, textAnchor: 'middle' }, m)));
+  }
+  bars() {
+    const data = [['Coral', 18, '#FF7B7B'], ['Seagrass', 12, '#E0C25C'], ['Mangrove', 9, '#5FD9A9'], ['Kelp', 4, '#3B9EFF']];
+    return React.createElement('svg', { viewBox: '0 0 570 150', style: { width: '100%', height: 'auto', display: 'block' } },
+      ...data.map(([n, v, c], i) => {
+        const y = 14 + i * 33;
+        return React.createElement('g', { key: n },
+          React.createElement('text', { x: 0, y: y + 12, fill: '#B8BECB', fontSize: 11 }, n),
+          React.createElement('rect', { x: 80, y, width: 440, height: 16, rx: 3, fill: '#0A1526' }),
+          React.createElement('rect', { x: 80, y, width: 440 * v / 20, height: 16, rx: 3, fill: c, opacity: 0.75 }),
+          React.createElement('text', { x: 530, y: y + 12, fill: '#7A8699', fontSize: 10.5 }, '−' + v + '%'));
+      }));
+  }
+  renderVals() {
+    const C = this.sevC();
+    const { alert, mapOpen, feas } = this.state;
+    const alerts = this.alertsData().map(a => ({
+      ...a,
+      open: () => this.setState({ alert: a.id }),
+      style: `display:flex;flex-direction:column;gap:5px;padding:12px 14px;border-radius:6px;cursor:pointer;border:1px solid #101D33;border-left:3px solid ${C[a.sev]};background:rgba(8,14,26,0.55);transition:background .12s ease`,
+      dotStyle: `width:8px;height:8px;border-radius:50%;background:${C[a.sev]};box-shadow:0 0 8px ${C[a.sev]}88`,
+      sevStyle: `font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid ${C[a.sev]}44;background:${C[a.sev]}14;color:${C[a.sev]}`,
+    }));
+    const m = this.alertsData().find(a => a.id === alert);
+    if (feas === 'running' && !this._t) { this._t = setTimeout(() => { this._t = null; this.setState({ feas: 'done' }); }, 1400); }
+    return {
+      navHover: { background: 'rgba(20,110,255,0.08)', color: '#F5F5F3', textDecoration: 'none' },
+      noop: () => {},
+      smallBtn: 'padding:7px 14px;border:1px solid #17253D;border-radius:10px;background:#080F1C;font-family:inherit;font-size:11.5px;font-weight:500;color:#B8BECB;cursor:pointer',
+      solidSmall: 'padding:8px 18px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38);font-family:inherit;font-size:12px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer',
+      mapSvg: this.map(), mapSvgBig: this.map(),
+      mapOpen, openMap: () => this.setState({ mapOpen: true }), closeMap: () => this.setState({ mapOpen: false }),
+      alerts,
+      alertOpen: !!m, closeAlert: () => this.setState({ alert: null }),
+      mTitle: m ? m.title : '', mDetail: m ? m.desc + ' ' + (m.boundary ? 'Hotspot sits near a maritime boundary; origin is spatially uncertain due to current drift — this is not a jurisdictional determination.' : '') : '',
+      mAction: m ? m.action : '',
+      mDotStyle: m ? `width:10px;height:10px;border-radius:50%;background:${C[m.sev]};box-shadow:0 0 10px ${C[m.sev]}88` : '',
+      lineSvg: this.line(), barSvg: this.bars(),
+      feasLabel: feas === 'running' ? 'Running…' : feas === 'done' ? 'Feasibility ✓ Re-run' : 'Run Feasibility',
+      runFeasibility: () => this.setState({ feas: 'running' }),
+      econ: [
+        { k: 'PROJECT DELAY EXPOSURE', v: '₹4.2 Cr', basis: 'Modeled estimate — biodiversity baseline + regional precedent' },
+        { k: 'COMPLIANCE FINE EXPOSURE', v: '₹1.8 Cr', basis: 'Modeled from regional regulatory schedule' },
+        { k: 'MITIGATION COST RANGE', v: '₹0.3–0.6 Cr', basis: 'Modeled estimate — contractor rate card, ±40%' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

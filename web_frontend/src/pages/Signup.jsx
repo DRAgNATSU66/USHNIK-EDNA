@@ -40,7 +40,7 @@ function SignupForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) navigate("/dashboard", { replace: true });
+    if (!loading && isAuthenticated) navigate("/upload", { replace: true });
   }, [isAuthenticated, loading, navigate]);
 
   const googleLogin = useGoogleLogin({
@@ -50,7 +50,7 @@ function SignupForm() {
       setError("");
       try {
         await loginWithGoogleCode(codeResponse.code);
-        navigate("/dashboard", { replace: true });
+        navigate("/upload", { replace: true });
       } catch (err) {
         setError(err.message || "Sign-up failed. Please try again.");
       } finally {
@@ -77,7 +77,7 @@ function SignupForm() {
     setSubmitting(true);
     try {
       await signUpWithPassword(email, password, displayName);
-      navigate("/dashboard", { replace: true });
+      navigate("/upload", { replace: true });
     } catch (err) {
       const msg = err.message || "Sign-up failed. Please try again.";
       if (msg.toLowerCase().startsWith("check your email")) {

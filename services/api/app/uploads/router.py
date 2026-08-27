@@ -1,4 +1,3 @@
-import os
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
@@ -11,11 +10,6 @@ from ..db import get_db
 from ..config import get_settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
-
-# Local disk storage for uploaded files (dev / single-node deployments).
-# Set UPLOAD_STORAGE_DIR to a path mounted into both the API and worker
-# containers so the worker's parser can read what the API wrote.
-_UPLOAD_STORAGE_DIR = Path(os.environ.get("UPLOAD_STORAGE_DIR", "uploads"))
 
 
 class UploadMetadataForm(BaseModel):
@@ -85,9 +79,10 @@ async def create_upload(
 
     # Persist to local disk so the worker's parser can read it. In production
     # this would upload to S3/GCS instead and set storage_key.
-    _UPLOAD_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    storage_dir = Path(settings.upload_storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
     safe_name = PurePosixPath(file.filename).name  # strip any path components
-    dest = _UPLOAD_STORAGE_DIR / f"{doc.upload_id}_{safe_name}"
+    dest = storage_dir / f"{doc.upload_id}_{safe_name}"
     dest.write_bytes(content)
     doc.file_path = str(dest)
 

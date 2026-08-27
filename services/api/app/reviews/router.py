@@ -61,6 +61,36 @@ class CreateBatchRequest(BaseModel):
 # Submit a review (any authenticated user)
 # ---------------------------------------------------------------------------
 
+@router.get("/by-sequence", response_model=list[ReviewDoc])
+async def list_reviews_for_sequence(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    analysis_id: str,
+    sequence_id: str,
+):
+    """
+    List the correction history for one sequence within one analysis,
+    oldest first. Powers Species Correction's conflict detection (competing
+    proposals on the same sequence) and version history -- unlike
+    /reviews/queue, this is available to the analysis owner, not just
+    curators, since a researcher needs to see prior corrections on their
+    own data before submitting a new one.
+    """
+    db = get_db()
+    analysis_doc = await db["analysis_results"].find_one({"analysis_id": analysis_id})
+    if not analysis_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    if analysis_doc.get("user_id") != current_user.user_id and current_user.role not in _CURATOR_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    docs = []
+    async for doc in db["reviews"].find(
+        {"analysis_id": analysis_id, "sequence_id": sequence_id}
+    ).sort("created_at", 1):
+        doc.pop("_id", None)
+        docs.append(ReviewDoc(**doc))
+    return docs
+
+
 @router.post("", response_model=ReviewDoc, status_code=status.HTTP_201_CREATED)
 async def submit_review(
     body: CreateReviewRequest,

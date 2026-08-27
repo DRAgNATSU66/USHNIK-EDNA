@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import NavBar from "../components/NavBar";
+import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getReviewStats,
@@ -143,12 +143,12 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <div style={PAGE}>
-        <NavBar />
+        <SidebarMenu />
         <div style={{ textAlign: "center", padding: "4rem", color: "#ff9b9b" }}>
           <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔒</div>
           Access denied. Admin role required.
           <div style={{ marginTop: 16 }}>
-            <Link to="/dashboard" style={{ color: "#00d4ff", textDecoration: "none" }}>← Dashboard</Link>
+            <Link to="/upload" style={{ color: "#00d4ff", textDecoration: "none" }}>← New Analysis</Link>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function Admin() {
 
   return (
     <div style={PAGE}>
-      <NavBar />
+      <SidebarMenu />
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "2rem 1.5rem" }}>
         <h1 style={{
           fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.5rem",

@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_size_mb: int = 100
 
+    # Local disk storage for uploaded files (dev / single-node deployments).
+    # Must resolve to the same directory for both the API (writer) and the
+    # worker (reader) — in Docker Compose that's the shared uploads_data
+    # volume; for plain local `uvicorn`/`python -m app.dispatcher` runs (each
+    # with a different CWD) this needs to be an absolute path.
+    upload_storage_dir: str = "uploads"
+
     # Redis / job queue
     redis_url: str = "redis://localhost:6379/0"
 

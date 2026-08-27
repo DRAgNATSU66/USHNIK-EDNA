@@ -1,5 +1,11 @@
 FROM python:3.11-slim
 
+# Docker's non-TTY stdout is fully block-buffered by default, so the
+# dispatcher's print() calls (startup, job completion) could sit unflushed
+# indefinitely -- `docker logs` looked empty even though the process was
+# running fine.
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY requirements.txt .

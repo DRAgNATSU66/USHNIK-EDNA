@@ -1,7 +1,7 @@
 {
   "model_id": "dnabert2_animal_v1",
   "route": "animal_general",
-  "base_model": "zhihan1996/DNABERT-2-117M",
+  "base_model": "E:\\synthveda-data\\checkpoints\\animal_general\\backbone",
   "head_type": "sequence_classification",
   "embedding_dim": 768,
   "label_set_version": "v1",
@@ -10,16 +10,24 @@
     "likely_taxonomic_group",
     "possible_novelty"
   ],
-  "training_dataset_version": null,
-  "metrics": {},
+  "training_dataset_version": "2026-08-03-cap5000",
+  "metrics": {
+    "test_accuracy": 0.9471,
+    "test_macro_f1": 0.8542,
+    "dev_loss_best": 0.208,
+    "train_size": 8018,
+    "dev_size": 1002,
+    "test_size": 1002
+  },
   "thresholds": {
     "high_confidence": 0.75,
-    "low_confidence": 0.40
+    "low_confidence": 0.4
   },
-  "artifact_uri": null,
-  "checksum": null,
-  "created_at": "2026-05-26",
+  "artifact_uri": "E:\\synthveda-data\\checkpoints\\animal_general\\head.pt",
+  "checksum": "6ac2107763da51389829c7df1f0920f2cf757901d2927d64516132bcac634744",
+  "created_at": "2026-08-03",
   "promoted_by": null,
   "status": "experimental",
-  "notes": "COI barcode classifier for non-fish metazoans. Base: DNABERT-2 117M. This route will be split into mammal/reptile/bird/marine_invertebrate sub-routes in a later phase."
+  "notes": "COI barcode classifier for non-fish metazoans. Base: DNABERT-2 117M. This route will be split into mammal/reptile/bird/marine_invertebrate sub-routes in a later phase.",
+  "trusted_remote_code": true
 }

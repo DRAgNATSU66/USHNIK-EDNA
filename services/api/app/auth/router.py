@@ -117,6 +117,19 @@ async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenRespon
     except RuntimeError:
         # Supabase not configured (local dev without .env) — continue with defaults
         pass
+    except SupabaseUnavailableError:
+        # Supabase configured but transiently unreachable even after
+        # _with_retry's attempts -- surface as a clean, retryable 503
+        # rather than letting it propagate as an unhandled exception.
+        # Unhandled exceptions here previously reached the client as a
+        # misleading "blocked by CORS policy" error: Starlette's
+        # CORSMiddleware doesn't reliably attach Access-Control-Allow-Origin
+        # to a response built from an uncaught exception, so the browser
+        # reports a CORS failure instead of the real transport error.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth service temporarily unavailable. Please try again.",
+        )
 
     user = UserProfile(
         user_id=user_id,

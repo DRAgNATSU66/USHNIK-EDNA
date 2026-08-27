@@ -13,6 +13,7 @@ from .models.router import router as models_router
 from .reviews import router as reviews_router
 from .abyss import router as abyss_router
 from .reports import router as reports_router
+from .field_log import router as field_log_router
 
 
 @asynccontextmanager
@@ -65,6 +66,12 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Content-Disposition isn't in the CORS-safelisted response headers,
+        # so without this the frontend's fetch() can never see it -- the
+        # export/json and export/csv endpoints rely on it to tell the
+        # generic request() helper "this is a file download, don't
+        # auto-parse the body".
+        expose_headers=["Content-Disposition"],
     )
 
     # Core routes
@@ -84,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(reviews_router)
     app.include_router(abyss_router)
     app.include_router(reports_router)
+    app.include_router(field_log_router)
 
     return app
 

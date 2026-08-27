@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import NavBar from "../components/NavBar";
+import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { getModels } from "../lib/api";
 
 const PAGE = {
@@ -42,7 +42,7 @@ export default function ModelStatus() {
 
   return (
     <div style={PAGE}>
-      <NavBar />
+      <SidebarMenu />
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "2rem 1.5rem" }}>
         <h1 style={{
           fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.5rem",

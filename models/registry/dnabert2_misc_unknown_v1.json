@@ -1,7 +1,7 @@
 {
   "model_id": "dnabert2_misc_unknown_v1",
   "route": "misc_unknown",
-  "base_model": "zhihan1996/DNABERT-2-117M",
+  "base_model": "E:\\synthveda-data\\checkpoints\\misc_unknown\\backbone",
   "head_type": "sequence_classification",
   "embedding_dim": 768,
   "label_set_version": "v1",
@@ -10,16 +10,24 @@
     "possible_novelty",
     "low_quality_unusable"
   ],
-  "training_dataset_version": null,
-  "metrics": {},
+  "training_dataset_version": "2026-08-03-cap5000",
+  "metrics": {
+    "test_accuracy": 0.936,
+    "test_macro_f1": 0.935,
+    "dev_loss_best": 0.2007,
+    "train_size": 12000,
+    "dev_size": 1500,
+    "test_size": 1500
+  },
   "thresholds": {
-    "high_confidence": 0.70,
+    "high_confidence": 0.7,
     "low_confidence": 0.35
   },
-  "artifact_uri": null,
-  "checksum": null,
-  "created_at": "2026-05-26",
+  "artifact_uri": "E:\\synthveda-data\\checkpoints\\misc_unknown\\head.pt",
+  "checksum": "4daea3c876b7f5223b3211baf55b943073535b6fbafdea716c23ad78868337b9",
+  "created_at": "2026-08-03",
   "promoted_by": null,
   "status": "experimental",
-  "notes": "General-purpose catch-all classifier for sequences that could not be confidently routed. Output is always human-review eligible. This model also produces the reference embedding used by the Phase 8 novelty scorer."
+  "notes": "General-purpose catch-all classifier for sequences that could not be confidently routed. Output is always human-review eligible. This model also produces the reference embedding used by the Phase 8 novelty scorer.",
+  "trusted_remote_code": true
 }

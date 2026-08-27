@@ -82,6 +82,11 @@ class ModelRegistryEntry:
     checksum: str | None = None
     created_at: str = ""
     promoted_by: str | None = None
+    # Per-model allowlist for custom modeling code (e.g. DNABERT-2 ships its
+    # own attention implementation and needs this to load at all). Defaults
+    # to False — a registry entry must explicitly opt in per base_model, so
+    # trusting one model's repo code never silently extends to another's.
+    trusted_remote_code: bool = False
 
     @property
     def is_runnable(self) -> bool:

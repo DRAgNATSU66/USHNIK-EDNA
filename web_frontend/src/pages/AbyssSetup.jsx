@@ -1,58 +1,132 @@
 import React, { useEffect, useState, useCallback } from "react";
-import NavBar from "../components/NavBar";
+import SidebarMenu from "../components/sidebar/SidebarMenu";
+import { tokens } from "../components/shared/tokens";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getExpeditions, createExpedition, activateExpedition,
   getPackManifest, issueLicense,
 } from "../lib/api";
+import whaleArt from "../assets/abyss-whale.png";
 
-const PAGE = {
-  background: "radial-gradient(ellipse at center, #002266 0%, #001133 100%)",
+const pageStyle = {
+  position: "relative",
+  background: tokens.pageBg,
   minHeight: "100vh",
-  color: "#ffffff",
-  fontFamily: "'Inter', system-ui, sans-serif",
+  color: tokens.textPrimary,
+  fontFamily: "'Instrument Sans', system-ui, sans-serif",
 };
 
-const CARD = (accent = "#00d4ff") => ({
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderTop: `2px solid ${accent}`,
-  borderRadius: 14,
-  padding: "1.5rem",
-  marginBottom: "1.25rem",
-});
+const ambientGlow = {
+  position: "fixed",
+  inset: 0,
+  pointerEvents: "none",
+  background: "radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)",
+};
 
-const INPUT = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(0,0,0,0.25)",
-  color: "#ffffff",
-  fontSize: "0.9rem",
+// Backgrounds here run noticeably more opaque than the panelStyle this was
+// copied from elsewhere in the app -- this is the one page with a large
+// decorative image sitting behind the whole layout, so cards need to read
+// as solid enough to stay legible over it rather than the usual light wash.
+const panelStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+  padding: "18px 22px",
+  borderRadius: 9,
+  border: "1px solid rgba(140,170,230,0.14)",
+  background: "linear-gradient(180deg, rgba(140,170,230,0.08) 0%, rgba(4,7,12,0.94) 100%)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)",
+};
+
+// Left-border accent variant -- same language as the Legislative report's
+// alert cards (severity color as a left stripe rather than a full-card
+// wash), reused here for expedition status.
+function accentPanelStyle(color) {
+  return { ...panelStyle, borderLeft: `3px solid ${color}` };
+}
+
+const fieldStyle = {
+  padding: "11px 14px",
+  borderRadius: 6,
+  border: `1px solid ${tokens.sectionBorder}`,
+  background: "#080F1C",
+  fontFamily: "inherit",
+  fontSize: 13,
+  color: tokens.textPrimary,
   outline: "none",
   width: "100%",
+  boxSizing: "border-box",
 };
 
-const BTN = (color = "#00d4ff", fill = false) => ({
-  padding: "0.5rem 1.1rem",
-  borderRadius: 10,
-  border: fill ? "none" : `1px solid ${color}55`,
-  background: fill ? color : `${color}18`,
-  color: fill ? "#000" : color,
-  fontWeight: 600,
-  fontSize: "0.85rem",
-  cursor: "pointer",
-});
+const labelStyle = { display: "block", marginBottom: 5, fontSize: 10.5, letterSpacing: "0.08em", color: tokens.labelText, fontWeight: 600 };
 
-const STATUS_COLOR = {
-  pre_departure: "#7eb3ff",
-  active: "#00ff88",
-  synced: "#a78bfa",
-  archived: "#5a7a9a",
+// Plain colored text instead of a pill badge -- per direct feedback to
+// de-pill status tags app-wide, same color/weight the pill used to carry.
+function plainTagStyle(tone = "pending") {
+  return { color: tokens[tone] ?? tokens.pending, fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em" };
+}
+
+// Matches SpeciesCorrection.jsx's SolidButton -- the shared gradient
+// button language for this tier of page (Partner Report pages use
+// liquidGlass() instead; that recipe is specific to those three pages).
+function SolidButton({ children, onClick, disabled, tone = "accent" }) {
+  const bg =
+    tone === "danger"
+      ? "linear-gradient(180deg, #E06A4F 0%, #C24A32 100%)"
+      : tone === "purple"
+      ? `linear-gradient(180deg, ${tokens.purple} 0%, #6C5CC2 100%)`
+      : "linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%)";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "9px 18px",
+        borderRadius: 10,
+        border: "1px solid rgba(160,205,255,0.5)",
+        background: disabled ? "linear-gradient(180deg, #2A3B58 0%, #1C2A42 100%)" : bg,
+        boxShadow: disabled ? "none" : "inset 0 1.5px 0 rgba(255,255,255,0.4), 0 8px 24px rgba(20,110,255,0.28)",
+        color: disabled ? "#7A8699" : "#FFFFFF",
+        fontFamily: "inherit",
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({ children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "9px 16px",
+        borderRadius: 10,
+        border: `1px solid ${tokens.sectionBorder}`,
+        background: "#080F1C",
+        color: tokens.wordmark,
+        fontFamily: "inherit",
+        fontSize: 12.5,
+        fontWeight: 500,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+const STATUS_TONE = {
+  pre_departure: "accent",
+  active: "success",
+  synced: "purple",
+  archived: "pending",
 };
 
 function ExpeditionCard({ exp, onRefresh }) {
-  const { user } = useAuth();
   const [manifest, setManifest] = useState(null);
   const [license, setLicense] = useState(null);
   const [duration, setDuration] = useState(14);
@@ -92,74 +166,66 @@ function ExpeditionCard({ exp, onRefresh }) {
     finally { setIssuingLicense(false); }
   };
 
-  const statusColor = STATUS_COLOR[exp.status] || "#7eb3ff";
+  const tone = STATUS_TONE[exp.status] || "pending";
+  const statusColor = tokens[tone] ?? tokens.pending;
 
   return (
-    <div style={{ ...CARD(statusColor), padding: "1.25rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-        <div>
-          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#ffffff", marginBottom: 4 }}>
-            {exp.expedition_name || exp.expedition_id}
-          </h3>
-          <div style={{ color: "#7eb3ff", fontSize: "0.8rem" }}>
+    <div style={accentPanelStyle(statusColor)}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{exp.expedition_name || exp.expedition_id}</span>
+          <span style={{ fontSize: 12, color: tokens.sectionSubtext }}>
             {exp.destination_region && <span>{exp.destination_region} · </span>}
-            ID: <code style={{ color: "#00d4ff", fontFamily: "monospace" }}>{exp.expedition_id}</code>
-          </div>
+            ID: <span style={{ fontFamily: "ui-monospace,monospace", color: tokens.wordmark }}>{exp.expedition_id}</span>
+          </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{
-            padding: "3px 12px", borderRadius: 999, fontSize: "0.75rem", fontWeight: 700,
-            background: `${statusColor}18`, border: `1px solid ${statusColor}44`, color: statusColor,
-          }}>
-            {exp.status}
-          </div>
-          <button onClick={() => setExpanded((v) => !v)} style={BTN("#7eb3ff")}>
+          <span style={plainTagStyle(tone)}>{exp.status}</span>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${tokens.sectionBorder}`, background: "#080F1C", color: tokens.wordmark, fontSize: 11, cursor: "pointer" }}
+          >
             {expanded ? "▲" : "▼"}
           </button>
         </div>
       </div>
 
       {exp.departure_date && (
-        <div style={{ fontSize: "0.8rem", color: "#7eb3ff" }}>
+        <span style={{ fontSize: 12, color: tokens.sectionSubtext }}>
           Departure: {new Date(exp.departure_date).toLocaleDateString()}
           {exp.planned_duration_days && ` · ${exp.planned_duration_days} days`}
-        </div>
+        </span>
       )}
 
       {expanded && (
-        <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 4, borderTop: `1px solid ${tokens.sectionBorder}` }}>
           {/* Activate */}
           {exp.status === "pre_departure" && (
-            <button onClick={handleActivate} disabled={activating} style={BTN("#00ff88", true)}>
-              {activating ? "Activating..." : "Activate Expedition"}
-            </button>
+            <div>
+              <SolidButton tone="success" onClick={handleActivate} disabled={activating}>
+                {activating ? "Activating..." : "Activate Expedition"}
+              </SolidButton>
+            </div>
           )}
 
           {/* Pack manifest */}
           {exp.status === "active" && (
-            <div>
-              <button onClick={handleManifest} disabled={loadingManifest} style={BTN("#00d4ff")}>
-                {loadingManifest ? "Loading..." : "Get Pack Manifest"}
-              </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <GhostButton onClick={handleManifest}>{loadingManifest ? "Loading..." : "Get Pack Manifest"}</GhostButton>
+              </div>
               {manifest && (
-                <div style={{
-                  marginTop: 8, padding: "10px 14px", borderRadius: 10,
-                  background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.2)",
-                  fontSize: "0.82rem",
-                }}>
-                  <div style={{ color: "#00d4ff", fontWeight: 600, marginBottom: 6 }}>Pack Manifest</div>
+                <div style={{ padding: "12px 14px", borderRadius: 6, border: `1px solid ${tokens.sectionBorder}`, background: "rgba(8,14,26,0.5)", fontSize: 12 }}>
+                  <div style={{ color: tokens.accentCyan, fontWeight: 600, marginBottom: 6 }}>Pack Manifest</div>
                   {manifest.components?.map((c, i) => (
-                    <div key={i} style={{ color: "#b3d9ff", marginBottom: 2 }}>
-                      {c.name || c.component_type}: <span style={{
-                        color: c.status === "available" ? "#00ff88" : "#ffd700",
-                      }}>{c.status}</span>
-                      {c.size_mb && <span style={{ color: "#7eb3ff" }}> · {c.size_mb} MB</span>}
+                    <div key={i} style={{ color: tokens.sectionSubtext, marginBottom: 3 }}>
+                      {c.name || c.component_type}:{" "}
+                      <span style={{ color: c.status === "available" ? tokens.success : tokens.warningAlt }}>{c.status}</span>
+                      {c.size_mb && <span style={{ color: tokens.pending }}> · {c.size_mb} MB</span>}
                     </div>
                   ))}
                   {manifest.total_size_mb != null && (
-                    <div style={{ color: "#7eb3ff", marginTop: 6 }}>
-                      Total: {manifest.total_size_mb} MB
-                    </div>
+                    <div style={{ color: tokens.pending, marginTop: 6 }}>Total: {manifest.total_size_mb} MB</div>
                   )}
                 </div>
               )}
@@ -168,36 +234,30 @@ function ExpeditionCard({ exp, onRefresh }) {
 
           {/* Issue license */}
           {exp.status === "active" && (
-            <div>
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label style={{ display: "block", marginBottom: 4, fontSize: "0.75rem", color: "#7eb3ff", fontWeight: 600, textTransform: "uppercase" }}>
-                    License Duration (days, max 90)
-                  </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 140 }}>
+                  <label style={labelStyle}>License Duration (days, max 90)</label>
                   <input
                     type="number"
                     min={1}
                     max={90}
                     value={duration}
                     onChange={(e) => setDuration(Number(e.target.value))}
-                    style={{ ...INPUT, width: "auto", minWidth: 100 }}
+                    style={{ ...fieldStyle, width: "auto", minWidth: 100 }}
                   />
                 </div>
-                <button onClick={handleIssueLicense} disabled={issuingLicense} style={BTN("#ffd700", true)}>
+                <SolidButton onClick={handleIssueLicense} disabled={issuingLicense}>
                   {issuingLicense ? "Issuing..." : "Issue Offline License"}
-                </button>
+                </SolidButton>
               </div>
               {license && (
-                <div style={{
-                  marginTop: 8, padding: "10px 14px", borderRadius: 10,
-                  background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.2)",
-                  fontSize: "0.8rem",
-                }}>
-                  <div style={{ color: "#ffd700", fontWeight: 600, marginBottom: 6 }}>Offline License Issued</div>
-                  <div style={{ color: "#b3d9ff", marginBottom: 4 }}>
+                <div style={{ padding: "12px 14px", borderRadius: 6, border: `1px solid ${tokens.warningBorder}`, background: tokens.warningBg, fontSize: 12 }}>
+                  <div style={{ color: tokens.warningAlt, fontWeight: 600, marginBottom: 6 }}>Offline License Issued</div>
+                  <div style={{ color: tokens.sectionSubtext, marginBottom: 6 }}>
                     Expires: {license.expires_at ? new Date(license.expires_at).toLocaleString() : "—"}
                   </div>
-                  <div style={{ color: "#ffaa55", fontSize: "0.75rem" }}>
+                  <div style={{ color: tokens.warningAlt, fontSize: 11 }}>
                     ⚠ Store this token securely on your field device. It cannot be revoked.
                   </div>
                   <textarea
@@ -205,11 +265,17 @@ function ExpeditionCard({ exp, onRefresh }) {
                     value={license.offline_license_token || license.token || ""}
                     rows={3}
                     style={{
-                      marginTop: 8, width: "100%", padding: "8px",
-                      borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(0,0,0,0.3)", color: "#00d4ff",
-                      fontFamily: "monospace", fontSize: "0.7rem",
+                      marginTop: 8,
+                      width: "100%",
+                      padding: "8px",
+                      borderRadius: 4,
+                      border: `1px solid ${tokens.sectionBorder}`,
+                      background: "#04070E",
+                      color: tokens.accentCyan,
+                      fontFamily: "ui-monospace,monospace",
+                      fontSize: 11,
                       resize: "none",
+                      boxSizing: "border-box",
                     }}
                     onClick={(e) => e.target.select()}
                   />
@@ -218,7 +284,7 @@ function ExpeditionCard({ exp, onRefresh }) {
             </div>
           )}
 
-          {err && <div style={{ color: "#ff9b9b", fontSize: "0.82rem" }}>{err}</div>}
+          {err && <span style={{ fontSize: 12, color: tokens.danger }}>{err}</span>}
         </div>
       )}
     </div>
@@ -281,36 +347,64 @@ export default function AbyssSetup() {
   const setField = (k) => (e) => setForm((prev) => ({ ...prev, [k]: e.target.value }));
 
   return (
-    <div style={PAGE}>
-      <NavBar />
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <h1 style={{
-          fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.5rem",
-          background: "linear-gradient(135deg, #0066ff 0%, #00d4ff 100%)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-        }}>
-          Abyss Mode
-        </h1>
-        <p style={{ color: "#b3d9ff", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          Field-triage system for offline deep-sea expeditions.
-        </p>
-        <div style={{
-          padding: "10px 16px", borderRadius: 10,
-          background: "rgba(255,165,0,0.06)", border: "1px solid rgba(255,165,0,0.2)",
-          color: "#ffaa55", fontSize: "0.8rem", marginBottom: "1.75rem", lineHeight: 1.5,
-        }}>
-          ⚠ Abyss Mode is a field-triage system. Results are preliminary and must be confirmed
-          by full online analysis after reconnecting.
+    <div style={pageStyle}>
+      <div style={ambientGlow} />
+      {/* Decorative background, not a real deep-sea telemetry feed --
+          centered and pinned behind everything, no pointer events so it
+          never blocks the actual UI. The artwork's own pose already reads
+          as a top-right (head) to bottom-left (tail) diagonal, so it needs
+          just centering plus a slight added clockwise tilt. Kept much
+          fainter than the Academia jellyfish -- that one only ever sits in
+          a single card's corner, this spans nearly the whole page behind
+          body text, so the same 0.5 opacity that worked there read as way
+          too loud here. Rotation lives on this wrapper's transform, not
+          the img's -- the img's own transform is owned by .sv-jelly's
+          keyframes (the translateY bob), and a CSS animation's transform
+          fully replaces the base value rather than composing with it. */}
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%) rotate(20deg)",
+          width: "82vw",
+          maxWidth: 1300,
+          minWidth: 600,
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      >
+        <img
+          src={whaleArt}
+          alt=""
+          aria-hidden="true"
+          className="sv-jelly"
+          style={{
+            display: "block",
+            width: "100%",
+            height: "auto",
+            opacity: 0.14,
+            filter: "drop-shadow(0 0 60px rgba(59,158,255,0.25))",
+          }}
+        />
+      </div>
+      <SidebarMenu />
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1100, margin: "0 auto", padding: "32px 44px 44px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12, letterSpacing: "0.08em", color: tokens.labelText }}>OFFLINE FIELD TRIAGE</div>
+          <h1 style={{ margin: 0, fontSize: 27, fontWeight: 600, letterSpacing: "-0.01em" }}>Abyss Mode</h1>
+          <p style={{ margin: 0, fontSize: 14, color: tokens.sectionSubtext }}>
+            Deep-sea expedition setup — pack manifests and offline licenses for disconnected fieldwork.
+          </p>
         </div>
 
         {/* Create expedition */}
         {isExpeditionOp && (
-          <div style={CARD("#a78bfa")}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#a78bfa", marginBottom: "1rem" }}>
-              New Expedition
-            </h2>
-            <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
+          <div style={accentPanelStyle(tokens.purple)}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: tokens.purple, letterSpacing: "0.04em" }}>NEW EXPEDITION</span>
+            <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
                 {[
                   { key: "expedition_name", label: "Expedition Name", type: "text", placeholder: "Deep Sea Expedition Alpha" },
                   { key: "destination_region", label: "Destination Region", type: "text", placeholder: "Indian Ocean Zone 7" },
@@ -319,55 +413,50 @@ export default function AbyssSetup() {
                   { key: "expected_sequence_count", label: "Expected Sequences", type: "number", placeholder: "500" },
                 ].map(({ key, label, type, placeholder }) => (
                   <div key={key}>
-                    <label style={{ display: "block", marginBottom: 4, fontSize: "0.75rem", color: "#7eb3ff", fontWeight: 600, textTransform: "uppercase" }}>
-                      {label}
-                    </label>
-                    <input type={type} placeholder={placeholder || ""} value={form[key]} onChange={setField(key)} style={INPUT} />
+                    <label style={labelStyle}>{label}</label>
+                    <input type={type} placeholder={placeholder || ""} value={form[key]} onChange={setField(key)} style={fieldStyle} />
                   </div>
                 ))}
               </div>
-              {createError && <div style={{ color: "#ff9b9b", fontSize: "0.85rem" }}>{createError}</div>}
+              {createError && <span style={{ fontSize: 12.5, color: tokens.danger }}>{createError}</span>}
               <div>
-                <button type="submit" disabled={creating} style={BTN("#a78bfa", true)}>
+                <SolidButton tone="purple" disabled={creating}>
                   {creating ? "Creating..." : "Create Expedition"}
-                </button>
+                </SolidButton>
               </div>
             </form>
           </div>
         )}
 
         {/* Expeditions list */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#b3d9ff" }}>
-            Expeditions ({expeditions.length})
-          </h2>
-          <button onClick={load} style={BTN("#7eb3ff")}>↻ Refresh</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: tokens.wordmark, letterSpacing: "0.04em" }}>
+            EXPEDITIONS ({expeditions.length})
+          </span>
+          <GhostButton onClick={load}>↻ Refresh</GhostButton>
         </div>
 
         {error && (
-          <div style={{
-            padding: "12px 16px", borderRadius: 10,
-            background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.2)",
-            color: "#ff9b9b", marginBottom: "1rem",
-          }}>
+          <div style={{ padding: "12px 16px", borderRadius: 6, border: `1px solid ${tokens.dangerBorder}`, background: tokens.dangerBg, color: tokens.danger, fontSize: 13 }}>
             {error}
           </div>
         )}
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "3rem", color: "#7eb3ff" }}>Loading expeditions...</div>
+          <div style={{ textAlign: "center", padding: "3rem", color: tokens.sectionSubtext }}>Loading expeditions...</div>
         ) : expeditions.length === 0 ? (
-          <div style={{
-            textAlign: "center", padding: "3rem", color: "#7eb3ff",
-            border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14,
-            background: "rgba(255,255,255,0.02)",
-          }}>
-            No expeditions yet.{isExpeditionOp ? " Create one above." : " Contact an expedition operator."}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "60px 20px", borderRadius: 9, border: "1px dashed #17253D", background: "rgba(4,7,12,0.9)" }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: tokens.wordmark }}>No expeditions yet</span>
+            <span style={{ fontSize: 12.5, color: tokens.sectionSubtext }}>
+              {isExpeditionOp ? "Create one above." : "Contact an expedition operator."}
+            </span>
           </div>
         ) : (
-          expeditions.map((exp) => (
-            <ExpeditionCard key={exp.expedition_id} exp={exp} onRefresh={load} />
-          ))
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {expeditions.map((exp) => (
+              <ExpeditionCard key={exp.expedition_id} exp={exp} onRefresh={load} />
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -9,6 +9,8 @@ Covers:
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 import sys
@@ -26,15 +28,20 @@ from app.reports.models import (
 )
 from app.reports.builder import (
     build_report,
+    build_report_csv,
     _build_qc_summary,
     _build_route_distribution,
     _build_known_species,
+    _build_taxonomic_assignments,
+    _confidence_tier,
     _build_novelty_table,
     _build_contamination_warnings,
     _build_biodiversity,
     _build_model_versions,
     _build_review_status,
+    _build_metadata,
 )
+from app.reports.router import _report_summary
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +202,56 @@ class TestKnownSpecies:
 
 
 # ---------------------------------------------------------------------------
+# Taxonomic assignments (Species Correction's full-spectrum table)
+# ---------------------------------------------------------------------------
+
+class TestConfidenceTier:
+    def test_green_requires_high_confidence_and_no_contamination(self):
+        assert _confidence_tier(0.95, contamination_flagged=False) == "green"
+
+    def test_high_confidence_but_contaminated_is_red(self):
+        """A contamination flag overrides confidence -- BUILD_SPEC.md 2.3:
+        'Amber/Red = <80% confidence OR contaminant flag'."""
+        assert _confidence_tier(0.95, contamination_flagged=True) == "red"
+
+    def test_mid_confidence_is_amber(self):
+        assert _confidence_tier(0.65, contamination_flagged=False) == "amber"
+
+    def test_low_confidence_is_red(self):
+        assert _confidence_tier(0.30, contamination_flagged=False) == "red"
+
+    def test_stub_zero_confidence_is_red(self):
+        """Under stub inference (no trained model), every sequence scores
+        0.0 confidence -- must land in red, not silently pass as green/amber."""
+        assert _confidence_tier(0.0, contamination_flagged=False) == "red"
+
+
+class TestTaxonomicAssignments:
+    def test_includes_every_non_low_quality_sequence(self):
+        """Unlike known_species (result_class == 'known_species' only),
+        this must include low/zero-confidence and stub-mode sequences too --
+        that's the entire point of a "review everything" correction table."""
+        results = [
+            _seq("s1", result_class="known_species", confidence=0.95),
+            _seq("s2", result_class="unknown_needs_online_confirmation", confidence=0.0),
+            _seq("s3", result_class="low_quality_unusable", route="low_quality"),
+        ]
+        entries = _build_taxonomic_assignments(results)
+        ids = {e.sequence_id for e in entries}
+        assert ids == {"s1", "s2"}  # low_quality excluded, both others included
+
+    def test_sorted_most_confident_first(self):
+        results = [_seq("s1", confidence=0.3), _seq("s2", confidence=0.9), _seq("s3", confidence=0.6)]
+        entries = _build_taxonomic_assignments(results)
+        assert [e.sequence_id for e in entries] == ["s2", "s3", "s1"]
+
+    def test_tier_reflects_contamination_flag(self):
+        results = [_seq("s1", confidence=0.9, contamination_flagged=True)]
+        entries = _build_taxonomic_assignments(results)
+        assert entries[0].confidence_tier == "red"
+
+
+# ---------------------------------------------------------------------------
 # Novelty table
 # ---------------------------------------------------------------------------
 
@@ -221,6 +278,15 @@ class TestNoveltyTable:
     def test_empty_when_no_novelty(self):
         results = [_seq("s1", novelty_score=0.10)]
         assert _build_novelty_table(results) == []
+
+    def test_includes_raw_sequence(self):
+        """The Novelty DNA deep-alignment viewer needs the real per-sequence
+        FASTA string -- confirm it survives from the raw result dict into
+        the report entry rather than being dropped."""
+        results = [_seq("s1", novelty_score=0.90, length=40)]
+        table = _build_novelty_table(results)
+        assert table[0].sequence == "ATCG" * 10
+        assert len(table[0].sequence) == 40
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +414,92 @@ class TestReviewStatus:
 
 
 # ---------------------------------------------------------------------------
+# Metadata (location/depth passthrough) and the /reports list endpoint
+# ---------------------------------------------------------------------------
+
+class TestMetadataSampleFields:
+    def test_location_and_depth_populated_when_provided(self):
+        meta = _build_metadata(_analysis_doc(), source_file="stn14.fasta",
+                                location_label="Bay of Bengal", depth_meters=1840.0)
+        assert meta.location_label == "Bay of Bengal"
+        assert meta.depth_meters == 1840.0
+
+    def test_location_and_depth_default_none(self):
+        """Upload metadata is optional at upload time -- must not fabricate
+        a site/depth when the uploader didn't provide one."""
+        meta = _build_metadata(_analysis_doc(), source_file="stn14.fasta")
+        assert meta.location_label is None
+        assert meta.depth_meters is None
+
+
+class TestReportSummary:
+    def test_summarizes_with_upload(self):
+        doc = _analysis_doc([_seq("s1", novelty_score=0.9), _seq("s2", novelty_score=0.1)])
+        upload = {"original_filename": "stn14.fasta"}
+        summary = _report_summary(doc, upload)
+        assert summary["analysis_id"] == "ana_test001"
+        assert summary["source_file"] == "stn14.fasta"
+        assert summary["total_sequences"] == 2
+        assert summary["possible_novelty_count"] == 1
+
+    def test_summarizes_without_upload(self):
+        """Upload doc can be missing (deleted, or lookup failed) -- must
+        degrade to source_file: None, not raise."""
+        doc = _analysis_doc([])
+        summary = _report_summary(doc, upload=None)
+        assert summary["source_file"] is None
+        assert summary["total_sequences"] == 0
+        assert summary["possible_novelty_count"] == 0
+
+
+@pytest.mark.anyio
+async def test_list_reports_requires_auth(client):
+    resp = await client.get("/reports")
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+class TestBuildReportCsv:
+    def test_merges_sequence_flagged_in_multiple_categories(self):
+        """A sequence that's both novel and contaminated gets one merged
+        row (comma-joined category list), not two duplicate rows."""
+        results = [
+            _seq(sequence_id="seq_both", route="misc_unknown",
+                 novelty_score=0.80, novelty_level="high",
+                 contamination_score=0.90, contamination_flagged=True,
+                 contamination_type="human_dna"),
+            _seq(sequence_id="seq_known_only", route="fish",
+                 result_class="known_species", predicted_taxon="Gadus morhua",
+                 confidence=0.92, novelty_score=0.05, contamination_score=0.0),
+        ]
+        report = build_report(_analysis_doc(results), reviews=[])
+        csv_text = build_report_csv(report)
+
+        reader = csv.DictReader(io.StringIO(csv_text))
+        rows = {row["sequence_id"]: row for row in reader}
+
+        assert set(rows) == {"seq_both", "seq_known_only"}
+        both = rows["seq_both"]
+        assert both["category"] == "contamination, possible_novelty"
+        assert both["novelty_score"] == "0.8"
+        assert both["contamination_type"] == "human_dna"
+
+        known = rows["seq_known_only"]
+        assert known["category"] == "known_species"
+        assert known["predicted_taxon"] == "Gadus morhua"
+
+    def test_empty_report_produces_header_only(self):
+        report = build_report(_analysis_doc([]), reviews=[])
+        csv_text = build_report_csv(report)
+        lines = csv_text.strip().splitlines()
+        assert len(lines) == 1
+        assert lines[0].split(",")[0] == "sequence_id"
+
+
+# ---------------------------------------------------------------------------
 # Full build_report integration
 # ---------------------------------------------------------------------------
 
@@ -442,6 +594,12 @@ async def test_report_contamination_requires_auth(client):
 @pytest.mark.anyio
 async def test_report_export_json_requires_auth(client):
     resp = await client.get("/reports/ana_001/export/json")
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_report_export_csv_requires_auth(client):
+    resp = await client.get("/reports/ana_001/export/csv")
     assert resp.status_code == 401
 
 

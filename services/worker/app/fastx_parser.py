@@ -327,11 +327,22 @@ def _group_into_batches(
 def _rust_binary_path() -> str | None:
     """Return path to the compiled Rust binary, or None if not found."""
     candidates = [
-        Path(__file__).parents[4] / "packages" / "fastx_parser" / "target" / "release" / "synthveda-parse",
-        Path(__file__).parents[4] / "packages" / "fastx_parser" / "target" / "release" / "synthveda-parse.exe",
         Path("packages/fastx_parser/target/release/synthveda-parse"),
         Path("packages/fastx_parser/target/release/synthveda-parse.exe"),
     ]
+
+    # services/worker/app/fastx_parser.py -> repo root is 3 parents up.
+    # Docker images flatten this layout (COPY app/ ./app/ -> /app/app/...),
+    # which has fewer than 3 parents -- guard the index so a shallow layout
+    # falls back to the Python parser instead of raising IndexError.
+    here_parents = Path(__file__).resolve().parents
+    if len(here_parents) > 3:
+        repo_root = here_parents[3]
+        candidates = [
+            repo_root / "packages" / "fastx_parser" / "target" / "release" / "synthveda-parse",
+            repo_root / "packages" / "fastx_parser" / "target" / "release" / "synthveda-parse.exe",
+        ] + candidates
+
     for p in candidates:
         if p.exists():
             return str(p)

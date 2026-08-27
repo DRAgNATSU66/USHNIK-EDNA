@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020409;font-family:'Instrument Sans',system-ui,sans-serif;color:#F5F5F3}
+a{color:#3B9EFF;text-decoration:none}
+a:hover{color:#6FBAFF;text-decoration:underline}
+</style>
+</helmet>
+<div data-screen-label="Partner Industrial" style="min-height:100vh;display:flex;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 55% 0%, rgba(20,110,255,0.10) 0%, rgba(2,6,15,0) 60%)"></div>
+
+  <!-- Sidebar -->
+  <div style="position:relative;width:260px;flex-shrink:0;border-right:1px solid #0C1526;background:rgba(4,8,17,0.85);display:flex;flex-direction:column;padding:22px 18px;box-sizing:border-box;gap:6px">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:20px">
+      <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#3B9EFF" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#7FD4FF" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:11.5px">SYNTH VEDA</span>
+    </div>
+    <a href="Upload Analysis.dc.html" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4 4.5 7 1.5l3 3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Upload Analysis</a>
+    <a href="Novelty DNA.dc.html" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:#B8BECB" style-hover="{{ navHover }}">
+      <span style="display:flex;align-items:center;gap:11px"><svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M5.5 1.5h3v4l3 5.5a1.4 1.4 0 0 1-1.2 2H3.7a1.4 1.4 0 0 1-1.2-2l3-5.5v-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>Researcher Mode</span>
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 3 7.5 6 4.5 9" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;border-left:2px solid #3B9EFF;background:rgba(20,110,255,0.10)">
+        <span style="display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#F5F5F3">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.2" stroke="#3B9EFF" stroke-width="1.3"></rect><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="#3B9EFF" stroke-width="1.2" stroke-linecap="round"></path></svg>Partner Report</span>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5 9 4.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:6px 0 2px 30px">
+        <a href="Partner Academia.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Academia</a>
+        <a href="Partner Legislative.dc.html" style="padding:7px 12px;border-radius:6px;font-size:13px;color:#7A8699" style-hover="{{ navHover }}">Legislative</a>
+        <span style="padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#3B9EFF;background:rgba(20,110,255,0.08)">Industrial</span>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #0C1526;padding:14px 8px 4px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;line-height:1.35">
+        <span style="font-size:13px;font-weight:600">Ushnik Chakrabarti</span>
+        <span style="font-size:11px;color:#7A8699">ushnik1p2h3d@gmail.com</span>
+      </div>
+      <a href="#" style="display:flex;align-items:center;gap:9px;font-size:13px;color:#B8BECB" style-hover="{{ navHover }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 12H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h2.5M9 10l3-3-3-3M12 7H5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Sign out</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="position:relative;flex:1;min-width:0;padding:30px 38px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11.5px;letter-spacing:0.08em;color:#7A8699">PARTNER REPORT › INDUSTRIAL</div>
+      <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Enterprise Compliance Dashboard</h1>
+      <p style="margin:0;font-size:13.5px;color:#7A8699">Corporate environmental risk, audit readiness &amp; biological compliance</p>
+    </div>
+
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;border-radius:6px;border:1px solid rgba(217,150,60,0.28);background:linear-gradient(180deg, rgba(217,150,60,0.07), rgba(217,150,60,0.03))">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M8 1.5 15 14H1L8 1.5z" stroke="#E0A85C" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.6v.4" stroke="#E0A85C" stroke-width="1.4" stroke-linecap="round"></path></svg>
+      <p style="margin:0;font-size:12.5px;line-height:1.65;color:#C8B79A;text-wrap:pretty"><span style="font-weight:600;color:#E0A85C">How to read this dashboard.</span> Results are preliminary. Read counts show relative genetic abundance, not population counts. Detections indicate recent genetic presence, not a live-organism confirmation. Spatial results reflect drift within the sampled water body, not exact coordinates.</p>
+    </div>
+
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(255,123,123,0.3);background:linear-gradient(180deg, rgba(255,123,123,0.08), rgba(6,10,20,0.7))">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">ACTIVE INCIDENTS</span>
+        <span style="font-size:28px;font-weight:600;color:#FF7B7B">3</span>
+        <button onClick="{{ openIncidents }}" style="align-self:flex-start;padding:5px 13px;border:1px solid rgba(255,123,123,0.35);border-radius:10px;background:rgba(255,123,123,0.08);font-family:inherit;font-size:11.5px;font-weight:600;color:#FF9B9B;cursor:pointer">View source detections →</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">AVERAGE IMPACT SCORE</span>
+        <span style="font-size:28px;font-weight:600;color:#E0C25C">5.8<span style="font-size:14px;color:#3D4A61"> / 10</span></span>
+        <span style="font-size:11px;color:#3D4A61">weighted across 4 active projects</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;color:#7A8699">PENDING AUDITS</span>
+        <span style="font-size:28px;font-weight:600">2</span>
+        <span style="font-size:11px;color:#3D4A61">next EIA due 04 Sep 2026</span>
+      </div>
+    </div>
+
+    <!-- Radar + biological impact -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">ENVIRONMENTAL RISK RADAR</span>
+        {{ radarSvg }}
+        <div style="display:flex;flex-direction:column;gap:4px;padding:12px 15px;border-radius:6px;border:1px solid rgba(224,194,92,0.3);background:rgba(224,194,92,0.06)">
+          <span style="font-size:13px;font-weight:600;color:#E0C25C">Medium Overall Risk</span>
+          <span style="font-size:11.5px;color:#7A8699">Key drivers: permit delays, regulatory fines, biofouling load</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%);backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.4)">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">BIOLOGICAL IMPACT METRICS</span>
+        <div style="display:flex;align-items:center;gap:20px">
+          {{ donutSvg }}
+          <div style="display:flex;flex-direction:column;gap:10px;flex:1">
+            <div style="display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:6px;border:1px solid #101D33;border-left:3px solid #5FD9A9;background:rgba(8,14,26,0.5)">
+              <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">MITIGATION SUCCESS</span>
+              <span style="font-size:18px;font-weight:600;color:#5FD9A9">62%</span>
+              <span style="font-size:10px;color:#3D4A61">native/target species DNA returning post-restoration</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:6px;border:1px solid #101D33;border-left:3px solid #FF7B7B;background:rgba(8,14,26,0.5)">
+              <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">BIOFOULING / INVASIVE LOAD</span>
+              <span style="font-size:18px;font-weight:600;color:#FF7B7B">14%</span>
+              <span style="font-size:10px;color:#3D4A61">DNA linked to infrastructure-damaging organisms</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:6px;border:1px solid #101D33;border-left:3px solid #3B9EFF;background:rgba(8,14,26,0.5)">
+              <span style="font-size:10.5px;letter-spacing:0.07em;color:#7A8699">INDICATOR SPECIES STABILITY</span>
+              <span style="font-size:18px;font-weight:600;color:#3B9EFF">24%</span>
+              <span style="font-size:10px;color:#3D4A61">baseline biodiversity stable despite operations</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Operational & audit -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:17px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">AUDIT TRAIL</span>
+        <span style="font-size:12px;line-height:1.55;color:#7A8699">Last audit: <span style="color:#B8BECB">2025-08-20</span> — minor non-compliance resolved</span>
+        <button onClick="{{ noop }}" style="{{ solidSmall }}">Schedule Audit</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:17px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">REMEDIATION PLAN</span>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#7A8699">
+          <span>Action: <span style="color:#B8BECB">Submit remediation plan</span></span>
+          <span>Owner: <span style="color:#B8BECB">Environmental Team</span></span>
+          <span>Deadline: <span style="color:#E0C25C">28 Aug 2026</span></span>
+        </div>
+        <a href="#" style="font-size:12px">Open remediation plan →</a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:17px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">DOCUMENT HUB</span>
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
+          <a href="#" style="display:flex;align-items:center;gap:7px"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>audit-2025-08.pdf</a>
+          <a href="#" style="display:flex;align-items:center;gap:7px"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>eia-baseline-2026-02.pdf</a>
+          <a href="#" style="display:flex;align-items:center;gap:7px"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>mitigation-q2-2026.pdf</a>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:17px 18px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">QUICK NOTES &amp; TASKS</span>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+            <div onClick="{{ t.toggle }}" style="display:flex;align-items:flex-start;gap:9px;cursor:pointer">
+              <span style="{{ t.boxStyle }}">{{ t.mark }}</span>
+              <span style="{{ t.textStyle }}">{{ t.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:9.5px;color:#3D4A61">Batch IDs reference chain-of-custody metadata captured at Upload Analysis</span>
+      </div>
+    </div>
+
+    <!-- Predictive -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div style="display:flex;flex-direction:column;gap:9px;padding:20px 22px;border-radius:9px;border:1px solid rgba(224,194,92,0.3);background:linear-gradient(180deg, rgba(224,194,92,0.07), rgba(6,10,20,0.7))">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#E0C25C">PREDICTIVE THRESHOLD · BIOFOULING</span>
+        <span style="font-size:15px;line-height:1.55;color:#F5F5F3">Current trajectory indicates biofouling load will exceed regulatory limits in <span style="font-weight:600;color:#E0C25C">~45 days</span> — early mitigation recommended.</span>
+        <span style="font-size:10px;padding:3px 9px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.06);color:#7A8699;align-self:flex-start">Modeled from trend across last 6 samples · ±12 days</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px;padding:20px 22px;border-radius:9px;border:1px solid rgba(140,170,230,0.14);background:linear-gradient(180deg, rgba(140,170,230,0.06) 0%, rgba(6,10,20,0.7) 100%)">
+        <span style="font-size:12.5px;font-weight:600;letter-spacing:0.08em;color:#B8BECB">REMEDIATION ROI · COST DELTA</span>
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <span style="font-size:20px;font-weight:600;color:#5FD9A9">$12,000</span><span style="font-size:12px;color:#3D4A61">est. mitigation</span>
+          <span style="font-size:13px;color:#3D4A61">vs</span>
+          <span style="font-size:20px;font-weight:600;color:#FF7B7B">$85,000</span><span style="font-size:12px;color:#3D4A61">projected fine</span>
+        </div>
+        <span style="font-size:10px;padding:3px 9px;border-radius:999px;border:1px solid #1C2E4C;background:rgba(20,110,255,0.06);color:#7A8699;align-self:flex-start">Cost: external contractor rate card · Fine exposure: regional regulatory schedule</span>
+      </div>
+    </div>
+
+    <div style="flex:1"></div>
+    <div style="display:flex;justify-content:center;padding:8px 0 2px;border-top:1px solid #0C1526">
+      <span style="font-size:11px;color:#3D4A61">Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+    </div>
+  </div>
+
+  <!-- Incidents modal -->
+  <sc-if value="{{ incOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeIncidents }}" style="position:fixed;inset:0;background:rgba(2,4,9,0.7);backdrop-filter:blur(4px);z-index:40"></div>
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:92vw;z-index:41;display:flex;flex-direction:column;gap:14px;padding:24px 28px;border-radius:12px;border:1px solid #1C2E4C;background:#050912;box-shadow:0 40px 120px rgba(0,0,0,0.7)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:600">Active incidents — source detections</span>
+        <button onClick="{{ closeIncidents }}" style="width:30px;height:30px;border-radius:8px;border:1px solid #17253D;background:#080F1C;color:#B8BECB;font-size:14px;cursor:pointer" style-hover="{{ navHover }}">✕</button>
+      </div>
+      <sc-for list="{{ incidents }}" as="i" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:5px;padding:13px 15px;border-radius:6px;border:1px solid #101D33;border-left:3px solid #FF7B7B;background:rgba(8,14,26,0.55)">
+          <span style="font-size:13px;font-weight:600">{{ i.title }}</span>
+          <span style="font-size:11.5px;color:#7A8699">{{ i.detail }}</span>
+          <span style="font-size:10.5px;font-family:ui-monospace,monospace;color:#3D4A61">source: {{ i.src }} · batch {{ i.batch }} · sha-256 verified ✓</span>
+        </div>
+      </sc-for>
+      <span style="font-size:10.5px;color:#3D4A61">Each incident traces to its source detection event and chain-of-custody record — auditable for legal defense documentation.</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { incOpen: false, done: { 1: false, 2: true, 3: false } };
+  radar() {
+    const axes = ['Regulatory Fines', 'Permit Delays', 'Biodiversity Loss', 'Biofouling Risk', 'Supply Disruption'];
+    const vals = [0.62, 0.74, 0.48, 0.66, 0.35];
+    const cx = 210, cy = 130, R = 92;
+    const pt = (i, r) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; };
+    const ring = (f) => 'M' + axes.map((_, i) => pt(i, R * f).join(' ')).join(' L') + ' Z';
+    const poly = 'M' + vals.map((v, i) => pt(i, R * v).join(' ')).join(' L') + ' Z';
+    return React.createElement('svg', { viewBox: '0 0 420 265', style: { width: '100%', height: 'auto', display: 'block' } },
+      ...[0.33, 0.66, 1].map(f => React.createElement('path', { key: f, d: ring(f), fill: 'none', stroke: '#14233C', strokeWidth: 1 })),
+      ...axes.map((_, i) => { const [x, y] = pt(i, R); return React.createElement('line', { key: 'ax' + i, x1: cx, y1: cy, x2: x, y2: y, stroke: '#14233C', strokeWidth: 1 }); }),
+      React.createElement('path', { d: poly, fill: 'rgba(59,158,255,0.18)', stroke: '#3B9EFF', strokeWidth: 2, strokeLinejoin: 'round' }),
+      ...vals.map((v, i) => { const [x, y] = pt(i, R * v); return React.createElement('circle', { key: 'v' + i, cx: x, cy: y, r: 3, fill: '#7FD4FF' }); }),
+      ...axes.map((n, i) => { const [x, y] = pt(i, R + 22); return React.createElement('text', { key: n, x, y: y + 3, fill: '#7A8699', fontSize: 10, textAnchor: 'middle' }, n); }));
+  }
+  donut() {
+    const segs = [[62, '#5FD9A9'], [14, '#FF7B7B'], [24, '#3B9EFF']];
+    const cx = 70, cy = 70, r = 52, W = 18;
+    let a0 = -Math.PI / 2;
+    const arcs = segs.map(([v, c], i) => {
+      const a1 = a0 + v / 100 * 2 * Math.PI;
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const p = `M${cx + Math.cos(a0) * r} ${cy + Math.sin(a0) * r} A${r} ${r} 0 ${large} 1 ${cx + Math.cos(a1) * r} ${cy + Math.sin(a1) * r}`;
+      a0 = a1;
+      return React.createElement('path', { key: i, d: p, fill: 'none', stroke: c, strokeWidth: W, strokeLinecap: 'butt', opacity: 0.85 });
+    });
+    return React.createElement('svg', { viewBox: '0 0 140 140', style: { width: '150px', flexShrink: 0 } }, ...arcs,
+      React.createElement('text', { x: cx, y: cy - 2, fill: '#F5F5F3', fontSize: 16, fontWeight: 600, textAnchor: 'middle' }, '100%'),
+      React.createElement('text', { x: cx, y: cy + 14, fill: '#3D4A61', fontSize: 8.5, textAnchor: 'middle' }, 'DNA-derived'));
+  }
+  renderVals() {
+    const { incOpen, done } = this.state;
+    const taskDefs = [
+      { id: 1, label: 'Check chain-of-custody logs for sample batch #A21' },
+      { id: 2, label: 'Confirm mitigation budget allocation' },
+      { id: 3, label: 'Schedule stakeholder briefing — add to calendar' },
+    ];
+    return {
+      navHover: { background: 'rgba(20,110,255,0.08)', color: '#F5F5F3', textDecoration: 'none' },
+      noop: () => {},
+      solidSmall: 'align-self:flex-start;padding:8px 18px;border:1px solid rgba(160,205,255,0.55);border-radius:12px;background:linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%);box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38);font-family:inherit;font-size:12px;font-weight:600;color:#FFFFFF;text-shadow:0 1px 2px rgba(8,50,140,0.4);cursor:pointer',
+      radarSvg: this.radar(), donutSvg: this.donut(),
+      incOpen, openIncidents: () => this.setState({ incOpen: true }), closeIncidents: () => this.setState({ incOpen: false }),
+      incidents: [
+        { title: 'Protected species near active dredging — Sector 3', detail: 'IUCN Red List species DNA detected within permit zone during active operations.', src: 'stn14_bay-of-bengal_0812.fasta', batch: '#A21' },
+        { title: 'Invasive bivalve above intake threshold — Berth 2', detail: 'Biofouling-linked DNA exceeded internal alert threshold across two samples.', src: 'berth2_intake_0808.fasta', batch: '#A19' },
+        { title: 'Indicator taxa decline — Outfall S', detail: 'Seagrass indicator DNA down 3 consecutive samples near discharge outfall.', src: 'outfall-s_0801.fasta', batch: '#A17' },
+      ],
+      tasks: taskDefs.map(t => ({
+        label: t.label,
+        toggle: () => this.setState(s => ({ done: { ...s.done, [t.id]: !s.done[t.id] } })),
+        mark: done[t.id] ? '✓' : '',
+        boxStyle: `width:16px;height:16px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:1.5px solid ${done[t.id] ? '#3B9EFF' : '#2A3B58'};background:${done[t.id] ? 'rgba(59,158,255,0.25)' : 'rgba(8,14,26,0.6)'};color:#7FD4FF;margin-top:1px`,
+        textStyle: `font-size:11.5px;line-height:1.45;color:${done[t.id] ? '#3D4A61' : '#B8BECB'};${done[t.id] ? 'text-decoration:line-through;' : ''}`,
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

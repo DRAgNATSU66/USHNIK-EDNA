@@ -32,6 +32,8 @@ class SampleMetadata(BaseModel):
     source_file: Optional[str]
     created_at: datetime
     model_version_set: Optional[str]
+    location_label: Optional[str] = None
+    depth_meters: Optional[float] = None
 
 
 class QCSummary(BaseModel):
@@ -60,6 +62,27 @@ class KnownSpeciesEntry(BaseModel):
     reason_codes: list[str]
 
 
+class TaxonomicAssignmentEntry(BaseModel):
+    """
+    Every sequence's automated taxonomic call, regardless of confidence --
+    unlike KnownSpeciesEntry (result_class == "known_species" only), this
+    covers the full table Species Correction needs to review, including
+    low-confidence/contaminant-flagged rows. Under the current stub-inference
+    deployment (no trained model weights), predicted_taxon is None and
+    confidence is 0.0 for every sequence -- that's a real, honest reflection
+    of "no model has scored this yet," not a bug.
+    """
+    sequence_id: str
+    route: str
+    predicted_taxon: Optional[str]
+    confidence: float
+    confidence_tier: str  # "green" | "amber" | "red" -- see _tier() in builder.py
+    length: int
+    contamination_flagged: bool
+    model_version_used: Optional[str]
+    reason_codes: list[str]
+
+
 class PossibleNoveltyEntry(BaseModel):
     sequence_id: str
     route: str
@@ -69,6 +92,7 @@ class PossibleNoveltyEntry(BaseModel):
     requires_cloud_confirmation: bool
     reason_codes: list[str]
     contamination_score: float
+    sequence: str = ""
 
 
 class ContaminationWarning(BaseModel):
@@ -123,6 +147,7 @@ class AnalysisReport(BaseModel):
     qc_summary: QCSummary
     route_distribution: list[RouteDistributionEntry]
     known_species: list[KnownSpeciesEntry]
+    taxonomic_assignments: list[TaxonomicAssignmentEntry]
     possible_novelty: list[PossibleNoveltyEntry]
     contamination_warnings: list[ContaminationWarning]
     biodiversity: BiodiversitySummary

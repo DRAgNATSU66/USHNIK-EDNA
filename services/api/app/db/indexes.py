@@ -14,6 +14,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await _reviews_indexes(db)
     await _abyss_indexes(db)
     await _audit_indexes(db)
+    await _field_log_indexes(db)
 
 
 async def _uploads_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -89,6 +90,14 @@ async def _reviews_indexes(db: AsyncIOMotorDatabase) -> None:
             [("state", ASCENDING), ("created_at", ASCENDING)],
             name="reviews_queue_poll",
         ),
+    ])
+
+
+async def _field_log_indexes(db: AsyncIOMotorDatabase) -> None:
+    await db["field_log_entries"].create_indexes([
+        IndexModel([("entry_id", ASCENDING)], unique=True, name="field_entry_id_unique"),
+        IndexModel([("analysis_id", ASCENDING), ("created_at", ASCENDING)], name="field_log_analysis_created"),
+        IndexModel([("kind", ASCENDING)], name="field_log_kind"),
     ])
 
 
