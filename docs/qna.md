@@ -269,3 +269,47 @@ used as a model input, re-word it from a measurement.
 The frontend half (t-1018-3): Upload sends the fields, FieldLog drops its hardcoded
 "Metabarcoding / Included / M. Fernandes / 12 Aug 2026", and results render the context.
 `docs/flow.md` has not been updated since 2026-09-03 (Day 17 docs pass).
+
+---
+
+## QNA-006 — 2026-10-15 — One named novelty threshold per service, exposed on `/health` (B14; tracker t-1017-2)
+
+**Commit:** `a388fff` on `sprint/d4-novelty-threshold`, merged into `LATEST_USHNIK` as `fcc879f`.
+
+**Q1. Mechanism: what changed?**
+`DEFAULT_NOVELTY_THRESHOLD = 0.45` and a `novelty_threshold` settings field (bounded 0 < x < 1,
+overridable with the `NOVELTY_THRESHOLD` env var) now live in `services/api/app/config.py` and
+`services/worker/app/config.py`. Each module exports `NOVELTY_THRESHOLD`. Every former literal
+imports it: `worker/app/job_runner.py` (4 sites), `api/app/reports/router.py` (2),
+`api/app/abyss/analysis.py` (2), `api/app/reviews/curation.py` (2) and `api/app/reports/builder.py`
+(its private `_NOVELTY_THRESHOLD` was removed). One site beyond the audited 10 was also changed:
+the low/medium level boundary in `worker/app/novelty/scorer.py:53-54`. `GET /health` now returns
+`novelty_threshold` (`api/app/main.py:88`).
+
+**Q2. Rationale: why one constant per service and not a shared module?**
+The API and worker are separate images with no common package. A test pins the two defaults
+together instead: `api/tests/test_novelty_threshold.py` reads the worker's `config.py` source and
+compares the values. Both read the same root `.env` under compose, so one override moves both.
+Changing the scorer boundary keeps "flagged as possible novelty" and "level ≥ medium" identical
+even when the value is overridden.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+A mismatch between the services would make the worker create review items at a different score
+than the reports flag. The equality test guards that. The value is read at import, so an override
+needs a restart. Four other 0.45s are deliberately untouched because they are not the novelty
+cutoff: the GC band in `worker/app/model_router/router.py:219`, `gc_mean` in `reference.py:55`, a
+signal value in `novelty/signals.py:52`, and `route_confidence` in the Abyss fallback.
+
+**Q4. Verification: what proves it?**
+16 new tests: equality, env override, out-of-range rejection, `/health` field, a boundary test
+(a review is created at exactly the threshold and not just below it), and a source scan in each
+service that fails on a bare 0.45 next to novelty/score logic. The scan includes a self-check
+that it still catches the old literals. Merged tree: API **324 passed**, worker **148 passed**.
+
+**Q5. Defence: "is 0.45 a calibrated threshold?"**
+No. It is the value the code already used, now named in one place. Calibration is the Day 11 task
+(B5: centroid distance replaces the `typical_norm` proxy, then recalibrate). Nothing in the paper
+should present 0.45 as tuned.
+
+**Q6. What is still open?**
+The frontend still has to read `/health.novelty_threshold` (t-1017-4, in progress).
