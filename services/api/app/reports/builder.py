@@ -20,6 +20,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any
 
+from ..config import NOVELTY_THRESHOLD
 from .models import (
     AnalysisReport,
     BiodiversitySummary,
@@ -35,8 +36,6 @@ from .models import (
     REPORT_DISCLAIMER,
 )
 
-# Threshold for flagging a sequence as possible novelty in the report.
-_NOVELTY_THRESHOLD = 0.45
 # Threshold for including a sequence in the contamination warnings section.
 _CONTAMINATION_THRESHOLD = 0.50
 # Species Correction confidence tiers (SYNTHVEDA_BUILD_SPEC.md 2.3:
@@ -227,7 +226,7 @@ def _build_novelty_table(results: list[dict]) -> list[PossibleNoveltyEntry]:
     entries = []
     for r in results:
         score = float(r.get("novelty_score", 0.0))
-        if score >= _NOVELTY_THRESHOLD:
+        if score >= NOVELTY_THRESHOLD:
             entries.append(PossibleNoveltyEntry(
                 sequence_id=r.get("sequence_id", "unknown"),
                 route=r.get("route", "misc_unknown"),
@@ -290,7 +289,7 @@ def _build_biodiversity(results: list[dict]) -> BiodiversitySummary:
 
     dominant = max(route_counts, key=route_counts.get) if route_counts else None
 
-    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= _NOVELTY_THRESHOLD)
+    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= NOVELTY_THRESHOLD)
     contamination_count = sum(1 for r in results if r.get("contamination_flagged"))
 
     return BiodiversitySummary(
