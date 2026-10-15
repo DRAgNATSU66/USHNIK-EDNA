@@ -114,8 +114,9 @@ export const createAnalysisJob = (upload_id, mode = "online_full") =>
 
 export const getJob = (job_id) => request("GET", `/analysis/jobs/${job_id}`);
 
-export const getAnalysis = (analysis_id) =>
-  request("GET", `/analysis/${analysis_id}`);
+// No getAnalysis (GET /analysis/{id}) helper: it returns the raw stored
+// result with every per-sequence row, and every page that shows an analysis
+// needs the assembled report (/reports/{id} or its narrow sub-endpoints).
 
 // ---------------------------------------------------------------------------
 // Reports
@@ -156,8 +157,10 @@ export const getReviewStats = () => request("GET", "/reviews/stats");
 export const getReviewQueue = (params) =>
   request("GET", "/reviews/queue", { params });
 
-export const getReview = (review_id) =>
-  request("GET", `/reviews/${review_id}`);
+// No getReview (GET /reviews/{id}) helper: the queue already returns full
+// review docs, triage/decision change state (which can move the review out
+// of the state-filtered queue, so the page reloads the queue), and
+// POST /evidence already returns the updated doc.
 
 /** Correction history for one sequence -- conflict detection + version history. */
 export const listReviewsForSequence = (analysis_id, sequence_id) =>
