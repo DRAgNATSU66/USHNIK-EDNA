@@ -103,10 +103,6 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
         )
 
     # Route via heuristic router (no torch required)
-    try:
-        from ..app.model_router import route_sequence, RouterInput  # type: ignore
-    except ImportError:
-        pass
     route_result = _heuristic_route(raw, qc, seq)
 
     # Build a sequence dict that the novelty scorer understands

@@ -621,11 +621,12 @@ async def test_report_novelty_not_found(client, researcher_token):
     assert resp.status_code == 404
 
 
-@pytest.mark.anyio
-async def test_analysis_report_endpoint_delegates_to_builder(client, researcher_token):
-    """GET /analysis/{id}/report now delegates to the Phase 11 report builder."""
-    resp = await client.get(
-        "/analysis/ana_nonexistent/report",
-        headers={"Authorization": f"Bearer {researcher_token}"},
-    )
-    assert resp.status_code == 404
+def test_duplicate_analysis_report_route_removed():
+    """GET /analysis/{id}/report duplicated GET /reports/{id} and was removed
+    (roadmap U6). Checked against the route table, not by status code: an
+    unknown path also returns 404, so a 404 probe would pass vacuously."""
+    from app.main import create_app
+
+    paths = {getattr(r, "path", None) for r in create_app().routes}
+    assert "/analysis/{analysis_id}/report" not in paths
+    assert "/reports/{analysis_id}" in paths
