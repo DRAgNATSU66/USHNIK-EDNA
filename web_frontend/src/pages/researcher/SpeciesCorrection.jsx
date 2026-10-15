@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import ProvenanceTag from "../../components/shared/ProvenanceTag";
+import DisclaimerBanner from "../../components/shared/DisclaimerBanner";
 import { tokens } from "../../components/shared/tokens";
 import Dropdown from "../../components/shared/Dropdown";
 import { useAuth } from "../../contexts/AuthContext";
@@ -417,6 +418,11 @@ export default function SpeciesCorrection() {
             <ProvenanceTag referenceDb={null} variant="plain" />
           </div>
         </div>
+
+        {/* eDNA limitations disclaimer -- component 0.1, technical variant
+            for Researcher Mode (SYNTHVEDA_BUILD_SPEC.md §0.1), directly
+            under the header like Analysis Report's placement. */}
+        <DisclaimerBanner variant="technical" />
 
         {/* Filter bar */}
         <div style={{ ...panelStyle, flexDirection: "row", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
