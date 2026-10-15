@@ -111,3 +111,51 @@ before this change: `recharts`, `react-icons`, `lucide-react`. `package.json` an
 deliberately left unchanged. Removing them needs an `npm uninstall` against the real `node_modules`,
 which is a separate step. `src/assets/react.svg` is a Vite-template leftover with no references, and
 it was out of scope here. `leaflet` and `react-leaflet` are still used by `pages/partner/Legislative.jsx`.
+
+---
+
+## QNA-003 — 2026-10-15 — Dead API endpoints removed (roadmap U5, U6, B12 dead import; tracker t-1016-4)
+
+**Commit:** `bc540ae` on `sprint/d3-dead-endpoints`, merged into `LATEST_USHNIK` as `1d7e7bf`.
+(QNA-001 describes commit `14cc931`.)
+
+**Q1. Mechanism: what was removed?**
+`POST /auth/google/exchange` and its `GoogleExchangeRequest` model (`services/api/app/auth/router.py`);
+`GET /analysis/{id}/report` (`services/api/app/analysis/router.py`, 32 lines); and the
+`from ..app.model_router import ...` block in `services/api/app/abyss/analysis.py` (old :106-109).
+Every Google sign-in now goes through `/auth/google/code-exchange` →
+`_token_response_for_google_claims`. 6 files, +47/−146.
+
+**Q2. Rationale: why delete rather than keep for compatibility?**
+The frontend never called either route: `lib/api.js` uses only `/auth/google/code-exchange`
+(`:81`) and `/reports/...`. The `/analysis/{id}/report` handler duplicated `GET /reports/{id}`.
+The Abyss import pointed at `app.app.model_router`, a module that has never existed, so it always
+raised `ImportError` and was swallowed. Removing unused auth surface also removes an untested way
+in.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+Any external client still posting a Google `id_token` to `/auth/google/exchange` now gets a 404.
+None is known; the web frontend uses the code flow. The account-linking rules (keep role, link by
+email, create a new row, sign-in while Supabase is down) are unchanged and are now tested only
+through the code-exchange endpoint. `verify_google_id_token` stays in `auth/google.py`, where
+`exchange_code_for_claims` uses it. The Abyss fallback logging at `abyss/analysis.py` ~:239 is
+untouched (Day 4 task).
+
+**Q4. Verification: what proves it?**
+API suite on merged `LATEST_USHNIK` (`1d7e7bf`): **267 passed**. That is 269 − 4 removed + 2 added
+tests. The two new tests assert the routes are absent from the app's route table, not just that
+they return 404. The old `/analysis/{id}/report` test checked for a 404 on an unknown id, so it
+would have passed even with the route deleted. The new tests fail on `14cc931`, where both paths
+are registered.
+
+**Q5. Defence: "you deleted tests to make the suite pass"?**
+Three id_token tests that duplicated code-exchange tests were removed, and their extra assertions
+(`role == researcher`, the linked `user_id`) were folded into the surviving code-exchange tests.
+Three tests that covered behaviour no code-exchange test had were moved onto the code-exchange
+endpoint rather than dropped.
+
+**Q6. What is still open?**
+Historical docs still name `/auth/google/exchange`: `docs/AUDIT_MOCKS_STUBS_TODOS.md:151`,
+`docs/architecture/SYNTH_VEDA_PHASE_PLAN.md:210` and the July auth spec/plan under
+`docs/superpowers/`. Left as written, because they are records of earlier states. The Day 17 docs
+pass will mark them superseded.
