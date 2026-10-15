@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import SidebarMenu from "../components/sidebar/SidebarMenu";
 import ProvenanceTag from "../components/shared/ProvenanceTag";
 import NegativeControlFlag from "../components/shared/NegativeControlFlag";
+import DisclaimerBanner from "../components/shared/DisclaimerBanner";
 import { tokens } from "../components/shared/tokens";
 import { ArrowRightIcon } from "../components/shared/icons";
 import { useAuth } from "../contexts/AuthContext";
@@ -306,6 +307,11 @@ export default function AnalysisResults() {
             )}
           </div>
         </div>
+
+        {/* eDNA limitations disclaimer -- component 0.1, plain variant,
+            between the header and the negative-control flag per
+            SYNTHVEDA_BUILD_SPEC.md §1.2 and the reference mockup. */}
+        <DisclaimerBanner variant="plain" />
 
         {/* Negative control */}
         <div style={{ display: "flex", alignItems: "center", gap: s(10) }}>
