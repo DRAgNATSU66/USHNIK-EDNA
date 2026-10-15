@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
+from ..uploads.context import MetadataContext
+
 REPORT_DISCLAIMER = (
     "Results are preliminary. Novelty and contamination flags require expert "
     "confirmation before use in scientific publications. Model predictions are "
@@ -30,10 +32,24 @@ class SampleMetadata(BaseModel):
     user_id: Optional[str]
     mode: str
     source_file: Optional[str]
-    created_at: datetime
+    created_at: datetime  # when the analysis ran, not when the sample was collected
     model_version_set: Optional[str]
+    # Upload metadata, one field per entry in models/upload.py
+    # OPTIONAL_METADATA_FIELDS (a test enforces the match). None = not recorded.
+    collected_at: Optional[datetime] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     location_label: Optional[str] = None
     depth_meters: Optional[float] = None
+    source_type: Optional[str] = None
+    habitat: Optional[str] = None
+    salinity_ppt: Optional[float] = None
+    temperature_celsius: Optional[float] = None
+    dissolved_oxygen_mg_l: Optional[float] = None
+    ph: Optional[float] = None
+    methodology: Optional[str] = None
+    negative_control_included: Optional[bool] = None
+    collector: Optional[str] = None
 
 
 class QCSummary(BaseModel):
@@ -153,5 +169,10 @@ class AnalysisReport(BaseModel):
     biodiversity: BiodiversitySummary
     model_versions_used: list[ModelVersionEntry]
     review_status: ReviewStatusSummary
+    # Which optional upload metadata was provided vs missing, partner-report
+    # readiness and the negative-control flag (Q2/Q4). None only when the
+    # caller did not pass the upload doc (the deprecated
+    # /analysis/{id}/report path); every /reports route passes it.
+    context: Optional[MetadataContext] = None
     disclaimer: str = REPORT_DISCLAIMER
     generated_at: datetime = Field(default_factory=datetime.utcnow)

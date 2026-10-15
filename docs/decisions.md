@@ -9,6 +9,35 @@ the correction rather than silently rewriting.
 
 ---
 
+## 2026-10-15 — Day 5 metadata contract (F5–F7): context built at read time, in the API
+
+- **One list.** `OPTIONAL_METADATA_FIELDS` in `services/api/app/models/upload.py` (14 fields, name →
+  label) is the only list of optional upload metadata. `POST /uploads` parameters, `UploadDoc`, the
+  report's `SampleMetadata` and the context block are each checked against it in
+  `tests/test_upload_metadata.py`. The unused `UploadMetadataForm` class, which repeated the old
+  list, was removed.
+- **Context is computed when a result is read, not stored by the worker.** `build_metadata_context`
+  (`services/api/app/uploads/context.py`) derives provided/missing, partner-report readiness and the
+  negative-control flag from the upload doc each time `/reports/{id}*` or `GET /analysis/{id}` is
+  served. Rejected: snapshotting it into `analysis_results` from `job_runner._stage_report`. The worker
+  is a separate package, so it would need a second copy of the field list, and a later metadata fix
+  (FieldLog edits, Day 11) would leave every old snapshot stale. Existing results gain the block with
+  no migration.
+- **Partner report is flagged, not refused.** No partner-specific endpoint exists. Partner pages
+  render `GET /reports/{id}`, which researchers also use, so refusing it would break the researcher
+  view. The report carries `context.partner_report.available=false` with the missing fields and a
+  reason, and `GET /reports` rows carry `partner_report_available`. A future partner-only endpoint
+  (Day 13 `GET /partner/summary`) should refuse on the same flag.
+- **Validation:** pH 0–14, dissolved O₂ ≥ 0, depth ≥ 0, latitude ±90, longitude ±180, coordinates only
+  as a pair, `collected_at` no more than 1 day in the future. Blank text means "not provided". An empty
+  string for a number or date is a 422, as it already was for `depth_meters`. It is never read as 0 or
+  "now".
+- **Negative control (Q4):** `null` → "not recorded, contamination not ruled out"; `false` → "No negative
+  control, contamination not ruled out". Both use flag code `no_negative_control`. Uploads are never
+  blocked on it.
+
+---
+
 ## 2026-10-14 (later) — Q4 answered, Q7 confirmed, re-plan
 
 Follow-up to the entry below, which stays as written.

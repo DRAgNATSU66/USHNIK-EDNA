@@ -8,6 +8,7 @@ from ..models.job import AnalysisJobDoc, JobState
 from ..models.analysis import AnalysisResultDoc
 from ..db import get_db
 from ..queue import enqueue_job
+from ..uploads.context import MetadataContext, build_metadata_context
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -81,7 +82,13 @@ async def get_job(
     return job
 
 
-@router.get("/{analysis_id}", response_model=AnalysisResultDoc)
+class AnalysisResultWithContext(AnalysisResultDoc):
+    # Q2/Q4: which optional upload metadata was provided vs missing. Built at
+    # read time from the upload doc (app/uploads/context.py), never stored.
+    context: MetadataContext
+
+
+@router.get("/{analysis_id}", response_model=AnalysisResultWithContext)
 async def get_analysis(
     analysis_id: str,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
@@ -98,7 +105,10 @@ async def get_analysis(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    return result
+    upload = await db["uploads"].find_one({"upload_id": result.upload_id})
+    return AnalysisResultWithContext(
+        **result.model_dump(), context=build_metadata_context(upload),
+    )
 
 
 @router.get("/{analysis_id}/report")
