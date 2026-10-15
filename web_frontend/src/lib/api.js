@@ -154,7 +154,7 @@ export const exportReportCsv = (analysis_id) =>
 export const getReviewStats = () => request("GET", "/reviews/stats");
 
 export const getReviewQueue = (params) =>
-  request("GET", "/reviews", { params });
+  request("GET", "/reviews/queue", { params });
 
 export const getReview = (review_id) =>
   request("GET", `/reviews/${review_id}`);
@@ -195,7 +195,7 @@ export const createFieldEntry = (data) =>
 // Models
 // ---------------------------------------------------------------------------
 
-export const getModels = () => request("GET", "/models");
+export const getModels = () => request("GET", "/models/registry");
 
 // ---------------------------------------------------------------------------
 // Abyss Mode
@@ -222,8 +222,8 @@ export const issueLicense = (expedition_id, duration_days) =>
   });
 
 export const syncExpedition = (expedition_id, syncData) =>
-  request("POST", `/abyss/expeditions/${expedition_id}/sync`, {
-    body: syncData,
+  request("POST", "/abyss/sync", {
+    body: { ...syncData, expedition_id },
   });
 
 // ---------------------------------------------------------------------------

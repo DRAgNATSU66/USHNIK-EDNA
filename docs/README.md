@@ -1,5 +1,20 @@
 # Docs
 
+Living, canonical docs (updated as the project changes, not archived once written):
+
+- `decisions.md` — why this approach/library/function, logged as changes happen.
+- `flow.md` — entry points, call order, and a session-by-session change log.
+- `prd.md` — what to build, target users, features.
+- `architecture.md` — actual current architecture, folder structure, tech stack.
+- `rules.md` — libraries/patterns to use or avoid, error-handling boundaries, AI-harnessing rules.
+- `phases.md` — phase breakdown (full detail in `architecture/SYNTH_VEDA_PHASE_PLAN.md`).
+- `design.md` — color/typography/material tokens actually in use.
+- `memory.md` — current status: what's done, in progress, left, lacking.
+- `ROADMAP_REAL_DATA.md` — current working plan: full mock/frontend↔backend difference list and the day-wise roadmap to remove it (2026-10-14).
+
+Historical/deep-dive material (superseded by the above for current decisions, kept for
+depth and context):
+
 - `architecture/` — system design and execution roadmap.
   - `SYNTH_VEDA_PHASE_PLAN.md` — phased build plan for the full platform (backend, routing, review workflow, offline mode, scaling).
 - `ml/` — modeling notes and experiment log.

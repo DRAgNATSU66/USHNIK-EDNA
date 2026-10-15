@@ -155,7 +155,9 @@ def write_splits(collector: Collector, out_dir: Path, target_routes: tuple[str, 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default=os.environ.get("TRAINING_DATA_DIR", "E:/synthveda-data"))
+    default_root = os.environ.get("TRAINING_DATA_DIR") or os.environ.get("SYNTHVEDA_DATA_ROOT") \
+        or str(Path(__file__).resolve().parents[3] / "synthveda-data")
+    parser.add_argument("--data-dir", default=default_root)
     parser.add_argument("--cap", type=int, default=MAX_PER_LABEL)
     parser.add_argument("--skip-blastdb", action="store_true", help="Skip the slow multi-GB BLAST DB sources")
     parser.add_argument("--only-routes", default=None,
@@ -209,7 +211,13 @@ def main() -> None:
                 ingest(collector, sources.iter_univec(f), forced_route="human_domestic_contamination", watch_routes=watch_routes)
 
     if not args.skip_blastdb:
-        blastdbcmd = root / "tools" / "ncbi-blast-2.17.0+" / "bin" / "blastdbcmd.exe"
+        # tools/blast/ is the Linux build fetch_reference_data.sh installs;
+        # tools/ncbi-blast-2.17.0+/ is the old Windows install.
+        blastdbcmd = next((p for p in (root / "tools" / "blast" / "bin" / "blastdbcmd",
+                                       root / "tools" / "ncbi-blast-2.17.0+" / "bin" / "blastdbcmd.exe")
+                           if p.exists()), None)
+        if blastdbcmd is None:
+            raise SystemExit("blastdbcmd not found under tools/; run scripts/fetch_reference_data.sh")
         extracted = raw / "ncbi_blastdb" / "extracted"
         print("== NCBI BLAST DBs ==")
         for db_dir in sorted(extracted.iterdir()) if extracted.exists() else []:

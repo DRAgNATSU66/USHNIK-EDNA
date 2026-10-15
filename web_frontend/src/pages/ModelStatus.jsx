@@ -19,6 +19,9 @@ const CARD = {
 };
 
 const STATUS_COLOR = {
+  production: "#00ff88",
+  staging: "#00d4ff",
+  experimental: "#ffd700",
   active: "#00ff88",
   inactive: "#7eb3ff",
   deprecated: "#ff9b9b",
@@ -91,7 +94,16 @@ export default function ModelStatus() {
           </div>
         )}
 
-        {models && models.map((m, i) => {
+        {models && models.map((raw, i) => {
+          // /models/registry returns the registry JSON as-is; map its field
+          // names (model_id, base_model, metrics.*) onto what this card shows.
+          const m = {
+            ...raw,
+            model_version: raw.model_version || raw.model_id,
+            base_model_name: raw.base_model_name || raw.base_model?.split(/[\\/]/).slice(-2).join("/"),
+            accuracy_on_holdout: raw.accuracy_on_holdout ?? raw.metrics?.test_accuracy,
+            f1_on_holdout: raw.f1_on_holdout ?? raw.metrics?.test_macro_f1,
+          };
           const statusColor = STATUS_COLOR[m.status] || STATUS_COLOR[m.is_active ? "active" : "inactive"] || "#7eb3ff";
           return (
             <div key={m.model_id || m.version || i} style={{

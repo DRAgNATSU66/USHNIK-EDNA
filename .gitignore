@@ -98,3 +98,6 @@ infra/terraform/.terraform.lock.hcl
 
 # Local upload storage (test/dev artifacts when object storage isn't configured)
 services/api/uploads/
+
+# Reference/training data and model checkpoints (tens of GB) live outside git
+synthveda-data/

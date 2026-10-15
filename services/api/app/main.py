@@ -77,7 +77,13 @@ def create_app() -> FastAPI:
     # Core routes
     @app.get("/health", tags=["meta"])
     async def health():
-        return {"status": "ok", "version": settings.app_version}
+        return {
+            "status": "ok",
+            "version": settings.app_version,
+            # Read by the upload page so its client-side size check can never
+            # drift from the limit uploads/router.py actually enforces.
+            "max_upload_size_mb": settings.max_upload_size_mb,
+        }
 
     @app.get("/version", tags=["meta"])
     async def version():

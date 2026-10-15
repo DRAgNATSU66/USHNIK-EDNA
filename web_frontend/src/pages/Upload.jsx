@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MatrixRain from "../components/upload/MatrixRain";
 import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
-import { createUpload, createAnalysisJob } from "../lib/api";
+import { createUpload, createAnalysisJob, healthCheck } from "../lib/api";
 import dnaHero from "../assets/dna.png";
 import {
   uploadColors,
@@ -26,8 +26,9 @@ import {
 } from "./uploadStyles";
 
 const VALID_EXTS = [".fasta", ".fa", ".fastq", ".json", ".jsonl"];
-const MAX_SIZE_MB = 500;
-const MAX_SIZE = MAX_SIZE_MB * 1024 * 1024;
+// Fallback only until /health answers with the limit the backend enforces
+// (settings.max_upload_size_mb); keep it equal to the backend default.
+const DEFAULT_MAX_SIZE_MB = 100;
 
 // "Date", "Time", and the combined "Latitude, Longitude" field are handled
 // separately from this list (see META_FIELDS below + parseLatLong) since
@@ -74,13 +75,13 @@ const HERO_CARDS = [
   { title: "Peptide bonds", subtitle: "Residue links", pos: { right: 0, bottom: 14 } },
 ];
 
-function validateFile(file) {
+function validateFile(file, maxSizeMb) {
   if (!file) return "No file selected.";
   const name = file.name.toLowerCase();
   if (!VALID_EXTS.some((ext) => name.endsWith(ext))) {
     return `Invalid file type. Allowed: ${VALID_EXTS.join(", ")}`;
   }
-  if (file.size > MAX_SIZE) return `File exceeds ${MAX_SIZE_MB} MB limit.`;
+  if (file.size > maxSizeMb * 1024 * 1024) return `File exceeds ${maxSizeMb} MB limit.`;
   return null;
 }
 
@@ -148,20 +149,27 @@ export default function Upload() {
   const [modelIndex, setModelIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [maxSizeMb, setMaxSizeMb] = useState(DEFAULT_MAX_SIZE_MB);
 
-  const pickFile = (f) => {
-    const err = validateFile(f);
+  useEffect(() => {
+    healthCheck()
+      .then((h) => { if (Number.isFinite(h?.max_upload_size_mb)) setMaxSizeMb(h.max_upload_size_mb); })
+      .catch(() => {});
+  }, []);
+
+  const pickFile = useCallback((f) => {
+    const err = validateFile(f, maxSizeMb);
     if (err) { setFileError(err); setFile(null); return; }
     setFileError("");
     setFile(f);
-  };
+  }, [maxSizeMb]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragging(false);
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) pickFile(dropped);
-  }, []);
+  }, [pickFile]);
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
@@ -305,7 +313,7 @@ export default function Upload() {
                     {file ? file.name : "Click to select, or drag & drop your sequence file"}
                   </span>
                   <span style={{ fontSize: "12.5px", color: "#61708A", letterSpacing: "0.01em" }}>
-                    FASTA <span style={{ color: "#48566E" }}>.fasta .fa .fastq</span> &nbsp;·&nbsp; JSON <span style={{ color: "#48566E" }}>.json .jsonl</span> &nbsp;·&nbsp; up to {MAX_SIZE_MB}&nbsp;MB
+                    FASTA <span style={{ color: "#48566E" }}>.fasta .fa .fastq</span> &nbsp;·&nbsp; JSON <span style={{ color: "#48566E" }}>.json .jsonl</span> &nbsp;·&nbsp; up to {maxSizeMb}&nbsp;MB
                   </span>
                 </div>
                 <input

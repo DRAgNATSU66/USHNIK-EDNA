@@ -41,6 +41,34 @@ def _resolve_registry_dir() -> Path:
 
 _REGISTRY_DIR = _resolve_registry_dir()
 
+# Registry entries refer to local artifacts as "data:<path>", relative to the
+# data root, so the same JSON works on every machine (the old entries
+# hardcoded E:\\synthveda-data\\... and only ever resolved on one laptop).
+# Anything without the prefix is passed through untouched (HF Hub ids, URLs).
+DATA_URI_PREFIX = "data:"
+
+
+def _resolve_data_root() -> Path:
+    env_path = os.environ.get("SYNTHVEDA_DATA_ROOT")
+    if env_path:
+        return Path(env_path)
+    p = Path(__file__).resolve()
+    for _ in range(10):
+        candidate = p / "synthveda-data"
+        if candidate.exists():
+            return candidate
+        if p.parent == p:
+            break
+        p = p.parent
+    return Path("/data")  # Docker default (mount synthveda-data here)
+
+
+def resolve_data_uri(uri: str | None) -> str | None:
+    """Expand a "data:<relative path>" registry value against the data root."""
+    if uri and uri.startswith(DATA_URI_PREFIX):
+        return str(_resolve_data_root() / uri[len(DATA_URI_PREFIX):])
+    return uri
+
 
 class ModelRegistry:
     """
@@ -125,7 +153,7 @@ def _parse_entry(data: dict, source: Path) -> ModelRegistryEntry:
     return ModelRegistryEntry(
         model_id=data["model_id"],
         route=data["route"],
-        base_model=data["base_model"],
+        base_model=resolve_data_uri(data["base_model"]),
         head_type=data.get("head_type", "sequence_classification"),
         embedding_dim=data.get("embedding_dim", 768),
         label_set_version=data.get("label_set_version", "v1"),
@@ -133,7 +161,7 @@ def _parse_entry(data: dict, source: Path) -> ModelRegistryEntry:
         training_dataset_version=data.get("training_dataset_version"),
         metrics=data.get("metrics", {}),
         thresholds=data.get("thresholds", {}),
-        artifact_uri=data.get("artifact_uri"),
+        artifact_uri=resolve_data_uri(data.get("artifact_uri")),
         checksum=data.get("checksum"),
         created_at=data.get("created_at", ""),
         promoted_by=data.get("promoted_by"),

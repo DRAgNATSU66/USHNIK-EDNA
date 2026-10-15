@@ -81,20 +81,12 @@ async def _stage_parse(upload: dict) -> list[dict]:
     """
     file_path: str | None = upload.get("file_path")
     if not file_path:
-        # No file path — return stub so the pipeline can continue in tests.
-        await asyncio.sleep(0)
-        return [
-            {
-                "sequence_id": "seq_stub_001",
-                "sequence": "ATCGATCGATCG",
-                "length": 12,
-                "gc_ratio": 0.5,
-                "n_ratio": 0.0,
-                "has_invalid_chars": False,
-                "sha256": "stub",
-                "source_file": upload.get("original_filename", "unknown"),
-            }
-        ]
+        # Fail the job rather than analysing a made-up sequence: a stub here
+        # used to produce a "completed" analysis of ATCGATCGATCG that looked
+        # like a real result. run_job() catches this and marks the job failed.
+        raise ValueError(
+            f"Upload {upload.get('upload_id', '?')} has no file_path; nothing to parse"
+        )
 
     # Run the blocking parser in a thread pool so the event loop is not blocked.
     loop = asyncio.get_event_loop()
