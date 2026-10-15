@@ -15,6 +15,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from .config import NOVELTY_THRESHOLD
 from .fastx_parser import parse_and_batch_auto
 from .model_router import route_batch, RouterInput
 from .inference import run_inference_batch
@@ -241,7 +242,7 @@ async def _stage_novelty(predictions: list[dict]) -> list[dict]:
         seq["novelty_reason_codes"] = nr.reason_codes
         seq["abyss_recommendation"] = str(nr.abyss_recommendation)
         seq["requires_cloud_confirmation"] = nr.requires_cloud_confirmation
-        if nr.novelty_score >= 0.45:
+        if nr.novelty_score >= NOVELTY_THRESHOLD:
             flagged_novelty += 1
         if cr.is_flagged:
             flagged_contam += 1
@@ -271,7 +272,7 @@ async def _stage_report(
         rc = r.get("result_class", "")
         if rc == "known_species":
             known += 1
-        elif rc == "possible_novelty" or r.get("novelty_score", 0.0) >= 0.45:
+        elif rc == "possible_novelty" or r.get("novelty_score", 0.0) >= NOVELTY_THRESHOLD:
             possible_novelty += 1
         if r.get("contamination_flagged"):
             contamination_flags += 1
@@ -327,7 +328,7 @@ def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> l
         contamination_score: float = seq.get("contamination_score", 0.0)
         seq_id: str = seq.get("sequence_id", "unknown")
 
-        if novelty_score >= 0.45:
+        if novelty_score >= NOVELTY_THRESHOLD:
             reviews.append({
                 "review_id": f"rev_{uuid.uuid4().hex[:16]}",
                 "analysis_id": analysis_id,
@@ -364,7 +365,7 @@ def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> l
                 "contamination_type": seq.get("contamination_type"),
                 "abyss_recommendation": seq.get("abyss_recommendation"),
                 "correction_type": "auto_contamination_flag",
-                "is_novelty": novelty_score >= 0.45,
+                "is_novelty": novelty_score >= NOVELTY_THRESHOLD,
                 "is_contamination": True,
                 "evidence_notes": None,
                 "evidence_attachments": [],

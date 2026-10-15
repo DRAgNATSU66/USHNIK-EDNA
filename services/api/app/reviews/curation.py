@@ -20,6 +20,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from ..config import NOVELTY_THRESHOLD
 from ..models.review import ReviewDoc, ReviewState, ReviewType, TriagePriority
 from ..db.supabase_client import SupabaseClient
 
@@ -307,7 +308,7 @@ def build_auto_review(
     the returned dict is inserted directly into MongoDB.
 
     Triggers:
-      - novelty_score >= 0.45  → auto_novelty review
+      - novelty_score >= NOVELTY_THRESHOLD  → auto_novelty review
       - contamination_flagged  → auto_contamination review
       Both can trigger simultaneously; one document is created per trigger type.
     """
@@ -320,7 +321,7 @@ def build_auto_review(
 
     reviews = []
 
-    if novelty_score >= 0.45:
+    if novelty_score >= NOVELTY_THRESHOLD:
         reviews.append({
             "review_id": f"rev_{uuid.uuid4().hex[:16]}",
             "analysis_id": analysis_id,
@@ -356,7 +357,7 @@ def build_auto_review(
             "contamination_type": seq.get("contamination_type"),
             "abyss_recommendation": seq.get("abyss_recommendation"),
             "correction_type": "auto_contamination_flag",
-            "is_novelty": novelty_score >= 0.45,
+            "is_novelty": novelty_score >= NOVELTY_THRESHOLD,
             "is_contamination": True,
             "evidence_notes": None,
             "evidence_attachments": [],

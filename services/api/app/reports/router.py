@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 
 from ..auth.deps import get_current_user
+from ..config import NOVELTY_THRESHOLD
 from ..models.user import UserProfile, UserRole
 from ..db import get_db
 from .builder import build_report, build_report_csv
@@ -79,7 +80,7 @@ def _report_summary(doc: dict, upload: dict | None) -> dict:
     sort/filter behavior can't be exercised through the endpoint itself.
     """
     results = doc.get("results", [])
-    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= 0.45)
+    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= NOVELTY_THRESHOLD)
     return {
         "analysis_id": doc.get("analysis_id"),
         "source_file": upload.get("original_filename") if upload else None,
@@ -156,7 +157,7 @@ async def get_report_summary(
 async def get_novelty_table(
     analysis_id: str,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
-    min_score: float = 0.45,
+    min_score: float = NOVELTY_THRESHOLD,
 ):
     """
     Return the possible novelty table, optionally filtered by minimum score.

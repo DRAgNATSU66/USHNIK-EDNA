@@ -15,12 +15,13 @@ Signal weights (must sum to 1.0):
 
 Novelty thresholds:
   score < 0.20   → none
-  score < 0.45   → low
+  score < NOVELTY_THRESHOLD (app/config.py) → low
   score < 0.70   → medium
   score >= 0.70  → high
 """
 from __future__ import annotations
 
+from ..config import NOVELTY_THRESHOLD
 from .models import AbyssRecommendation, NoveltyLevel, NoveltyScore
 from .signals import (
     signal_embedding_isolation,
@@ -45,11 +46,12 @@ _WEIGHTS = {
 }
 assert abs(sum(_WEIGHTS.values()) - 1.0) < 1e-9, "Weights must sum to 1.0"
 
-# Novelty thresholds.
+# Novelty thresholds. The low/medium boundary is the shared possible-novelty
+# cutoff, so "flagged as possible novelty" and "level >= medium" agree.
 _THRESHOLDS = {
     NoveltyLevel.none:   (0.00, 0.20),
-    NoveltyLevel.low:    (0.20, 0.45),
-    NoveltyLevel.medium: (0.45, 0.70),
+    NoveltyLevel.low:    (0.20, NOVELTY_THRESHOLD),
+    NoveltyLevel.medium: (NOVELTY_THRESHOLD, 0.70),
     NoveltyLevel.high:   (0.70, 1.01),
 }
 

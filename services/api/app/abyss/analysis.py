@@ -26,6 +26,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from ..config import NOVELTY_THRESHOLD
 from .models import (
     AbyssSequenceInput,
     AbyssSequenceResult,
@@ -54,7 +55,7 @@ def run_abyss_analysis(
         _analyze_one(seq) for seq in truncated
     ]
 
-    possible_novelty = sum(1 for r in results if r.novelty_score >= 0.45)
+    possible_novelty = sum(1 for r in results if r.novelty_score >= NOVELTY_THRESHOLD)
     contamination_flags = sum(1 for r in results if r.contamination_flagged)
     low_quality = sum(1 for r in results if r.route == "low_quality")
     requires_cloud = any(r.requires_cloud_confirmation for r in results)
@@ -356,7 +357,7 @@ def _batch_recommendation(results: list[AbyssSequenceResult]) -> tuple[str, str]
 
     actions = [r.field_action for r in results]
     total = len(results)
-    novelty_frac = sum(1 for r in results if r.novelty_score >= 0.45) / total
+    novelty_frac = sum(1 for r in results if r.novelty_score >= NOVELTY_THRESHOLD) / total
     cont_frac = sum(1 for r in results if r.contamination_flagged) / total
 
     if "preserve_sample" in actions:

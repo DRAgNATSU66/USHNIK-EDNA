@@ -129,7 +129,7 @@ class BiodiversitySummary(BaseModel):
     predicted_taxon_richness: int  # number of distinct predicted_taxon values
     shannon_diversity_index: float  # H = -Σ p_i * ln(p_i) over route groups
     dominant_route: Optional[str]
-    novelty_fraction: float      # fraction of sequences with novelty_score >= 0.45
+    novelty_fraction: float      # fraction of sequences with novelty_score >= config.NOVELTY_THRESHOLD
     contamination_fraction: float
 
 
