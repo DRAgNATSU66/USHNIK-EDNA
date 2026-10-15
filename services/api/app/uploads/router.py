@@ -1,7 +1,7 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from pydantic import BaseModel
 
 from ..auth.deps import get_current_user
 from ..models.user import UserProfile
@@ -11,37 +11,62 @@ from ..config import get_settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
+# A collection timestamp this far past "now" is a typo, not clock skew.
+_COLLECTED_AT_FUTURE_TOLERANCE = timedelta(days=1)
 
-class UploadMetadataForm(BaseModel):
-    depth_meters: Optional[float] = None
-    location_label: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    source_type: Optional[str] = None
-    habitat: Optional[str] = None
-    salinity_ppt: Optional[float] = None
-    temperature_celsius: Optional[float] = None
+
+def _clean_text(value: Optional[str]) -> Optional[str]:
+    """Blank or whitespace-only form text means "not provided", not ""."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _validation_error(detail: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
 
 
 @router.post("", response_model=UploadDoc, status_code=status.HTTP_201_CREATED)
 async def create_upload(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
     file: UploadFile = File(...),
-    depth_meters: Optional[float] = Form(None),
-    location_label: Optional[str] = Form(None),
-    latitude: Optional[float] = Form(None),
-    longitude: Optional[float] = Form(None),
-    source_type: Optional[str] = Form(None),
-    habitat: Optional[str] = Form(None),
+    # Every metadata field is optional (decisions.md 2026-10-14, Q2); the
+    # list of them lives in models/upload.py OPTIONAL_METADATA_FIELDS.
+    collected_at: Optional[datetime] = Form(None),
+    depth_meters: Optional[float] = Form(None, ge=0),
+    location_label: Optional[str] = Form(None, max_length=200),
+    latitude: Optional[float] = Form(None, ge=-90, le=90),
+    longitude: Optional[float] = Form(None, ge=-180, le=180),
+    source_type: Optional[str] = Form(None, max_length=100),
+    habitat: Optional[str] = Form(None, max_length=200),
     salinity_ppt: Optional[float] = Form(None),
     temperature_celsius: Optional[float] = Form(None),
+    dissolved_oxygen_mg_l: Optional[float] = Form(None, ge=0),
+    ph: Optional[float] = Form(None, ge=0, le=14),
+    methodology: Optional[str] = Form(None, max_length=200),
+    negative_control_included: Optional[bool] = Form(None),
+    collector: Optional[str] = Form(None, max_length=200),
 ):
     """
     Upload a FASTA or JSON file for analysis.
     Returns an upload_id that can be used to create an analysis job.
+
+    Only `file` is required. Coordinates must be sent as a pair. A partner
+    report additionally needs `collected_at` + coordinates; results state
+    which optional fields were provided (see app/uploads/context.py).
     """
     settings = get_settings()
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
+
+    if (latitude is None) != (longitude is None):
+        raise _validation_error("latitude and longitude must be provided together")
+
+    if collected_at is not None:
+        # Naive timestamps are compared as UTC; they are stored as sent.
+        aware = collected_at if collected_at.tzinfo else collected_at.replace(tzinfo=timezone.utc)
+        if aware > datetime.now(timezone.utc) + _COLLECTED_AT_FUTURE_TOLERANCE:
+            raise _validation_error("collected_at cannot be in the future")
 
     if file.filename is None or not (
         file.filename.endswith(".fasta")
@@ -67,14 +92,20 @@ async def create_upload(
         original_filename=file.filename,
         file_size_bytes=len(content),
         status=UploadStatus.stored,
+        collected_at=collected_at,
         depth_meters=depth_meters,
-        location_label=location_label,
+        location_label=_clean_text(location_label),
         latitude=latitude,
         longitude=longitude,
-        source_type=source_type,
-        habitat=habitat,
+        source_type=_clean_text(source_type),
+        habitat=_clean_text(habitat),
         salinity_ppt=salinity_ppt,
         temperature_celsius=temperature_celsius,
+        dissolved_oxygen_mg_l=dissolved_oxygen_mg_l,
+        ph=ph,
+        methodology=_clean_text(methodology),
+        negative_control_included=negative_control_included,
+        collector=_clean_text(collector),
     )
 
     # Persist to local disk so the worker's parser can read it. In production

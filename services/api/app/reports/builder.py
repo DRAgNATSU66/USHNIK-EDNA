@@ -34,6 +34,8 @@ from .models import (
     TaxonomicAssignmentEntry,
     REPORT_DISCLAIMER,
 )
+from ..models.upload import OPTIONAL_METADATA_FIELDS
+from ..uploads.context import MetadataContext, build_metadata_context
 
 # Threshold for flagging a sequence as possible novelty in the report.
 _NOVELTY_THRESHOLD = 0.45
@@ -47,12 +49,19 @@ _TIER_GREEN_MIN = 0.80
 _TIER_RED_MAX = 0.50
 
 
+# Distinguishes "caller did not pass an upload" (legacy call sites) from
+# "upload doc was looked up and is missing" (upload=None).
+_UPLOAD_NOT_PASSED: Any = object()
+
+
 def build_report(
     analysis_doc: dict[str, Any],
     reviews: list[dict[str, Any]],
     source_file: str | None = None,
     location_label: str | None = None,
     depth_meters: float | None = None,
+    *,
+    upload: dict[str, Any] | None = _UPLOAD_NOT_PASSED,
 ) -> AnalysisReport:
     """
     Assemble a full AnalysisReport from a stored analysis document and its reviews.
@@ -63,10 +72,24 @@ def build_report(
         source_file: optional filename from the upload document.
         location_label: optional sample site label from the upload document.
         depth_meters: optional sampling depth from the upload document.
+        upload: the raw upload document (None if it no longer exists). When
+            given, every optional metadata field is copied onto
+            report.metadata and report.context is built from it. Legacy
+            callers that omit it get the old three fields and context=None.
     """
     results: list[dict] = analysis_doc.get("results", [])
 
-    metadata = _build_metadata(analysis_doc, source_file, location_label, depth_meters)
+    context: MetadataContext | None = None
+    upload_fields: dict[str, Any] | None = None
+    if upload is not _UPLOAD_NOT_PASSED:
+        context = build_metadata_context(upload)
+        upload_fields = {f: (upload or {}).get(f) for f in OPTIONAL_METADATA_FIELDS}
+        if source_file is None and upload:
+            source_file = upload.get("original_filename")
+
+    metadata = _build_metadata(
+        analysis_doc, source_file, location_label, depth_meters, upload_fields=upload_fields,
+    )
     qc = _build_qc_summary(results)
     route_dist = _build_route_distribution(results)
     known = _build_known_species(results)
@@ -88,6 +111,7 @@ def build_report(
         biodiversity=biodiversity,
         model_versions_used=model_versions,
         review_status=review_status,
+        context=context,
     )
 
 
@@ -100,7 +124,11 @@ def _build_metadata(
     source_file: str | None,
     location_label: str | None = None,
     depth_meters: float | None = None,
+    upload_fields: dict[str, Any] | None = None,
 ) -> SampleMetadata:
+    if upload_fields is None:
+        upload_fields = {"location_label": location_label, "depth_meters": depth_meters}
+
     created_at = doc.get("created_at")
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
@@ -114,10 +142,9 @@ def _build_metadata(
         user_id=doc.get("user_id"),
         mode=doc.get("mode", "online_full"),
         source_file=source_file,
-        location_label=location_label,
-        depth_meters=depth_meters,
         created_at=created_at,
         model_version_set=doc.get("model_version_set"),
+        **upload_fields,
     )
 
 
