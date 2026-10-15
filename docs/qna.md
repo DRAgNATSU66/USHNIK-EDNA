@@ -217,3 +217,55 @@ correctly routed input. End to end, the heuristic router is right for 24.1% of h
 `ready` cannot see whether torch is installed in the worker, or whether the worker's data root
 matches the API's. A worker heartbeat would close that. It is not scheduled; candidate for Day 17
 hardening.
+
+---
+
+## QNA-005 — 2026-10-15 — Upload metadata contract and per-result `context` block (F5, F6, F7; tracker t-1018-1, t-1018-2)
+
+**Commit:** `3abbd1c` on `sprint/d5-metadata-backend`, merged into `LATEST_USHNIK` as `6808ee0`.
+
+**Q1. Mechanism: what changed?**
+`POST /uploads` (`services/api/app/uploads/router.py`) accepts six new optional form fields:
+`collected_at` (ISO datetime; rejected if more than 1 day in the future), `methodology`,
+`negative_control_included` (bool, omitted when not recorded), `collector`,
+`dissolved_oxygen_mg_l` (≥ 0) and `ph` (0–14). It also adds range checks to existing fields
+(lat −90..90 and long −180..180, sent together; depth ≥ 0). The new
+`services/api/app/uploads/context.py` computes a `context` block every time a result is read. It
+holds the `provided`/`missing` field lists, `negative_control` (`included` / `not_included` /
+`not_recorded`), `partner_report.available` (needs `collected_at` + lat + long), `flags` and an
+`accuracy_note`. It is returned on `GET /reports/{id}`, `/reports/{id}/summary`,
+`/reports/{id}/export/json` and `GET /analysis/{id}`. `report.metadata` now carries all 14 fields.
+
+**Q2. Rationale: why compute context at read time instead of storing it on the result?**
+Existing analyses get it with no backfill, and it cannot drift from the upload document it
+describes. The reasoning is in `docs/decisions.md` (2026-10-15). One list,
+`OPTIONAL_METADATA_FIELDS` in `services/api/app/models/upload.py`, is the source of truth, and
+tests check that the POST parameters, `UploadDoc` and `SampleMetadata` match it. The duplicate
+`UploadMetadataForm` was deleted. The partner report is **flagged, not refused**: partner pages
+render the same `GET /reports/{id}` as researchers, so refusing it would break the researcher view.
+Day 13's `/partner/summary` must refuse on `context.partner_report.available`.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+- Upload documents gain 6 nullable fields. There is no index, migration or Supabase change.
+- An empty string `""` sent for a number or date field now returns 422. That was already true for
+  `depth_meters`, and the frontend must omit empty fields.
+- `GET /uploads/{id}` returns 403 to curators, so FieldLog must read `report.metadata`, not
+  `getUpload`.
+- `report.metadata.created_at` is still the analysis time. The collection date is `collected_at`.
+
+**Q4. Verification: what proves it?**
+`services/api/tests/test_upload_metadata.py` adds 40 tests: field validation, context shape,
+negative-control states, partner-report availability, and that the field list stays in sync. API
+suite on the merged tree: **314 passed**. Worker suite: 142 passed, unchanged; no worker code was
+touched.
+
+**Q5. Defence: "your accuracy note says missing metadata reduces accuracy — measured how?"**
+It is not measured. None of these fields feeds inference today. The wording follows the owner's
+Q2 decision (`docs/decisions.md`, 2026-10-14): every result states what was and was not provided.
+It must not be cited as a measured effect in the paper. If Day 13's environmental context is later
+used as a model input, re-word it from a measurement.
+
+**Q6. What is still open?**
+The frontend half (t-1018-3): Upload sends the fields, FieldLog drops its hardcoded
+"Metabarcoding / Included / M. Fernandes / 12 Aug 2026", and results render the context.
+`docs/flow.md` has not been updated since 2026-09-03 (Day 17 docs pass).
