@@ -62,3 +62,52 @@ for Day 4. The paper must not report per-route accuracy as system accuracy.
   calibration.
 - The Google-login round-trip in the browser was not exercised. The API was driven with a locally
   minted dev JWT.
+
+---
+
+## QNA-002 — 2026-10-15 — Dead frontend code removed (roadmap D1–D5, tracker t-1016-3)
+
+**Commit:** this commit on `sprint/d3-dead-frontend` (base `14cc931`, `LATEST_USHNIK`).
+
+**Q1. Mechanism: what was removed?**
+12 files under `web_frontend/src/`, 5,624 lines in total: `App.jsx` (1,388) and `App.css` (42) (D1),
+`api.js` (95) (D2), `pages/stakeholders/*` (5 files, 3,723) and `pages/StakeholderDashboardPage.jsx`
+(40) (D3), `pages/Landing.jsx` (174) (D4), and `components/DnaHelixViz.jsx` (103) and
+`components/OrbitalVisualization.jsx` (59) (D5). No live file was edited. `healthCheck` in
+`src/lib/api.js:233` was **kept**, because `pages/Upload.jsx:6,155` still calls it. The D6 components
+(`components/shared/ConfidenceChip`, `DetectionWindowBadge`, `DisclaimerBanner`) were not touched.
+
+**Q2. Rationale: why delete rather than leave or quarantine them?**
+They were unreachable, and they looked like real product code. `App.jsx` and `src/api.js` post to a
+`/analyze` endpoint that does not exist, and on failure they display invented species
+(`Fallback_species_A/B`). The stakeholder dashboards run entirely on mocked data. Anyone reading
+the source, including reviewers, could take them for live behaviour. Git history keeps them if
+they are ever needed (`git show 14cc931:web_frontend/src/App.jsx`).
+
+**Q3. Blast radius: what breaks if this is wrong?**
+Only a route or import that pointed at a deleted file, and the build would have failed on that.
+`src/main.jsx` routes `/` to `Login`, and nothing routes `Landing`, `App` or `StakeholderDashboardPage`.
+After the deletion, `grep -rnE` for every deleted filename and component name over
+`web_frontend/src` finds nothing. npm packages were **not** changed. See Q6.
+
+**Q4. Verification: what proves it?**
+- `npm run build` passes on this commit.
+- I built base `14cc931` from a clean `git archive` with the same `node_modules`. The JS bundle is
+  **byte-identical** (sha256 `8016c53d…500f`, 771,241 B in both builds). So none of the deleted code
+  was ever shipped. CSS went from 34.99 kB to 33.36 kB, because Tailwind v4 had been picking up
+  utility classes from the dead files.
+- `services/api` `pytest tests/test_api_contract.py -q` gives 38 passed. That test parses
+  `src/lib/api.js`, which is unchanged.
+
+**Q5. Defence: "deleting 5.6k lines right before a demo is risky"?**
+The shipped JS is the same bytes as before (Q4), so the running app cannot behave differently. The
+only output change is 1.63 kB of Tailwind CSS that nothing live used. What the change removes is the
+risk that someone quotes or demos mocked results as if they were real.
+
+**Q6. What is still open?**
+These npm dependencies now have no importer in `src/`: `three`, `@react-three/fiber`,
+`@react-three/drei`, `chart.js`, `react-chartjs-2`, `axios`. Three more already had no importer
+before this change: `recharts`, `react-icons`, `lucide-react`. `package.json` and the lockfile were
+deliberately left unchanged. Removing them needs an `npm uninstall` against the real `node_modules`,
+which is a separate step. `src/assets/react.svg` is a Vite-template leftover with no references, and
+it was out of scope here. `leaflet` and `react-leaflet` are still used by `pages/partner/Legislative.jsx`.
