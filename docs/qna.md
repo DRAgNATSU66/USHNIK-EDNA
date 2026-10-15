@@ -313,3 +313,52 @@ should present 0.45 as tuned.
 
 **Q6. What is still open?**
 The frontend still has to read `/health.novelty_threshold` (t-1017-4, in progress).
+
+---
+
+## QNA-007 — 2026-10-15 — Frontend reads the threshold from the API; targeted report calls; placeholder removed (U1, U2, U3, M5; tracker t-1017-4)
+
+**Commit:** `902a029` on `sprint/d4-frontend-novelty`, merged into `LATEST_USHNIK` as `1efe046`;
+follow-up `3a54623` (ReviewQueue decision values, found during this task).
+
+**Q1. Mechanism: what changed?**
+The new `web_frontend/src/lib/noveltyThreshold.js` hook reads `novelty_threshold` from `/health`
+(QNA-006) and returns `null` when it is absent. NoveltyDNA, AnalysisResults and Academia use it,
+so no novelty 0.45 is left in `src/`. NoveltyDNA now loads `/reports/{id}/summary`, `/novelty` and
+`/contamination` in parallel instead of the full report. Its contamination colouring comes from
+the server's contamination list instead of a browser-side `>= 0.5`. AbyssSetup re-reads one
+expedition through `getExpedition`. ResearcherMode redirects unknown sections to `novelty-dna`,
+and `PlaceholderScreen.jsx` was deleted. The `getAnalysis` and `getReview` helpers were deleted,
+because no page needs them.
+
+**Q2. Rationale: why delete `getAnalysis`/`getReview` instead of using them (U1, U3)?**
+`GET /analysis/{id}` returns the raw stored result. Every page that shows an analysis needs the
+assembled report. The review queue already returns full reviews, and triage/decision change state
+so the queue reloads anyway. An unused helper is a false signal that something calls the
+endpoint. The endpoints stay on the API.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+If `/health` lacks the field, the pages say "threshold unavailable" and the slider starts at 0.
+That was checked by stripping the field in the browser. While verifying, the agent found that
+**ReviewQueue sent review state names (`accepted`/`rejected`/`duplicate`) as decisions**, which
+the `ReviewDecision` enum (`services/api/app/models/review.py:19`: `accept`/`reject`/
+`mark_duplicate`) rejects with 422. Every curator decision from the UI was failing. It is fixed in
+`3a54623`. Not exercised in the browser: there is no review in a decidable state in dev data.
+
+**Q4. Verification: what proves it?**
+`npm run build` is green. Contract test: 36 passed (38 − 2 deleted helpers). API suite on the
+merged tree: 322 passed. Browser check on `ana_464b4220a9774415` as a researcher: NoveltyDNA made
+no full-report call and showed "45%" with 4/4 candidates; AnalysisResults showed "≥45%"; Academia
+showed "≥ 0.45". With the field stripped, all three said "unavailable". `/researcher-mode/bogus`
+and `/researcher-mode` landed on `novelty-dna` with `analysis_id` kept.
+
+**Q5. Defence: "why does the slider minimum equal the threshold?"**
+The server only returns rows at or above `min_score`, which defaults to the threshold. A lower
+slider minimum would imply rows the API never sent.
+
+**Q6. What is still open?**
+- **Abyss activation deadlock:** the backend refuses activation until a licence is issued, but the
+  UI shows the licence button only for an already-active expedition. This goes to Day 16
+  (t-1029-1, AbyssSetup).
+- ESLint reports a pre-existing fast-refresh error at `main.jsx:31`.
+- The AbyssSetup refresh path was not exercised: the dev user has no expeditions.
