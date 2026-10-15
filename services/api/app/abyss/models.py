@@ -103,6 +103,10 @@ class AbyssSequenceResult(BaseModel):
     reason_codes: list[str]
     # Explicit field-triage action
     field_action: str  # preserve_sample | continue_sampling | resample | return_for_full_analysis
+    # True when the heuristic router raised and the GC-only fallback was used;
+    # router_error carries "<ExceptionType>: <message>" (B12).
+    router_error_fallback: bool = False
+    router_error: Optional[str] = None
 
 
 class AbyssAnalysisResult(BaseModel):

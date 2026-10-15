@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,6 +8,8 @@ from ..auth.deps import get_current_user, require_role
 from ..models.user import UserProfile, UserRole
 from ..models.review import ReviewDoc, ReviewState, ReviewDecision, ReviewType, TriagePriority
 from ..db import get_db
+
+logger = logging.getLogger(__name__)
 from .curation import (
     queue_stats,
     triage_review,
@@ -286,7 +289,12 @@ async def post_review_decision(
         from ..db.supabase_client import SupabaseClient
         await SupabaseClient.update_review_state(review_id, new_state, current_user.user_id, body.notes)
     except Exception:
-        pass
+        # Best-effort mirror: MongoDB is the source of truth, so don't fail the
+        # decision, but don't hide that Supabase is now out of sync either.
+        logger.warning(
+            "Supabase mirror of review %s -> %s failed; MongoDB updated, Supabase not",
+            review_id, new_state, exc_info=True,
+        )
 
     await db["audit_logs"].insert_one({
         "action": "review_decision",
