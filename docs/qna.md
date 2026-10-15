@@ -159,3 +159,61 @@ Historical docs still name `/auth/google/exchange`: `docs/AUDIT_MOCKS_STUBS_TODO
 `docs/architecture/SYNTH_VEDA_PHASE_PLAN.md:210` and the July auth spec/plan under
 `docs/superpowers/`. Left as written, because they are records of earlier states. The Day 17 docs
 pass will mark them superseded.
+
+---
+
+## QNA-004 — 2026-10-15 — `/models/status` built from the registry; malformed registry files reported (B1, B13; tracker t-1016-1)
+
+**Commit:** `38e6f4e` on `sprint/d3-models-status`, merged into `LATEST_USHNIK` as `60a86ed`, plus
+the follow-up commit carrying this entry (absolute `data_root` replaced by `data_root_found`).
+
+**Q1. Mechanism: what does the endpoint do now?**
+`services/api/app/models/router.py` loads `models/registry/*.json` and, for each of the six routes,
+picks the entry the worker would pick. It copies `best_available` from
+`services/worker/app/inference/registry.py`: production > staging > experimental, newest
+`created_at` wins, and only non-retired entries with an `artifact_uri` count. It resolves `data:`
+paths the way the worker does (`$SYNTHVEDA_DATA_ROOT`, then walk up to `synthveda-data/`, then
+`/data`). Per route it returns a status: `ready` (backbone and head on disk), `missing_artifacts`,
+`unverified` (backbone is a Hub id) or `no_model`. It also returns the inference mode the worker
+would use and the registry metrics, passed through unchanged. Before this, the endpoint returned a
+hardcoded "unavailable" for every route.
+
+**Q2. Rationale: why not report "loaded"?**
+The API is a separate process and the worker publishes no state (no Redis heartbeat was found).
+Saying "loaded" would be a claim nothing measures. The response says `worker_state:
+"not_observable"` instead, and explains what `ready` does and does not mean. The resolution logic
+is duplicated rather than shared, because the API and worker are separate images with no common
+package. The module docstring says to keep the two in step.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+- A wrong status shows on an informational endpoint. No inference path reads it, and the frontend
+  does not call `/models/status`: `ModelStatus.jsx` reads `/models/registry`, whose `models`/`count`
+  keys are unchanged.
+- B13: a malformed registry file (bad JSON, not an object, or missing `model_id`/`route`/
+  `base_model`) is now logged and listed under `errors` on both endpoints, instead of silently
+  dropped.
+- **Integrity gap found:** if `head.pt` is missing, `services/worker/app/inference/heads.py`
+  `get_head` builds a randomly initialised head and still labels results `inference_mode: "model"`.
+  The status endpoint flags this case (`missing_artifacts` + warning). The worker fix is scheduled
+  with the Day 4 loud-failures task.
+- In `infra/docker/docker-compose.yml` neither container mounts `synthveda-data`, so under compose
+  the endpoint would honestly report `missing_artifacts`.
+
+**Q4. Verification: what proves it?**
+- `tests/test_models_status.py`: 7 tests, covering missing backbone/head, no entry, priority
+  order, and malformed files on both endpoints. Full API suite on the merged tree: **274 passed**.
+  Contract test: 38 passed.
+- Live on this machine (`curl localhost:8000/models/status`): all six routes `ready` /
+  `inference_mode: model`, `errors: []`, `data_root_found: true`.
+
+**Q5. Defence: "the endpoint says ready, but are the models any good?"**
+`ready` is about whether the artifacts exist. Accuracy is the registry metrics, passed through as
+recorded: fish acc 0.998 / macro-F1 0.8328, plant 0.9703 / 0.9422, bacteria 0.842 / 0.8529,
+animal 0.9471 / 0.8542, human 1.0 / 1.0, misc 0.936 / 0.935. These are per-route head metrics on
+correctly routed input. End to end, the heuristic router is right for 24.1% of held-out sequences
+(QNA-001), so these numbers do not describe system accuracy.
+
+**Q6. What is still open?**
+`ready` cannot see whether torch is installed in the worker, or whether the worker's data root
+matches the API's. A worker heartbeat would close that. It is not scheduled; candidate for Day 17
+hardening.

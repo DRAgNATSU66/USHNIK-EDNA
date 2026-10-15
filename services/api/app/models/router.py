@@ -221,7 +221,8 @@ async def models_status():
         "status": "ok",
         "routes": {route: _route_status(route, entries, data_root) for route in MODEL_ROUTES},
         "errors": errors,
-        "data_root": str(data_root),
+        # Unauthenticated endpoint: say whether the data root exists, not where it is.
+        "data_root_found": data_root.is_dir(),
         "worker_state": "not_observable",
         "note": (
             "Derived from models/registry and the data root as seen by the API process. "
