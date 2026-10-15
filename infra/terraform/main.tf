@@ -219,10 +219,6 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "ALLOWED_ORIGINS"
         value = var.allowed_origins
       }
-      env {
-        name  = "DEBUG"
-        value = "false"
-      }
 
       startup_probe {
         http_get {

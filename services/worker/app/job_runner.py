@@ -192,6 +192,7 @@ async def _stage_infer(routed: list[dict]) -> list[dict]:
         seq["confidence"] = result.confidence
         seq["model_version_used"] = result.model_version_used
         seq["inference_mode"] = str(result.inference_mode)
+        seq["stub_reason"] = result.stub_reason   # None unless inference_mode == "stub"
         seq["label_scores"] = result.label_scores
         seq["embedding"] = result.embedding   # used by Phase 8
         mode_counts[str(result.inference_mode)] = mode_counts.get(str(result.inference_mode), 0) + 1
@@ -199,7 +200,11 @@ async def _stage_infer(routed: list[dict]) -> list[dict]:
     model_seqs = mode_counts.get("model", 0)
     stub_seqs = mode_counts.get("stub", 0)
     lq_seqs = mode_counts.get("low_quality", 0)
-    print(f"[worker] inference complete: {model_seqs} model, {stub_seqs} stub, {lq_seqs} low_quality")
+    stub_reasons = sorted({r.stub_reason for r in results if r.stub_reason})
+    print(
+        f"[worker] inference complete: {model_seqs} model, {stub_seqs} stub, {lq_seqs} low_quality"
+        + (f" (stub reasons: {', '.join(stub_reasons)})" if stub_reasons else "")
+    )
     return routed
 
 

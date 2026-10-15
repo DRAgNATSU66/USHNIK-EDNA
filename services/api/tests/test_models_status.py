@@ -94,16 +94,16 @@ async def test_missing_artifacts_reported_honestly(client, registry):
 
 
 @pytest.mark.anyio
-async def test_missing_head_warns_about_random_init(client, registry):
+async def test_missing_head_reports_stub(client, registry):
     write, make_artifacts = registry
     write("animal.json", _entry("animal_v1", "animal_general"))
     make_artifacts("animal_general", backbone=True, head=False)
     info = (await client.get("/models/status")).json()["routes"]["animal_general"]
     assert info["status"] == "missing_artifacts"
     assert info["reason"] == "head_weights_not_found"
-    # The worker would still run (random head) and call it "model" — say so.
-    assert info["inference_mode"] == "model"
-    assert any("randomly initialised" in w for w in info["warnings"])
+    # The worker refuses a random head and stubs (stub_reason=head_missing).
+    assert info["inference_mode"] == "stub"
+    assert "warnings" not in info
 
 
 @pytest.mark.anyio

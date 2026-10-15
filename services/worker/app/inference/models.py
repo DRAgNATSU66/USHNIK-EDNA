@@ -106,6 +106,11 @@ class PredictionResult:
     label_scores: dict[str, float] = field(default_factory=dict)
     # [CLS] embedding vector — used by Phase 8 novelty scorer.
     embedding: list[float] | None = None
+    # Why a stub was returned instead of a model prediction (None unless
+    # inference_mode == stub): no_model, no_weights, torch_unavailable,
+    # backbone_unavailable, head_missing, head_load_failed, no_embedding,
+    # no_label_set, inference_error.
+    stub_reason: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -114,5 +119,6 @@ class PredictionResult:
             "confidence": round(self.confidence, 4),
             "model_version_used": self.model_version_used,
             "inference_mode": str(self.inference_mode),
+            "stub_reason": self.stub_reason,
             "label_scores": {k: round(v, 4) for k, v in self.label_scores.items()},
         }
