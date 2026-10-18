@@ -1492,3 +1492,78 @@ They are the conventional provisional cut-offs, and the roadmap labels them prov
 configuration, not literals. The table shows where they fail (plant species), with the measured
 precision, so the threshold can be tuned per route on the Day 10 evaluation rather than defended as
 universal.
+
+## QNA-021 — 2026-10-18 — Learned router v2: canonical 9-mer LinearSVC, strand-invariant, trained on the rebuilt splits; registered as candidate (B23, B19)
+
+**Commit:** `52a14a7` (trainer and tests, committed as WIP after the usage-limit stop) and `7446a18`
+(registry entry) on `sprint/d8-router-v2`, merged into `LATEST_USHNIK` as `1c2cab7`.
+- Artifact: `synthveda-data/checkpoints/router/v2/router.npz`, sha256 `930cfb32…`.
+- Reports: `eval_report.json` (includes the full sweep table), `metrics.json`, `v1_on_same_test.json`.
+- Sweep logs: `synthveda-data/logs/router_v2/`.
+- Registry: `models/registry/kmer_router_v2.json`, status `candidate`. **Not promoted; v1 is still served.**
+This closes the B23 commitment made in QNA-010.
+
+**Q1. Mechanism: how was the config chosen?**
+- The selection rule was fixed before the sweep: among strand-invariant configs, take the highest dev
+  balanced accuracy on the weaker strand.
+- The sweep was 45 fits on dev only: k = 6–10, × forward / canonical / RC-augmented features, × 3 models.
+- RC-augmented k=9 scored 0.90939 and canonical k=9 scored 0.90920, a gap of 0.0002, i.e. 1 dev row
+  of 8,300.
+- **No tie-break had been set in advance.** Canonical was chosen after seeing dev but before reading
+  test: it is invariant by construction and trains on half the rows. That deviation is recorded in the
+  sweep table.
+- k=9 sits inside the grid (k=10 scored lower), so v1's "best k at the edge of the grid" caveat no
+  longer applies.
+- Temperature 0.4036 was fitted on dev, both strands pooled.
+- `learned.py`, `kmer.py` and the Abyss copy (`services/api/app/abyss/learned_router.py`) needed no
+  change, because the canonical feature path already existed.
+
+**Q2. Results** (measured; new test split, 8,300 rows; protocol = the same 1,800 rows for every model)
+
+| Model | test fwd | test RC | protocol fwd | protocol RC |
+|---|---|---|---|---|
+| v2 | 0.9155 | 0.9155 | 0.9039 | 0.9039 |
+| v1 | 0.8137 | 0.1708 | 0.7239 | 0.2522 |
+| heuristic | – | – | 0.2289 | 0.1583 |
+
+- **Per route, v2** (fish/plant/bacteria/animal/human/misc), identical on both strands:
+  0.979 / 0.889 / 0.937 / 0.941 / 0.832 / 0.855.
+- **Per route, v1 forward:** 0.546 / 0.737 / 0.937 / 0.591 / 0.659 / 0.859.
+- **v1 caveat:** v1 trained on 267 of these test rows (QNA-016), yet still scores below its old
+  0.8999. With those rows removed it is 0.8098. Its near-duplicate overlap was not counted.
+- **Calibration, v2 ECE before → after:** dev 0.3015 → 0.0218 (NLL 0.603 → 0.311); test 0.3043 → 0.0184;
+  protocol 0.3156 → 0.0277.
+- **Protocol accuracy by confidence tier:** high 0.947 (n=1,578), medium 0.643 (n=193), low 0.276 (n=29).
+- For contrast, v1's calibration makes its reverse-strand results worse: ECE 0.230 → 0.517.
+
+**Q3. Rationale.**
+- *Strand invariance is required:* paired-end R2 and reverse-orientation uploads are normal, and v1
+  sent them to the wrong head while reporting high confidence (B23).
+- *Canonical over RC augmentation at a 1-row dev difference:* the invariance is guaranteed rather
+  than learned, and training is half the size. The cost is a tie-break not stated in advance, which
+  is disclosed in Q1.
+
+**Q4. Blast radius.**
+- **v2 is still confidently wrong:** mean confidence on errors is 0.712, and 368 of its 701 test errors
+  are at ≥ 0.7. So the Day 9 orchestrator's rule for running several routes when the router is
+  unsure (QNA-010) cannot rely on low confidence alone. Human (0.832) and misc (0.855) are the weakest
+  routes.
+- The thin class (animal `likely_taxonomic_group`, 27 test rows) scores 0.667.
+- Promoting v2 changes the route, and so the head, for about 10% of sequences compared with v1. Any
+  result computed under v1 is not comparable.
+- **Planned next step:** promote v2 through the real `POST /models/{id}/promote` flow (QNA-014), which
+  also gives the live exercise of B8 that QNA-014 Q5 said was missing. It will be done together with
+  the retrained heads.
+
+**Q5. Verification.**
+- The parity test now checks both real artifacts (v1, v2) plus a synthetic canonical one, with no skips.
+- Worker tests confirm v2 is strand-invariant and that a candidate is not served.
+- Agent's worktree: worker 301 passed, API 460 passed.
+- `LATEST_USHNIK` after the merge (orchestrator): worker **335 passed**, API **512 passed**,
+  Playwright **37 passed**.
+- Registry entry: status `candidate`, checksum `930cfb329761…`.
+
+**Q6. Defence: "You picked the config after seeing dev; isn't that tuning on dev?"**
+Yes, and that is what dev is for. Test was not read until the choice was made. The two front-runners
+differ by one dev row, so either choice gives the same test-level result within noise. The full sweep
+is in `eval_report.json`, so anyone can re-pick by the stated rule.
