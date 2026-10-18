@@ -26,9 +26,27 @@ Protocol (all decided before looking at test):
     sample, through the full route_sequence() path (gate included), learned vs
     heuristic.
 
+Strand (B23, declared before the v2 sweep was run): eDNA reads can come from
+either strand, so a router must route a read and its reverse complement equally
+well. --strand picks how:
+  * forward     features of the read as given (v1). Not strand-invariant: v1
+                scored 0.1655 on reverse-complemented test reads.
+  * canonical   a k-mer and its reverse complement share one feature, so both
+                strands get the identical vector by construction.
+  * rc_augment  forward features, with every training row also added as its
+                reverse complement. Invariant only as far as the fit makes it.
+The sweep scores every configuration on dev forward AND on dev reverse
+complement, and selects among the strand-invariant modes (canonical,
+rc_augment) by the WORSE of the two balanced accuracies ("worst-strand dev
+balanced accuracy"). Forward configurations are listed for reference only and
+are never selected.
+
 Run from services/worker/:
-    SYNTHVEDA_DATA_ROOT=... python -m training.train_router --version v1
-    python -m training.train_router --version v1 --sweep     # dev sweep first
+    SYNTHVEDA_DATA_ROOT=... python -m training.train_router --version v2 --sweep --sweep-out sweep.json
+    python -m training.train_router --version v2 --k 8 --strand canonical --sweep-table sweep.json
+    # score an existing artifact on the current processed/ test split, no training:
+    python -m training.train_router --eval-artifact .../router/v1/router.npz --eval-out v1_on_new.json \
+        --seen-train-processed .../processed_v0
 """
 from __future__ import annotations
 
@@ -248,35 +266,313 @@ def revcomp(s: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Strand handling (B23)
+# ---------------------------------------------------------------------------
+
+STRANDS = ("forward", "canonical", "rc_augment")
+STRAND_INVARIANT = ("canonical", "rc_augment")
+
+
+def featurise(seqs: list[str], k: int, strand: str):
+    return kmer_matrix(seqs, k, canonical=(strand == "canonical"))
+
+
+def train_matrix(seqs: list[str], y: np.ndarray, k: int, strand: str):
+    """Training design matrix. rc_augment stacks every row's reverse complement
+    under the forward rows (same label)."""
+    if strand == "rc_augment":
+        import scipy.sparse as sp
+
+        A = sp.vstack([featurise(seqs, k, strand), featurise([revcomp(s) for s in seqs], k, strand)]).tocsr()
+        return A, np.concatenate([y, y])
+    return featurise(seqs, k, strand), y
+
+
+def confidence_stats(p: np.ndarray, y: np.ndarray) -> dict:
+    """Mean calibrated top-label probability on wrong and on right predictions."""
+    conf = p.max(axis=1)
+    wrong = p.argmax(axis=1) != y
+    return {
+        "n_errors": int(wrong.sum()),
+        "mean_confidence_on_errors": float(conf[wrong].mean()) if wrong.any() else None,
+        "mean_confidence_on_correct": float(conf[~wrong].mean()) if (~wrong).any() else None,
+        "errors_with_confidence_ge_0_7": int((wrong & (conf >= 0.7)).sum()),
+    }
+
+
+def heldout_block(z: np.ndarray, y: np.ndarray, T: float, subsets: dict[str, np.ndarray] | None = None) -> dict:
+    """Metrics for one set of held-out logits: accuracy, per-route, ECE before
+    and after T, confidence on errors, and the same for each boolean subset."""
+    pred = z.argmax(1)
+    p = softmax(z, T)
+    out = report(y, pred, p)
+    out["ece_uncalibrated"] = ece(softmax(z), y)
+    out.update(confidence_stats(p, y))
+    for name, m in (subsets or {}).items():
+        if m.any():
+            sub = report(y[m], pred[m], p[m])
+            sub.update(confidence_stats(p[m], y[m]))
+            out[name] = sub
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Evaluation of a loaded router (used for a freshly trained model and for
+# --eval-artifact, so v1 and v2 are scored by exactly the same code)
+# ---------------------------------------------------------------------------
+
+def evaluate_model(model, data, routes_of, splits_of, protocol_n: int, seed: int,
+                   seen: set[str] | None = None) -> dict:
+    """Score `model` (a learned.LearnedRouterModel) on the test split of `data`.
+
+    Forward and reverse-complement are scored separately, on every
+    non-low-quality test row and on the QNA-001 protocol rows (through the full
+    route_sequence() path, with the heuristic on the same rows). `seen` is an
+    optional set of sequences the model was trained on; rows not in it are also
+    reported as a separate subset.
+    """
+    from app.model_router import learned
+    from app.model_router.router import route_sequence, route_sequence_heuristic
+    from app.model_router.models import RouterInput
+    from app.fastx_parser import compute_qc
+
+    W, b, T = model.weights, model.bias, model.temperature
+
+    def scores(seqs):
+        return np.asarray(kmer_matrix(seqs, model.k, model.canonical) @ W) + b
+
+    Xte, yte, cte, lte = build_heldout(data, routes_of, splits_of, "test")
+    subsets = {"clean_subset": cte}
+    unseen = None
+    if seen is not None:
+        unseen = np.array([q not in seen for q in Xte])
+        subsets["unseen_by_model_training"] = unseen
+    zf = scores(Xte)
+    zr = scores([revcomp(s) for s in Xte])
+    fwd = heldout_block(zf, yte, T, subsets)
+    rc = heldout_block(zr, yte, T, subsets)
+    by_label = {}
+    pred_f = zf.argmax(1)
+    pred_r = zr.argmax(1)
+    for i, r in enumerate(ROUTES):
+        for lab in sorted({l for l, yy in zip(lte, yte) if yy == i}):
+            m = np.array([(yy == i and l == lab) for l, yy in zip(lte, yte)])
+            by_label[f"{r}/{lab}"] = {"n": int(m.sum()), "accuracy_forward": float((pred_f[m] == i).mean()),
+                                      "accuracy_reverse_complement": float((pred_r[m] == i).mean())}
+
+    # ---- QNA-001 protocol through route_sequence() --------------------------
+    learned.set_learned_router(model)
+    rng = random.Random(seed)
+    protocol = []
+    for r in ROUTES:
+        rows = [q for q, lab in data[(r, "test")] if lab != LQ_LABEL]
+        protocol += [(q, r) for q in rng.sample(rows, min(protocol_n, len(rows)))]
+    ytrue = np.array([ROUTES.index(r) for _, r in protocol])
+    clean_p = np.array([len(routes_of[q]) == 1 and splits_of[q] == {"test"} for q, _ in protocol])
+    unseen_p = None if seen is None else np.array([q not in seen for q, _ in protocol])
+
+    def to_input(i, q):
+        gc, nr, _, sha = compute_qc(q)
+        return RouterInput(sequence_id=f"t{i}", sequence=q, length=len(q), gc_ratio=gc, n_ratio=nr, sha256=sha)
+
+    def e2e(fn, inputs):
+        t0 = time.perf_counter()
+        res = [fn(x) for x in inputs]
+        dt = (time.perf_counter() - t0) / len(inputs)
+        pred_ = np.array([ROUTES.index(str(x.route)) if str(x.route) in ROUTES else -1 for x in res])
+        return res, pred_, dt, dict(collections.Counter(x.router_method for x in res))
+
+    def proto_block(res, pred_, dt, methods, with_probs: bool):
+        out = report(ytrue, pred_)
+        out.update(router_methods=methods, seconds_per_sequence=dt,
+                   clean_subset=report(ytrue[clean_p], pred_[clean_p]))
+        if unseen_p is not None:
+            out["unseen_by_model_training"] = report(ytrue[unseen_p], pred_[unseen_p])
+        if with_probs:
+            scored = np.array([x.router_method == "learned" for x in res])
+            if scored.any():
+                p = np.array([[x.route_probabilities.get(r, 0.0) for r in ROUTES] for x, s in zip(res, scored) if s])
+                z = np.array([[x.raw_scores[r] for r in ROUTES] for x, s in zip(res, scored) if s])
+                ys = ytrue[scored]
+                out["learned_scored_n"] = int(scored.sum())
+                out["ece_uncalibrated_scored"] = ece(softmax(z), ys)
+                out["ece_calibrated_scored"] = ece(p, ys)
+                out.update(confidence_stats(p, ys))
+            tiers = collections.Counter(str(x.confidence_tier) for x in res)
+            out["confidence_tiers"] = dict(tiers)
+            out["accuracy_by_tier"] = {t: float(np.mean([pl == yt for x, pl, yt in zip(res, pred_, ytrue)
+                                                         if str(x.confidence_tier) == t])) for t in tiers}
+            out["top2_accuracy"] = float(np.mean([
+                ROUTES[yt] in sorted(x.route_probabilities, key=x.route_probabilities.get, reverse=True)[:2]
+                for x, yt in zip(res, ytrue)]))
+        return out
+
+    protocol_out = {
+        "description": f"{protocol_n} non-low-quality test rows per route, random.Random({seed}).sample, "
+                       "through route_sequence() (low-quality gate included); the reverse_complement "
+                       "blocks route the reverse complement of the same rows",
+        "n": len(protocol),
+        "clean_n": int(clean_p.sum()),
+    }
+    if unseen_p is not None:
+        protocol_out["unseen_n"] = int(unseen_p.sum())
+    for strand_name, seqs in (("forward", [q for q, _ in protocol]),
+                              ("reverse_complement", [revcomp(q) for q, _ in protocol])):
+        inputs = [to_input(i, q) for i, q in enumerate(seqs)]
+        res_l, pred_l, dt_l, meth_l = e2e(route_sequence, inputs)
+        res_h, pred_h, dt_h, meth_h = e2e(route_sequence_heuristic, inputs)
+        protocol_out[strand_name] = {
+            "learned": proto_block(res_l, pred_l, dt_l, meth_l, True),
+            "heuristic": proto_block(res_h, pred_h, dt_h, meth_h, False),
+        }
+
+    lq_rows = [q for r in ROUTES for q, lab in data[(r, "test")] if lab == LQ_LABEL]
+    lq_res = [route_sequence(to_input(i, q)) for i, q in enumerate(lq_rows)]
+    learned.reset_learned_router()
+
+    out = {
+        "model_id": model.model_id,
+        "version": model.version,
+        "k": model.k,
+        "canonical": model.canonical,
+        "temperature": T,
+        "test_rows_non_low_quality": int(len(yte)),
+        "test_rows_clean": int(cte.sum()),
+        "test_forward": fwd,
+        "test_reverse_complement": rc,
+        "test_strand_agreement": float((pred_f == pred_r).mean()),
+        "test_by_route_and_label": by_label,
+        "protocol_qna001": protocol_out,
+        "low_quality_test_rows_routes": {"n": len(lq_rows),
+                                         "routes": dict(collections.Counter(str(x.route) for x in lq_res))},
+    }
+    if unseen is not None:
+        out["test_rows_seen_in_model_training"] = int((~unseen).sum())
+    return out
+
+
+def dev_sweep(Xtr, ytr, Xdv, ydv, ks, seed: int) -> dict:
+    """Dev-only grid over k x strand x model. Selection: among strand-invariant
+    modes, the highest worst-strand dev balanced accuracy."""
+    Xdv_rc = [revcomp(s) for s in Xdv]
+    rows = []
+    for k in ks:
+        for strand in STRANDS:
+            t0 = time.time()
+            A, yA = train_matrix(Xtr, ytr, k, strand)
+            Bf, Br = featurise(Xdv, k, strand), featurise(Xdv_rc, k, strand)
+            feat_s = time.time() - t0
+            for kind, Cs in (("svm", (0.1, 1.0)), ("logreg", (10.0,))):
+                for C in Cs:
+                    t0 = time.time()
+                    m = make_model(kind, C, seed).fit(A, yA)
+                    fit_s = time.time() - t0
+                    rf, rr = report(ydv, m.predict(Bf)), report(ydv, m.predict(Br))
+                    row = {"k": k, "strand": strand, "model": kind, "C": C,
+                           "strand_invariant": strand in STRAND_INVARIANT,
+                           "dev_fwd_accuracy": rf["accuracy"], "dev_fwd_macro_f1": rf["macro_f1"],
+                           "dev_fwd_balanced_accuracy": rf["balanced_accuracy"],
+                           "dev_rc_accuracy": rr["accuracy"], "dev_rc_macro_f1": rr["macro_f1"],
+                           "dev_rc_balanced_accuracy": rr["balanced_accuracy"],
+                           "dev_worst_strand_balanced_accuracy": min(rf["balanced_accuracy"], rr["balanced_accuracy"]),
+                           "dev_fwd_per_route_accuracy": rf["per_route_accuracy"],
+                           "dev_rc_per_route_accuracy": rr["per_route_accuracy"],
+                           "train_rows_fitted": int(A.shape[0]), "featurise_seconds": feat_s, "fit_seconds": fit_s}
+                    rows.append(row)
+                    print(json.dumps({x: (round(v, 4) if isinstance(v, float) else v) for x, v in row.items()
+                                      if not x.endswith("per_route_accuracy")}), flush=True)
+                    del m
+            del A, Bf, Br
+    eligible = [r for r in rows if r["strand_invariant"]]
+    best = max(eligible, key=lambda x: x["dev_worst_strand_balanced_accuracy"])
+    best_fwd = max((r for r in rows if r["strand"] == "forward"), key=lambda x: x["dev_fwd_balanced_accuracy"])
+    return {
+        "criterion": "max dev_worst_strand_balanced_accuracy over strand-invariant configs (canonical, rc_augment); "
+                     "forward configs are reference only",
+        "grid": {"k": list(ks), "strand": list(STRANDS), "models": "svm C=0.1, svm C=1.0, logreg C=10"},
+        "dev_rows_non_low_quality": int(len(ydv)),
+        "train_rows": int(len(ytr)),
+        "rows": rows,
+        "best": best,
+        "best_forward_reference": best_fwd,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-root", default=os.environ.get("SYNTHVEDA_DATA_ROOT"))
-    ap.add_argument("--version", required=True, help="artifact version, e.g. v1")
+    ap.add_argument("--version", help="artifact version, e.g. v2 (required unless --eval-artifact)")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--model", choices=["svm", "logreg"], default="svm")
     ap.add_argument("--C", type=float, default=1.0)
-    ap.add_argument("--canonical", action="store_true", help="strand-invariant canonical k-mers")
+    ap.add_argument("--strand", choices=STRANDS, default=None, help="see 'Strand' above (default forward)")
+    ap.add_argument("--canonical", action="store_true", help="same as --strand canonical (kept for v1 commands)")
     ap.add_argument("--cap", type=int, default=8000, help="max training rows per route")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--protocol-n", type=int, default=300, help="test rows per route for the QNA-001 protocol")
-    ap.add_argument("--sweep", action="store_true", help="dev-only sweep over k/model/C; no artifact written")
+    ap.add_argument("--sweep", action="store_true", help="dev-only sweep over k/strand/model/C; no artifact written")
+    ap.add_argument("--sweep-k", default="4,5,6,7,8", help="comma-separated k values for --sweep")
+    ap.add_argument("--sweep-out", help="write the sweep table (JSON) here")
+    ap.add_argument("--sweep-table", help="sweep JSON to embed in eval_report.json of a training run")
+    ap.add_argument("--eval-artifact", help="score this router.npz on the test split; no training")
+    ap.add_argument("--eval-out", help="with --eval-artifact: write the report (JSON) here")
+    ap.add_argument("--seen-train-processed",
+                    help="with --eval-artifact: processed/ dir the artifact was trained on; its training rows are "
+                         "rebuilt with --cap/--seed and test rows among them are reported separately")
     ap.add_argument("--force", action="store_true", help="overwrite an existing version directory")
     args = ap.parse_args(argv)
 
+    if args.canonical and args.strand not in (None, "canonical"):
+        ap.error("--canonical conflicts with --strand " + args.strand)
+    strand = "canonical" if args.canonical else (args.strand or "forward")
     if not args.data_root:
         ap.error("--data-root or SYNTHVEDA_DATA_ROOT is required")
     root = Path(args.data_root)
     processed = root / "processed"
-    out_dir = root / "checkpoints" / "router" / args.version
-    if out_dir.exists() and not args.force and not args.sweep:
-        ap.error(f"{out_dir} exists; pick a new --version or pass --force")
 
     t_start = time.time()
     data = load_splits(processed)
     routes_of, splits_of = occurrence_index(data)
+
+    # ---- score an existing artifact ------------------------------------------
+    if args.eval_artifact:
+        from app.model_router import learned
+
+        npz = Path(args.eval_artifact)
+        model = learned.load_router_artifact(npz)
+        seen = None
+        if args.seen_train_processed:
+            old = load_splits(Path(args.seen_train_processed))
+            o_routes, o_splits = occurrence_index(old)
+            seen = set(build_train(old, o_routes, o_splits, args.cap, args.seed)[0])
+        out = evaluate_model(model, data, routes_of, splits_of, args.protocol_n, args.seed, seen)
+        out["artifact"] = {"path": str(npz), "sha256": file_sha256(npz)}
+        out["evaluated_on"] = {f"{r}/{s}.csv": file_sha256(processed / r / f"{s}.csv") for r in ROUTES for s in SPLITS}
+        if seen is not None:
+            out["seen_train_rebuilt_from"] = {"processed": args.seen_train_processed, "cap": args.cap,
+                                              "seed": args.seed, "train_rows": len(seen)}
+        out["created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        out["command"] = " ".join([Path(sys.argv[0]).name] + (argv if argv is not None else sys.argv[1:]))
+        f, r_ = out["test_forward"], out["test_reverse_complement"]
+        print(f"[router] {model.model_id}: test fwd {f['accuracy']:.4f} rc {r_['accuracy']:.4f}; protocol fwd "
+              f"{out['protocol_qna001']['forward']['learned']['accuracy']:.4f} rc "
+              f"{out['protocol_qna001']['reverse_complement']['learned']['accuracy']:.4f}"
+              + (f"; seen test rows {out['test_rows_seen_in_model_training']}" if seen is not None else ""))
+        if args.eval_out:
+            Path(args.eval_out).write_text(json.dumps(out, indent=2))
+            print(f"[router] wrote {args.eval_out}")
+        return 0
+
+    if not args.version:
+        ap.error("--version is required")
+    out_dir = root / "checkpoints" / "router" / args.version
+    if out_dir.exists() and not args.force and not args.sweep:
+        ap.error(f"{out_dir} exists; pick a new --version or pass --force")
+
     leakage = leakage_audit(data, routes_of)
     print(f"[router] {leakage['total_rows']} rows, {leakage['unique_sequences']} unique, "
           f"{leakage['unique_sequences_in_more_than_one_route']} in more than one route")
@@ -286,67 +582,45 @@ def main(argv=None) -> int:
     print(f"[router] train {len(Xtr)} rows: " + ", ".join(f"{r}={c['used']}" for r, c in train_counts.items()))
 
     if args.sweep:
-        rows = []
-        for k in (4, 5, 6, 7, 8):
-            for canonical in (False, True):
-                A, B = kmer_matrix(Xtr, k, canonical), kmer_matrix(Xdv, k, canonical)
-                for kind, Cs in (("svm", (0.1, 1.0)), ("logreg", (10.0,))):
-                    for C in Cs:
-                        t0 = time.time()
-                        m = make_model(kind, C, args.seed).fit(A, ytr)
-                        fit_s = time.time() - t0
-                        pred = m.predict(B)
-                        r = report(ydv, pred)
-                        row = {"k": k, "canonical": canonical, "model": kind, "C": C,
-                               "dev_accuracy": r["accuracy"], "dev_macro_f1": r["macro_f1"],
-                               "dev_balanced_accuracy": r["balanced_accuracy"],
-                               "dev_per_route_accuracy": r["per_route_accuracy"], "fit_seconds": fit_s}
-                        rows.append(row)
-                        print(json.dumps(row), flush=True)
-        best = max(rows, key=lambda x: x["dev_balanced_accuracy"])
-        print("[router] best by dev balanced accuracy:", json.dumps(best))
+        ks = [int(x) for x in args.sweep_k.split(",") if x.strip()]
+        sweep = dev_sweep(Xtr, ytr, Xdv, ydv, ks, args.seed)
+        print("[router] best strand-invariant config by worst-strand dev balanced accuracy:",
+              json.dumps({x: v for x, v in sweep["best"].items() if not x.endswith("per_route_accuracy")}))
+        if args.sweep_out:
+            sweep["leakage"] = leakage
+            sweep["train_counts"] = train_counts
+            Path(args.sweep_out).write_text(json.dumps(sweep, indent=2))
+            print(f"[router] wrote {args.sweep_out}")
         return 0
 
     # ---- fit -------------------------------------------------------------
     t0 = time.time()
-    A = kmer_matrix(Xtr, args.k, args.canonical)
+    A, yA = train_matrix(Xtr, ytr, args.k, strand)
     feat_s = time.time() - t0
     t0 = time.time()
-    model = make_model(args.model, args.C, args.seed).fit(A, ytr)
+    model = make_model(args.model, args.C, args.seed).fit(A, yA)
     fit_s = time.time() - t0
+    del A
     W = np.ascontiguousarray(model.coef_.T.astype(np.float32))      # (4**k, C)
     b = model.intercept_.astype(np.float32)
-    print(f"[router] featurise {feat_s:.1f}s, fit {fit_s:.1f}s")
+    print(f"[router] strand {strand}: featurise {feat_s:.1f}s, fit {fit_s:.1f}s")
 
     def scores(seqs):
-        return np.asarray(kmer_matrix(seqs, args.k, args.canonical) @ W) + b
+        return np.asarray(featurise(seqs, args.k, strand) @ W) + b
 
-    # ---- calibrate on dev --------------------------------------------------
-    zdv = scores(Xdv)
-    T = fit_temperature(zdv, ydv)
-    dev_before, dev_after = report(ydv, zdv.argmax(1), softmax(zdv)), report(ydv, zdv.argmax(1), softmax(zdv, T))
-    print(f"[router] temperature {T:.4f}; dev ECE {dev_before['ece']:.4f} -> {dev_after['ece']:.4f}")
-
-    # ---- evaluate on test (once) ------------------------------------------
-    Xte, yte, cte, lte = build_heldout(data, routes_of, splits_of, "test")
-    zte = scores(Xte)
-    pte_raw, pte = softmax(zte), softmax(zte, T)
-    pred = zte.argmax(1)
-    test_all = report(yte, pred, pte)
-    test_all["ece_uncalibrated"] = ece(pte_raw, yte)
-    test_clean = report(yte[cte], pred[cte], pte[cte])
-    test_dups = report(yte[~cte], pred[~cte], pte[~cte]) if (~cte).any() else None
-    by_label = {}
-    for i, r in enumerate(ROUTES):
-        for lab in sorted({l for l, yy in zip(lte, yte) if yy == i}):
-            m = np.array([(yy == i and l == lab) for l, yy in zip(lte, yte)])
-            by_label[f"{r}/{lab}"] = {"n": int(m.sum()), "accuracy": float((pred[m] == i).mean())}
-    # Reverse-complement robustness (eDNA reads can come from either strand).
-    zrc = scores([revcomp(s) for s in Xte])
-    test_rc = report(yte, zrc.argmax(1), softmax(zrc, T))
-    print(f"[router] test acc {test_all['accuracy']:.4f} macroF1 {test_all['macro_f1']:.4f} "
-          f"bal {test_all['balanced_accuracy']:.4f} ECE {test_all['ece_uncalibrated']:.4f} -> {test_all['ece']:.4f}; "
-          f"clean acc {test_clean['accuracy']:.4f} (n={test_clean['n']}); revcomp acc {test_rc['accuracy']:.4f}")
+    # ---- calibrate on dev, both orientations pooled -------------------------
+    # For canonical features the reverse-complement logits equal the forward
+    # ones, so this is the same T as fitting on forward dev alone (v1's method).
+    zdv_f = scores(Xdv)
+    zdv_r = scores([revcomp(s) for s in Xdv])
+    zdv = np.vstack([zdv_f, zdv_r])
+    ydv2 = np.concatenate([ydv, ydv])
+    T = fit_temperature(zdv, ydv2)
+    dev_before, dev_after = report(ydv2, zdv.argmax(1), softmax(zdv)), report(ydv2, zdv.argmax(1), softmax(zdv, T))
+    dev_fwd = heldout_block(zdv_f, ydv, T)
+    dev_rc = heldout_block(zdv_r, ydv, T)
+    print(f"[router] temperature {T:.4f}; dev ECE {dev_before['ece']:.4f} -> {dev_after['ece']:.4f}; "
+          f"dev bal fwd {dev_fwd['balanced_accuracy']:.4f} rc {dev_rc['balanced_accuracy']:.4f}")
 
     # ---- save artifact -------------------------------------------------------
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -355,7 +629,9 @@ def main(argv=None) -> int:
         "version": args.version,
         "routes": ROUTES,
         "k": args.k,
-        "canonical": args.canonical,
+        "canonical": strand == "canonical",
+        "strand": strand,
+        "train_augmentation": "reverse_complement" if strand == "rc_augment" else None,
         "features": "exact k-mer counts, non-ACGT windows skipped, L2-normalised (app/model_router/kmer.py)",
         "model": args.model,
         "C": args.C,
@@ -366,68 +642,21 @@ def main(argv=None) -> int:
     np.savez_compressed(npz_path, weights=W, bias=b, config_json=np.array(json.dumps(config)))
     checksum = file_sha256(npz_path)
 
-    # ---- end-to-end protocol through route_sequence() ----------------------
+    # ---- evaluate on test (once), through the saved artifact ------------------
     from app.model_router import learned
-    from app.model_router.router import route_sequence, route_sequence_heuristic
-    from app.model_router.models import RouterInput
-    from app.fastx_parser import compute_qc
 
     loaded = learned.load_router_artifact(npz_path, model_id=config["model_id"], expected_sha256=checksum)
-    learned.set_learned_router(loaded)
-    rng = random.Random(args.seed)
-    protocol = []
-    for r in ROUTES:
-        rows = [q for q, lab in data[(r, "test")] if lab != LQ_LABEL]
-        protocol += [(q, r) for q in rng.sample(rows, min(args.protocol_n, len(rows)))]
+    ev = evaluate_model(loaded, data, routes_of, splits_of, args.protocol_n, args.seed)
+    tf, tr = ev["test_forward"], ev["test_reverse_complement"]
+    pf, pr = ev["protocol_qna001"]["forward"], ev["protocol_qna001"]["reverse_complement"]
+    print(f"[router] test fwd acc {tf['accuracy']:.4f} (bal {tf['balanced_accuracy']:.4f}, ECE "
+          f"{tf['ece_uncalibrated']:.4f} -> {tf['ece']:.4f}); rc acc {tr['accuracy']:.4f}; "
+          f"protocol learned fwd {pf['learned']['accuracy']:.4f} rc {pr['learned']['accuracy']:.4f} vs heuristic "
+          f"fwd {pf['heuristic']['accuracy']:.4f} rc {pr['heuristic']['accuracy']:.4f}")
 
-    def to_input(i, q):
-        gc, nr, _, sha = compute_qc(q)
-        return RouterInput(sequence_id=f"t{i}", sequence=q, length=len(q), gc_ratio=gc, n_ratio=nr, sha256=sha)
-
-    inputs = [to_input(i, q) for i, (q, _) in enumerate(protocol)]
-    ytrue = np.array([ROUTES.index(r) for _, r in protocol])
-    clean_p = np.array([len(routes_of[q]) == 1 and splits_of[q] == {"test"} for q, _ in protocol])
-
-    def e2e(fn):
-        t0 = time.perf_counter()
-        res = [fn(x) for x in inputs]
-        dt = (time.perf_counter() - t0) / len(inputs)
-        pred_ = np.array([ROUTES.index(str(x.route)) if str(x.route) in ROUTES else -1 for x in res])
-        methods = collections.Counter(x.router_method for x in res)
-        return res, pred_, dt, methods
-
-    res_l, pred_l, dt_l, meth_l = e2e(route_sequence)
-    res_h, pred_h, dt_h, meth_h = e2e(route_sequence_heuristic)
-    p_l = np.array([[x.route_probabilities.get(r, 0.0) for r in ROUTES] for x in res_l])
-    proto_learned = report(ytrue, pred_l, p_l if (p_l.sum(1) > 0).all() else None)
-    # ECE before temperature scaling on the same rows: softmax of the raw logits
-    # (rows the learned model did not score, e.g. gated low-quality, are skipped).
-    scored_l = np.array([x.router_method == "learned" for x in res_l])
-    if scored_l.any():
-        z_l = np.array([[x.raw_scores[r] for r in ROUTES] for x, s in zip(res_l, scored_l) if s])
-        proto_learned["learned_scored_n"] = int(scored_l.sum())
-        proto_learned["ece_uncalibrated_scored"] = ece(softmax(z_l), ytrue[scored_l])
-        proto_learned["ece_calibrated_scored"] = ece(softmax(z_l, T), ytrue[scored_l])
-    proto_learned.update(router_methods=dict(meth_l), seconds_per_sequence=dt_l,
-                         clean_subset=report(ytrue[clean_p], pred_l[clean_p]))
-    proto_heur = report(ytrue, pred_h)
-    proto_heur.update(router_methods=dict(meth_h), seconds_per_sequence=dt_h,
-                      clean_subset=report(ytrue[clean_p], pred_h[clean_p]))
-    tiers = collections.Counter(str(x.confidence_tier) for x in res_l)
-    tier_acc = {t: float(np.mean([pl == yt for x, pl, yt in zip(res_l, pred_l, ytrue) if str(x.confidence_tier) == t]))
-                for t in tiers}
-    top2 = float(np.mean([ROUTES[yt] in sorted(x.route_probabilities, key=x.route_probabilities.get, reverse=True)[:2]
-                          for x, yt in zip(res_l, ytrue)]))
-    print(f"[router] protocol ({len(protocol)} seqs): learned {proto_learned['accuracy']:.4f} "
-          f"({dt_l*1e3:.3f} ms/seq) vs heuristic {proto_heur['accuracy']:.4f} ({dt_h*1e3:.3f} ms/seq)")
-
-    # Low-quality test rows: what happens to them end to end.
-    lq_rows = [q for r in ROUTES for q, lab in data[(r, "test")] if lab == LQ_LABEL]
-    lq_res = [route_sequence(to_input(i, q)) for i, q in enumerate(lq_rows)]
-    lq_summary = dict(collections.Counter(str(x.route) for x in lq_res))
-
-    learned.reset_learned_router()
-
+    sweep = json.loads(Path(args.sweep_table).read_text()) if args.sweep_table else None
+    if sweep:
+        sweep.pop("leakage", None)
     eval_report = {
         "model_id": config["model_id"],
         "version": args.version,
@@ -437,37 +666,25 @@ def main(argv=None) -> int:
         "data": {
             "processed_dir_sha256": {f"{r}/{s}.csv": file_sha256(processed / r / f"{s}.csv") for r in ROUTES for s in SPLITS},
             "train_rows": train_counts,
+            "train_rows_fitted": int(len(yA)),
             "dev_rows_non_low_quality": int(len(ydv)),
-            "test_rows_non_low_quality": int(len(yte)),
-            "test_rows_clean": int(cte.sum()),
+            "test_rows_non_low_quality": ev["test_rows_non_low_quality"],
+            "test_rows_clean": ev["test_rows_clean"],
         },
         "leakage": leakage,
         "calibration": {
-            "method": "temperature scaling, NLL on dev (non-low-quality rows)",
+            "method": "temperature scaling, NLL on dev (non-low-quality rows, forward + reverse complement pooled)",
             "temperature": T,
             "dev": {"ece_before": dev_before["ece"], "ece_after": dev_after["ece"],
                     "nll_before": dev_before["nll"], "nll_after": dev_after["nll"]},
-            "test": {"ece_before": test_all["ece_uncalibrated"], "ece_after": test_all["ece"]},
+            "test_forward": {"ece_before": tf["ece_uncalibrated"], "ece_after": tf["ece"]},
+            "test_reverse_complement": {"ece_before": tr["ece_uncalibrated"], "ece_after": tr["ece"]},
             "ece_bins": 15,
         },
-        "dev": dev_after,
-        "test_all_non_low_quality": test_all,
-        "test_clean_no_cross_route_or_cross_split_duplicates": test_clean,
-        "test_duplicates_only": test_dups,
-        "test_by_route_and_label": by_label,
-        "test_reverse_complement": test_rc,
-        "protocol_qna001": {
-            "description": f"{args.protocol_n} non-low-quality test rows per route, random.Random({args.seed}).sample, "
-                           "through route_sequence() (low-quality gate included)",
-            "n": len(protocol),
-            "clean_n": int(clean_p.sum()),
-            "learned": proto_learned,
-            "heuristic": proto_heur,
-            "learned_confidence_tiers": dict(tiers),
-            "learned_accuracy_by_tier": tier_acc,
-            "learned_top2_accuracy": top2,
-        },
-        "low_quality_test_rows_routes": {"n": len(lq_rows), "routes": lq_summary},
+        "dev_forward": dev_fwd,
+        "dev_reverse_complement": dev_rc,
+        **{k_: v for k_, v in ev.items() if k_ not in ("model_id", "version", "k", "canonical", "temperature")},
+        "sweep": sweep,
         "environment": {
             "python": platform.python_version(),
             "numpy": np.__version__,
@@ -482,21 +699,28 @@ def main(argv=None) -> int:
         "model_id": config["model_id"],
         "version": args.version,
         "k": args.k,
+        "strand": strand,
         "model": args.model,
+        "C": args.C,
         "temperature": T,
-        "test_accuracy": test_all["accuracy"],
-        "test_macro_f1": test_all["macro_f1"],
-        "test_balanced_accuracy": test_all["balanced_accuracy"],
-        "test_clean_accuracy": test_clean["accuracy"],
-        "test_ece_before": test_all["ece_uncalibrated"],
-        "test_ece_after": test_all["ece"],
-        "protocol_accuracy_learned": proto_learned["accuracy"],
-        "protocol_macro_f1_learned": proto_learned["macro_f1"],
-        "protocol_accuracy_heuristic": proto_heur["accuracy"],
-        "seconds_per_sequence": dt_l,
+        "test_accuracy": tf["accuracy"],
+        "test_macro_f1": tf["macro_f1"],
+        "test_balanced_accuracy": tf["balanced_accuracy"],
+        "test_clean_accuracy": tf["clean_subset"]["accuracy"] if "clean_subset" in tf else None,
+        "test_reverse_complement_accuracy": tr["accuracy"],
+        "test_strand_agreement": ev["test_strand_agreement"],
+        "test_mean_confidence_on_errors": tf["mean_confidence_on_errors"],
+        "test_ece_before": tf["ece_uncalibrated"],
+        "test_ece_after": tf["ece"],
+        "protocol_accuracy_learned": pf["learned"]["accuracy"],
+        "protocol_macro_f1_learned": pf["learned"]["macro_f1"],
+        "protocol_accuracy_learned_reverse_complement": pr["learned"]["accuracy"],
+        "protocol_accuracy_heuristic": pf["heuristic"]["accuracy"],
+        "protocol_accuracy_heuristic_reverse_complement": pr["heuristic"]["accuracy"],
+        "seconds_per_sequence": pf["learned"]["seconds_per_sequence"],
         "train_size": int(len(ytr)),
         "dev_size": int(len(ydv)),
-        "test_size": int(len(yte)),
+        "test_size": ev["test_rows_non_low_quality"],
         "checksum": checksum,
     }
     (out_dir / "eval_report.json").write_text(json.dumps(eval_report, indent=2))

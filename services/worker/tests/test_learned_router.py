@@ -314,3 +314,58 @@ class TestRealArtifact:
         _real_router_or_skip()
         r = route_sequence(_inp(SEQ))
         assert r.router_method == "learned", r.router_fallback_reason
+
+
+def _revcomp(s: str) -> str:
+    return s.translate(str.maketrans("ACGTN", "TGCAN"))[::-1]
+
+
+class TestRealV2Artifact:
+    """Router v2 (B23): registered as a candidate, so it is loaded straight from
+    its registry entry rather than through selection. Skipped when absent."""
+
+    def _v2(self):
+        from app.inference.registry import ModelRegistry
+
+        entry = ModelRegistry().get("kmer_router_v2")
+        if entry is None:
+            pytest.skip("kmer_router_v2 not in the registry")
+        try:
+            return load_router_artifact(entry.artifact_uri, model_id=entry.model_id, expected_sha256=entry.checksum)
+        except RouterLoadError as exc:
+            pytest.skip(f"router v2 artifact not available here ({exc.reason})")
+
+    def test_v2_is_candidate_and_not_served(self):
+        from app.inference.registry import ModelRegistry
+
+        reg = ModelRegistry()
+        entry = reg.get("kmer_router_v2")
+        if entry is None:
+            pytest.skip("kmer_router_v2 not in the registry")
+        assert entry.status == "candidate"
+        assert reg.best_available("router").model_id != "kmer_router_v2"
+
+    def test_v2_routes_both_strands_of_held_out_sequences(self):
+        model = self._v2()
+        from app.inference.registry import _resolve_data_root
+
+        processed = _resolve_data_root() / "processed"
+        if not processed.is_dir():
+            pytest.skip("processed/ test splits not available")
+        rng = random.Random(2)
+        fwd = rc = total = 0
+        for route in ROUTES:
+            with open(processed / route / "test.csv", newline="") as fh:
+                rows = [r["sequence"].upper() for r in csv.DictReader(fh) if r["label"] != "low_quality_unusable"]
+            for seq in rng.sample(rows, 25):
+                pf, _ = model.predict_proba(seq)
+                pr, _ = model.predict_proba(_revcomp(seq))
+                # Strand-invariant by construction when canonical; within float
+                # tolerance for any v2 the protocol could have selected.
+                for r in ROUTES:
+                    assert pr[r] == pytest.approx(pf[r], abs=1e-4)
+                fwd += max(pf, key=pf.get) == route
+                rc += max(pr, key=pr.get) == route
+                total += 1
+        assert fwd / total >= 0.75, f"{fwd}/{total}"
+        assert rc / total >= 0.75, f"{rc}/{total}"

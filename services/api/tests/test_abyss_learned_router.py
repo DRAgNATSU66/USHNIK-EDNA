@@ -9,7 +9,8 @@ inference-only copy (app/abyss/learned_router.py). These tests check:
   * a registry entry + router.npz routes Abyss results with router_method
     "learned", and the batch reports model_id / version / sha256;
   * the copy gives the same probabilities as the worker's own learned.py on
-    the same artifact (synthetic always; the real v1 artifact when present);
+    the same artifact (synthetic forward and canonical always; the real v1
+    and v2 artifacts when present);
   * every way the router can be unavailable is reported, never silent;
   * nothing is fetched: non-local URIs are refused and routing works with
     sockets disabled.
@@ -175,19 +176,51 @@ def test_matches_worker_implementation_on_synthetic_artifact(tmp_path, monkeypat
             assert a[route] == pytest.approx(w_probs[route], abs=1e-6)
 
 
-_REAL_ENTRY = REPO / "models" / "registry" / "kmer_router_v1.json"
+def test_matches_worker_implementation_on_synthetic_canonical_artifact(tmp_path, monkeypatch):
+    """Canonical (strand-invariant) features, as router v2 uses (B23)."""
+    npz = tmp_path / "router.npz"
+    rng = np.random.default_rng(3)
+    cfg = {"version": "vtest", "k": 5, "canonical": True, "routes": ROUTES,
+           "temperature": 0.8, "min_kmers": 1, "model_id": "kmer_router_test"}
+    np.savez(npz, weights=rng.normal(size=(4 ** 5, len(ROUTES))).astype(np.float32),
+             bias=rng.normal(size=len(ROUTES)).astype(np.float32), config_json=np.array(json.dumps(cfg)))
+    worker = _worker_learned(monkeypatch).load_router_artifact(npz)
+    api = lr.load_router_artifact(npz)
+    assert api.canonical is True and worker.canonical is True
+    comp = str.maketrans("ACGTN", "TGCAN")
+    for s in SEQS + [RNA]:
+        s = s.upper()
+        w_probs, _raw = worker.predict_proba(s)
+        a = api.predict_proba(s)
+        a_rc = api.predict_proba(s.replace("U", "T").translate(comp)[::-1])
+        for route in a:
+            assert a[route] == pytest.approx(w_probs[route], abs=1e-6)
+            assert a_rc[route] == pytest.approx(a[route], abs=1e-6)
 
 
-def test_matches_worker_on_real_v1_artifact(monkeypatch):
-    """The deployed router v1, when its artifact is on this machine."""
-    lr.reset_router()
-    model, reason, _detail = lr.get_router()
-    if model is None:
-        pytest.skip(f"real router artifact not available here ({reason})")
-    assert model.model_id == json.loads(_REAL_ENTRY.read_text())["model_id"]
-    assert model.sha256 == json.loads(_REAL_ENTRY.read_text())["checksum"]
+_REGISTRY_DIR = REPO / "models" / "registry"
+_REAL_ENTRIES = ["kmer_router_v1.json", "kmer_router_v2.json"]
+
+
+@pytest.mark.parametrize("entry_file", _REAL_ENTRIES)
+def test_matches_worker_on_real_artifact(entry_file, monkeypatch):
+    """Every registered router (v1 deployed, v2 candidate), when its artifact is
+    on this machine. Loaded straight from its registry entry, not through
+    selection, so a candidate that is not served yet is still pinned."""
+    entry_path = _REGISTRY_DIR / entry_file
+    if not entry_path.is_file():
+        pytest.skip(f"{entry_file} not in the registry")
+    entry = json.loads(entry_path.read_text())
+    try:
+        path = lr.local_artifact_path(entry["artifact_uri"], lr._data_root())
+        model = lr.load_router_artifact(path, model_id=entry["model_id"], expected_sha256=entry["checksum"])
+    except lr.RouterUnavailable as exc:
+        pytest.skip(f"real router artifact not available here ({exc.reason})")
+    assert model.sha256 == entry["checksum"]
+    assert model.version == entry["model_id"].rsplit("_", 1)[-1]
     worker = _worker_learned(monkeypatch).load_router_artifact(
         model.artifact_path, expected_sha256=model.sha256)
+    assert (worker.k, worker.canonical) == (model.k, model.canonical)
     seqs = [s.upper() for s in SEQS + [RNA]]
     processed = Path(model.artifact_path).parents[3] / "processed"
     for route in ROUTES:
@@ -207,6 +240,21 @@ def test_matches_worker_on_real_v1_artifact(monkeypatch):
             continue
         for route, p in w[0].items():
             assert a[route] == pytest.approx(p, abs=1e-6)
+
+
+def test_served_router_is_the_registry_selection():
+    """get_router() serves what selection picks: v1 while v2 is only a
+    "candidate" (registering never changes what is served; QNA-014)."""
+    lr.reset_router()
+    model, reason, _detail = lr.get_router()
+    if model is None:
+        pytest.skip(f"real router artifact not available here ({reason})")
+    from app.models.router import _load_registry, _select_entry
+
+    parsed, _errors = _load_registry(_REGISTRY_DIR)
+    entry = _select_entry(lr.ROUTER_REGISTRY_ROUTE, [e for _f, e in parsed])
+    assert model.model_id == entry["model_id"]
+    assert model.sha256 == entry["checksum"]
 
 
 # ---------------------------------------------------------------------------
