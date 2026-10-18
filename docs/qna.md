@@ -539,3 +539,170 @@ Cloud Run deployment in `infra/deployment/`, where the API has no shared disk. I
 client-visible absolute path. The URI separates "where the bytes are" from "how this process reaches
 them". The checksum then proves the worker parsed exactly the bytes the user uploaded, which is the
 claim a report makes.
+
+---
+
+## QNA-010 — 2026-10-18 — Learned k-mer router replaces the heuristic as the first routing stage (B19; tracker t-1017-1)
+
+**Commit:** `91264ec` on `sprint/d4-learned-router`. It sits on top of WIP commit `937ac2f` and the merge
+`deb7c46`, which brings in `LATEST_USHNIK` at `0c1a9b6`. Merged into `LATEST_USHNIK` as `4d02a2b`
+(conflicts only in `.env.example` and the worker requirements files; both sides kept). The
+artifact lives outside git, at `$SYNTHVEDA_DATA_ROOT/checkpoints/router/v1/router.npz`, SHA-256
+`f335be9afab5707b9f827172cf00457393a18f73fe9c050d73ed33fad1d93a8c`, 1,466,743 bytes.
+
+**Q1. Mechanism: what does the router do now, step by step?**
+`route_sequence()` (`services/worker/app/model_router/router.py:41`) runs these steps in order:
+1. The unchanged low-quality gate (`router.py:52`).
+2. `get_learned_router()` (`router.py:55`, `learned.py:165`). It loads the registry entry with
+   `"route": "router"` through `best_available` (`learned.py:150`), which is now
+   `models/registry/kmer_router_v1.json`. It verifies the `.npz` SHA-256 against the entry's
+   checksum (`learned.py:99-113`), opens the file with `allow_pickle=False` (`learned.py:116`), and
+   caches the model, or the failure reason, once per process.
+3. `predict_proba` (`learned.py:75`) counts the sequence's exact 8-mers. Windows that contain
+   non-ACGT characters are skipped (`kmer.py:34-58`). The counts are L2-normalised, scored as
+   `x·W + b` (LinearSVC weights, 65,536 × 6), divided by the dev-fitted temperature T = 0.4471
+   (`learned.py:82`) and passed through a softmax.
+4. `_learned_result` (`router.py:209`) keeps the existing contract: `route_confidence` is the top
+   probability, and the 0.70/0.40 tier cut-offs are unchanged. It adds `router_method="learned"`,
+   `router_version`, and `route_probabilities` with `probabilities_calibrated=True`.
+
+When there is no model, the checksum is wrong, numpy is missing, a prediction raises, or the
+sequence has no valid k-mer, the heuristic routes the sequence instead. The result then carries
+`router_method="heuristic_fallback"`, a `router_fallback_reason` and the reason code
+`router_heuristic_fallback` (`router.py:57-74`). `SYNTHVEDA_ROUTER=heuristic` is the kill switch
+(`learned.py:36,167`). It yields `router_method="heuristic"` and no fallback code.
+`job_runner._stage_route` writes all five fields onto each result and prints a WARNING line
+whenever any sequence fell back (`job_runner.py:168-183`). The API `SequenceResult` declares them
+next to B12's `inference_mode`/`stub_reason` (`services/api/app/models/analysis.py:43-54`). That
+file was the only merge conflict, and both sides were kept.
+
+**Q2. Rationale: why a linear model on k-mer counts, and not DNABERT embeddings, a GBM or a CNN?**
+- The router runs on every sequence before any model, and on the CPU-only worker image.
+  Inference needs only numpy and costs **0.144 ms per sequence**, against 7.403 ms for the
+  heuristic on the same rows (`eval_report.json`, `protocol_qna001.*.seconds_per_sequence`).
+  A transformer embedding would put a GPU-sized forward pass in front of every route model.
+- The features are exact (4^8 = 65,536 columns), so nothing is hashed. One function does the
+  featurisation for both training and inference (`kmer.py`), so the two cannot drift apart.
+  The artifact is weights plus a JSON config, with no pickle and no sklearn at runtime.
+- The dev sweep shows where the remaining gains are. Going from k=4 to k=8 moves dev balanced
+  accuracy from 0.7579 to 0.8722. LinearSVC versus logistic regression at the same k differs by
+  ≤0.004 (k=8: 0.8722 vs 0.8686). Model class is not the bottleneck; feature length is.
+  Everything was selected on dev only, by balanced accuracy, over k ∈ {4..8} ×
+  {forward, canonical} × {svm C=0.1, svm C=1.0, logreg C=10} (30 fits). The winner was
+  **k=8, forward strand, LinearSVC C=1.0**: dev acc 0.8985, macro-F1 0.8561, balanced 0.8722.
+  k=8 is the edge of the grid, so a larger k might score higher. That is untested.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+- Every downstream stage trusts `route`. A wrong route sends the sequence to the wrong DNABERT head,
+  so a router error quietly lowers end-to-end accuracy. That was already true of the heuristic, at a
+  much higher error rate.
+- **Strand: the deployed v1 is not strand-invariant.** On the reverse complement of every
+  non-low-quality test row, accuracy is **0.1655** (macro-F1 0.1589; misc_unknown 0.9534,
+  bacteria 0.001). The forward-only features won on dev by 0.0064 balanced accuracy over
+  canonical (0.8722 vs 0.8658). The processed CSVs appear to be in one orientation, but uploaded
+  FASTQ reads (for example paired-end R2) may not be. Reverse-strand reads will be routed badly,
+  and the result will still say `router_method="learned"` with a confident probability.
+- The calibration fixes the mean, not every bin. On the 1,800 protocol rows, tier accuracy is
+  high 0.9175 (n=1,515), medium 0.5933 (n=268) and low 0.4118 (n=17).
+- Docker: the worker image now installs numpy (`requirements.txt`). But `docker-compose.yml`
+  mounts `models/` and not the data root, so in compose the artifact is missing. Every result
+  will then say `heuristic_fallback / artifact_missing`. It is visible, not silent.
+- Abyss mode in the API does not reach the worker router at all. `abyss/analysis.py` imports
+  `app.model_router` while the API's own `app` package is already loaded, so it raises
+  `ModuleNotFoundError` and uses GC-only routing. B12 made this visible
+  (`router_error_fallback=True`). This is a pre-existing bug and B19 does not change it.
+- The registry now has a 7th route value, `"router"`. `/models/status` iterates only the six
+  taxonomic routes, so it is unaffected. `/models/registry` and the ModelStatus page will list
+  the entry.
+
+**Q4. Verification: what proves it, exactly?**
+- Commands, from `services/worker/` with
+  `SYNTHVEDA_DATA_ROOT=/home/natsu/dev/synth-veda/synthveda-data`:
+  `python -m training.train_router --version v1 --sweep` (dev only, writes nothing), then
+  `python -m training.train_router --version v1 --k 8 --model svm --C 1.0`. Training took
+  28.0 s in total: 3.5 s featurising and 7.6 s fitting.
+- Training data: 34,707 rows. These are train rows minus the `low_quality_unusable` label, minus
+  exact duplicates, minus sequences that also occur in another route or in any dev/test file,
+  capped at 8,000 per route. Per route: fish 3,990, plant 4,395, bacteria 8,000 (of 32,726
+  eligible), animal 6,862, human 3,527, misc 7,933.
+- **QNA-001 protocol.** 300 non-low-quality test rows per route (`random.Random(0).sample`,
+  `train_router.py:381`) go through the full `route_sequence()` path, gate included. The learned
+  router and the heuristic score the same 1,800 rows:
+
+  | route | heuristic acc | learned acc | learned F1 |
+  |---|---|---|---|
+  | fish | 0.000 (0/300) | 0.830 (249/300) | 0.854 |
+  | plant | 0.000 (0/300) | 0.873 (262/300) | 0.929 |
+  | bacteria_pathogen | 0.830 (249/300) | 0.967 (290/300) | 0.954 |
+  | animal_general | 0.013 (4/300) | 0.813 (244/300) | 0.797 |
+  | human_domestic_contamination | 0.113 (34/300) | 0.850 (255/300) | 0.866 |
+  | misc_unknown | 0.567 (170/300) | 0.853 (256/300) | 0.799 |
+  | **overall** | **0.2539 (457/1,800)** | **0.8644 (1,556/1,800)** | macro-F1 **0.8665** (heuristic 0.1667) |
+
+  3 of the 1,800 rows were caught by the low-quality gate and count as wrong for both routers.
+  Top-2 accuracy is 0.9683. The largest confusions are fish→animal 47, animal→fish 34,
+  human→misc 42, animal→misc 21 and plant→human 20. On the clean subset (1,664 rows with no copy
+  in another route or split), learned scores 0.8756 and the heuristic 0.2716. The heuristic
+  scores 25.4% here, not QNA-001's 24.1%. QNA-001 did not record its seed, so this is a
+  different sample of 1,800 rows.
+- Calibration (15-bin top-label ECE):
+
+  | split | ECE before T | ECE after T | other |
+  |---|---|---|---|
+  | dev | 0.2802 | 0.0220 | NLL 0.6200 → 0.3655 |
+  | test, all non-low-quality rows | 0.2825 | 0.0191 | |
+  | protocol rows scored by the learned model (1,797) | 0.2692 | 0.0244 | |
+
+- Full test set (7,705 non-low-quality rows): acc 0.8999, macro-F1 0.8553, balanced 0.8717.
+  The clean subset (7,359 rows) scores 0.9077. The 346 rows that also occur in another route or
+  split score 0.7341.
+- Tests: worker **187 passed, 0 skipped**. The two real-artifact integration tests in
+  `tests/test_learned_router.py:286`, skipped before training, now run and pass. API **325
+  passed**. Both runs used the merged tree.
+
+**Q5. Defence: "86% is inflated by leakage", and "you tuned on test".**
+- Leakage audit, exact sequence match over all 82,219 rows (79,493 unique):
+  - 568 unique sequences occur in more than one route. The biggest group is human+plant (386),
+    then bacteria+human (140).
+  - Within a route, unique train∩test overlap is fish 0, plant 23, bacteria 0, animal 131,
+    human 9 and misc 47.
+  - Test rows whose sequence occurs in another route's train file: plant 28, human 50, misc 28,
+    bacteria 8, animal 1, fish 0.
+
+  None of these sequences were trained on, because cross-route and train/dev/test-overlapping
+  sequences are removed from training (`train_router.py:135-159`). The clean-subset numbers above
+  (0.9077 on the full test set, 0.8756 on the protocol rows) are the leakage-free figures. They
+  are higher than the all-rows figures, not lower.
+- Test was not used for selection. k, strand mode, model and C were chosen on dev
+  (`train_router.py:288-307`), and T was fitted on dev (`train_router.py:196`). Test was read once,
+  in the single training run. The reverse-complement failure was found on test. Switching v1 to
+  canonical features after seeing that number would be a test-informed choice, so v1 ships as
+  selected and the failure is recorded here.
+- One caveat on scoring cuts against the router. Route labels come from the folder, so the 40
+  plant and 156 bacteria test rows labelled `possible_contamination` count as errors (0.0
+  accuracy). The model sends 36/40 and 126/156 of them to `human_domestic_contamination`.
+  Whether that is right is a labelling question, and it is not claimed as a win here.
+- Not claimable: QNA-001's "82.4%" and this "86.4%" come from different samples and features, so
+  the difference is not a measured improvement from tuning. The paper must say the router is
+  trained and evaluated on the same 6-route processed corpus, with no external or
+  real-upload test set.
+
+**Q6. What is still open?**
+- **Strand invariance (highest priority):** a v2 with `--canonical`. A strand-invariance
+  requirement should be declared before training, and the model selected on dev against it. A
+  canonical model scores both strands identically by construction. Its dev balanced accuracy
+  was 0.8658.
+- k > 8 was not explored, and k=8 won at the edge of the grid.
+- The compose data-root mount and the Abyss import path (Q3) need separate tasks.
+- Medium-tier routes (n=268, accuracy 0.59) should keep sending their top fallback model in
+  parallel. Nobody has checked that the orchestrator actually does this for learned results.
+
+**Follow-up decision (orchestrator, 2026-10-18).** v1 ships despite the reverse-strand result
+(0.1655 on reverse-complemented test reads, still reported with high confidence), because on
+forward reads it is 0.8644 against the heuristic's 0.2539 on the same 1,800 rows. Switching v1 to
+`--canonical` now would be choosing a configuration on the test set, so v1 stays as selected on
+dev. Strand invariance becomes a stated requirement for the router retrain that runs with the Day 8
+head retrain (t-1021-1) on the rebuilt Day 7 splits. That retrain's selection must report
+forward and reverse-complement accuracy side by side. Until then, a reverse-orientation upload
+(for example paired-end R2) is routed badly by v1. This is a known, recorded defect, not a hidden one.
+

@@ -33,6 +33,14 @@ class ConfidenceTier(StrEnum):
     low = "low"         # confidence  < 0.40 → general/misc model + reference search
 
 
+class RouterMethod(StrEnum):
+    """Which router produced a RouteResult."""
+    learned = "learned"                        # learned k-mer classifier, calibrated probabilities
+    heuristic_fallback = "heuristic_fallback"  # learned router unavailable or failed; see router_fallback_reason
+    heuristic = "heuristic"                    # heuristic forced (SYNTHVEDA_ROUTER=heuristic) or called directly
+    low_quality_gate = "low_quality_gate"      # QC rule fired before any router ran
+
+
 @dataclass
 class RouterInput:
     """Subset of BatchRecord needed by the router."""
@@ -59,7 +67,20 @@ class RouteResult:
     fallback_routes: list[str]       # ordered by descending confidence, excluding primary
     reason_codes: list[str]          # human-readable codes for audit / admin review
     # Raw per-route scores before normalisation — useful for debugging.
+    # Heuristic: unnormalised likelihood products. Learned: uncalibrated logits.
     raw_scores: dict[str, float] = field(default_factory=dict)
+    # Which router produced this result (a RouterMethod value). Always set, so a
+    # fallback to the heuristic is visible on every result.
+    router_method: str = "heuristic"
+    # Learned router version (artifact config "version"); None for the heuristic.
+    router_version: str | None = None
+    # Probability for every route, summing to 1. Calibrated (temperature-scaled
+    # on the dev split) only when probabilities_calibrated is True; the
+    # heuristic's normalised scores are not calibrated.
+    route_probabilities: dict[str, float] = field(default_factory=dict)
+    probabilities_calibrated: bool = False
+    # Why the learned router was not used (e.g. "artifact_missing"); None when it was.
+    router_fallback_reason: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -70,4 +91,9 @@ class RouteResult:
             "fallback_routes": self.fallback_routes,
             "reason_codes": self.reason_codes,
             "raw_scores": {k: round(v, 4) for k, v in self.raw_scores.items()},
+            "router_method": self.router_method,
+            "router_version": self.router_version,
+            "route_probabilities": {k: round(v, 4) for k, v in self.route_probabilities.items()},
+            "probabilities_calibrated": self.probabilities_calibrated,
+            "router_fallback_reason": self.router_fallback_reason,
         }

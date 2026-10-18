@@ -17,7 +17,11 @@ from app.model_router.features import (
 from app.model_router.markers import detect_markers, marker_route_scores
 from app.model_router.models import ConfidenceTier, RouterInput, TaxonomicRoute
 from app.model_router.router import (
-    route_sequence,
+    # These tests pin the heuristic's own behaviour (markers, habitat, raw
+    # scores). Since B19, route_sequence() runs the learned router first when
+    # its artifact is present, so they call the heuristic directly; the
+    # learned path and the fallback are covered in test_learned_router.py.
+    route_sequence_heuristic as route_sequence,
     route_batch,
     _confidence_tier,
     _is_low_quality,

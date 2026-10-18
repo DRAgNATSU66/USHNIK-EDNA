@@ -6,3 +6,8 @@ python-dotenv==1.0.1
 
 # Object storage (B7): the s3 backend in app/storage.py (MinIO / AWS S3).
 boto3==1.35.99
+
+# Learned k-mer router (B19, app/model_router/learned.py). Without numpy the
+# worker still runs, but every result says router_method=heuristic_fallback,
+# router_fallback_reason=numpy_unavailable.
+numpy==2.4.6

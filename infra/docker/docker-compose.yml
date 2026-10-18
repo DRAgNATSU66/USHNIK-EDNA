@@ -76,6 +76,8 @@ services:
       # local:// uploads resolve here: the same uploads_data volume the API
       # writes to.
       UPLOAD_STORAGE_DIR: /app/uploads
+      # data: registry paths (backbones, heads, router.npz) resolve here (B24).
+      SYNTHVEDA_DATA_ROOT: /data
       <<: *object-storage-env
     depends_on:
       mongo:
@@ -88,6 +90,7 @@ services:
       - ../../services/worker/app:/app/app  # hot-reload in dev
       - uploads_data:/app/uploads
       - ../../models:/app/models
+      - ${SYNTHVEDA_DATA_HOST_DIR:-../../synthveda-data}:/data:ro
 
   # ------------------------------------------------------------------
   # MongoDB — raw analysis documents
