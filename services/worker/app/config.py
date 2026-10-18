@@ -44,6 +44,53 @@ class WorkerSettings(BaseSettings):
     object_storage_secret_key: str = ""
     object_storage_region: str = "us-east-1"
 
+    # Reference-lookup evidence provider (B4; app/evidence/reference_lookup.py).
+    # Every threshold the provider applies lives here, env-overridable
+    # (REFERENCE_SPECIES_IDENTITY=98 etc.). Identities are percent.
+    # Blank root -> <data root>/reference; blank version -> the CURRENT file.
+    reference_db_root: str = ""
+    reference_db_version: str = ""
+    # Provisional rank cut-offs on the best hit's identity (roadmap B4: 97/95/90).
+    reference_species_identity: float = Field(default=97.0, ge=0.0, le=100.0)
+    reference_genus_identity: float = Field(default=95.0, ge=0.0, le=100.0)
+    reference_family_identity: float = Field(default=90.0, ge=0.0, le=100.0)
+    # A hit counts only if it covers this much of the query: identity over a
+    # partial alignment speaks for a fragment (a conserved stretch, one half
+    # of a chimera), not the read. See the module docstring for the choice.
+    reference_min_query_coverage: float = Field(default=80.0, ge=0.0, le=100.0)
+    reference_min_alignment_length: int = Field(default=50, ge=1)
+    # Hits within this many identity points of the best are ties; ties naming
+    # different taxa are resolved to their lowest common ancestor.
+    reference_tie_delta: float = Field(default=0.5, ge=0.0, le=10.0)
+    # Search floor: hits below it are not reported at all.
+    reference_search_min_identity: float = Field(default=80.0, ge=50.0, le=100.0)
+    reference_max_accepts: int = Field(default=32, ge=1)   # candidates kept per query (tie detection)
+    reference_report_hits: int = Field(default=5, ge=1)     # top hits returned per query
+    # blast (default): BLAST+ against <route>/blast/ref for every route.
+    # auto: vsearch when the route's UDB fits reference_vsearch_max_udb_gb,
+    # else BLAST. vsearch: always vsearch. Measured on 384 held-out fish
+    # queries (t-1021-2): vsearch 129 s search, 3.47 GB peak RSS; BLAST 18 s,
+    # same assignment on 361/384, species precision 96.3 vs 95.9 %. vsearch
+    # on plant (0.52 GB UDB) reached 2.1 GB RSS and had not finished 370
+    # queries after 10 min. vsearch loads the whole UDB per call and its RSS
+    # runs well above the UDB size; BLAST memory-maps its DB.
+    reference_method: Literal["auto", "vsearch", "blast"] = "blast"
+    # UDB size admitted to vsearch under "auto". Admits fish 1.87 GB, misc
+    # 1.72 GB, bacteria 1.43 GB, plant 0.52 GB, human 0.42 GB; not
+    # animal_general 3.45 GB.
+    reference_vsearch_max_udb_gb: float = Field(default=2.5, gt=0.0)
+    # megablast (word 28) is fast and sound for the >=90% band that drives
+    # assignment; dc-megablast finds more of the 80-90% "nearest" hits, slower.
+    reference_blast_task: Literal["megablast", "dc-megablast", "blastn"] = "megablast"
+    reference_threads: int = Field(default=4, ge=1)
+    reference_timeout_seconds: int = Field(default=1800, ge=1)
+    # Human route: a GRCh38 hit at/above these is human-contamination evidence.
+    reference_human_genome_identity: float = Field(default=99.0, ge=0.0, le=100.0)
+    reference_human_genome_min_coverage: float = Field(default=80.0, ge=0.0, le=100.0)
+    # Directory holding vsearch/ and blastn when they are not on PATH; blank ->
+    # <data root>/tools/{vsearch,blast}/bin.
+    reference_tools_dir: str = ""
+
 
 @lru_cache
 def get_worker_settings() -> WorkerSettings:
