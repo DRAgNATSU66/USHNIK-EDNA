@@ -1,8 +1,8 @@
 import { tokens } from "./tokens";
 
 // Shared "this is sample content, not a real computation" pill -- first used
-// on Field Log's edit-history/attachments previews, reused across Partner
-// Report's statistics panels that have no backend computation behind them
+// on Field Log's edit-history/attachments previews (real since B10/M4), and
+// used on Partner Report's statistics panels that have no backend computation behind them
 // yet (rarefaction, network modularity, phylogenetics, etc.).
 export default function MockTag({ label = "MOCK — NO BACKEND YET" }) {
   return (

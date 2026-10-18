@@ -99,6 +99,10 @@ async def _field_log_indexes(db: AsyncIOMotorDatabase) -> None:
         IndexModel([("analysis_id", ASCENDING), ("created_at", ASCENDING)], name="field_log_analysis_created"),
         IndexModel([("kind", ASCENDING)], name="field_log_kind"),
     ])
+    await db["field_log_attachments"].create_indexes([
+        IndexModel([("attachment_id", ASCENDING)], unique=True, name="field_attachment_id_unique"),
+        IndexModel([("analysis_id", ASCENDING), ("created_at", ASCENDING)], name="field_attachment_analysis_created"),
+    ])
 
 
 async def _abyss_indexes(db: AsyncIOMotorDatabase) -> None:
