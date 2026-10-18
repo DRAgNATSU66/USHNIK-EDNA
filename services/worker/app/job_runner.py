@@ -125,11 +125,12 @@ async def _stage_qc(sequences: list[dict]) -> list[dict]:
 
 async def _stage_route(sequences: list[dict]) -> list[dict]:
     """
-    Phase 6: assign each sequence a taxonomic route using the heuristic router.
+    Assign each sequence a taxonomic route.
 
-    The router uses marker gene detection + biophysical scoring (GC ratio, CpG
-    O/E, length, habitat metadata) to assign routes with confidence scores.
-    Phase 7 replaces the biophysical scorer with DNA foundation model embeddings.
+    B19: the learned k-mer router runs first and returns calibrated
+    probabilities for every route; the heuristic (marker + biophysical) router
+    is the fallback, and each result records which one ran (router_method,
+    router_version, router_fallback_reason).
     """
     if not sequences:
         return sequences
@@ -154,17 +155,31 @@ async def _stage_route(sequences: list[dict]) -> list[dict]:
     results = await loop.run_in_executor(None, route_batch, inputs)
 
     route_dist: dict[str, int] = {}
+    method_dist: dict[str, int] = {}
+    fallback_reasons: dict[str, int] = {}
     for seq, result in zip(sequences, results):
         seq["route"] = str(result.route)
         seq["route_confidence"] = result.route_confidence
         seq["confidence_tier"] = str(result.confidence_tier)
         seq["fallback_routes"] = result.fallback_routes
         seq["reason_codes"] = result.reason_codes
+        # B19: which router decided, its version, and all route probabilities.
+        seq["router_method"] = result.router_method
+        seq["router_version"] = result.router_version
+        seq["route_probabilities"] = result.route_probabilities
+        seq["route_probabilities_calibrated"] = result.probabilities_calibrated
+        seq["router_fallback_reason"] = result.router_fallback_reason
         route_dist[str(result.route)] = route_dist.get(str(result.route), 0) + 1
+        method_dist[result.router_method] = method_dist.get(result.router_method, 0) + 1
+        if result.router_fallback_reason:
+            fallback_reasons[result.router_fallback_reason] = fallback_reasons.get(result.router_fallback_reason, 0) + 1
 
     low_q = route_dist.get("low_quality", 0)
     routed = len(sequences) - low_q
-    print(f"[worker] routing complete: {routed} sequences routed, {low_q} low-quality")
+    print(f"[worker] routing complete: {routed} sequences routed, {low_q} low-quality, methods {method_dist}")
+    if method_dist.get("heuristic_fallback"):
+        print(f"[worker] WARNING: learned router not used for {method_dist['heuristic_fallback']} "
+              f"sequence(s), heuristic fallback; reasons {fallback_reasons}")
     return sequences
 
 

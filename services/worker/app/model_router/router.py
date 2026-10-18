@@ -1,7 +1,7 @@
 """
 Taxonomic router — assigns each sequence a route and confidence score.
 
-Algorithm (three-stage evidence combination):
+Heuristic algorithm (route_sequence_heuristic, three-stage evidence combination):
   1. Low-quality gate: sequences that fail QC thresholds → route = low_quality.
   2. Marker gene signal: if one or more strong marker patterns match,
      assign a large score boost to the associated route.
@@ -15,37 +15,73 @@ Confidence tiers (see models.ConfidenceTier):
   medium (0.40–0.70)→ specialist + top fallback model in parallel
   low    (< 0.40)  → general / misc model + reference sequence search
 
-This is a heuristic-rules model for Phase 6.  Phase 7 replaces
-biophysical_score() with a DNA foundation model embedding comparison.
+The heuristic routes 24.1% of held-out test sequences correctly (QNA-001), so
+since B19 it is the fallback: route_sequence() runs the learned k-mer
+classifier (learned.py) after the low-quality gate and only uses
+route_sequence_heuristic() when the learned router is unavailable, recording
+that on the result (router_method / router_fallback_reason).
 """
 from __future__ import annotations
 
+import logging
 import math
 
 from .features import extract_features
+from .learned import get_learned_router
 from .markers import marker_route_scores
-from .models import ConfidenceTier, RouteResult, RouterInput, TaxonomicRoute
+from .models import ConfidenceTier, RouteResult, RouterInput, RouterMethod, TaxonomicRoute
 from .reference import LOW_QUALITY_THRESHOLDS, ROUTE_PROFILES
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def route_sequence(inp: RouterInput) -> RouteResult:
-    """Route a single sequence and return a RouteResult."""
+    """Route a single sequence and return a RouteResult.
+
+    Stage order: the low-quality gate, then the learned k-mer classifier
+    (learned.py). If the learned router is unavailable (artifact missing,
+    checksum mismatch, numpy missing, SYNTHVEDA_ROUTER=heuristic) or cannot
+    score this sequence (no valid k-mer), the heuristic below routes it and the
+    result says so: router_method="heuristic_fallback" plus
+    router_fallback_reason, and a "router_heuristic_fallback" reason code.
+    """
+    reasons: list[str] = []
+    if _is_low_quality(inp, reasons):
+        return _low_quality_result(inp, reasons)
+
+    model, reason = get_learned_router()
+    if model is not None:
+        try:
+            scored = model.predict_proba(inp.sequence)
+        except Exception as exc:
+            logger.warning("Learned router failed on %s, using heuristic: %r", inp.sequence_id, exc)
+            scored, reason = None, "predict_error"
+        else:
+            if scored is None:
+                reason = "no_valid_kmers"
+        if scored is not None:
+            return _learned_result(inp, model, *scored)
+
+    result = route_sequence_heuristic(inp)
+    if reason == "router_forced_heuristic":
+        result.router_method = RouterMethod.heuristic.value
+    else:
+        result.router_method = RouterMethod.heuristic_fallback.value
+        result.reason_codes.append("router_heuristic_fallback")
+    result.router_fallback_reason = reason
+    return result
+
+
+def route_sequence_heuristic(inp: RouterInput) -> RouteResult:
+    """Route a single sequence with the heuristic (marker + biophysical) router."""
     reasons: list[str] = []
 
     # 1. Low-quality gate.
     if _is_low_quality(inp, reasons):
-        return RouteResult(
-            sequence_id=inp.sequence_id,
-            route=TaxonomicRoute.low_quality,
-            route_confidence=1.0,
-            confidence_tier=ConfidenceTier.high,
-            fallback_routes=[],
-            reason_codes=reasons,
-            raw_scores={"low_quality": 1.0},
-        )
+        return _low_quality_result(inp, reasons)
 
     # 2. Extract biophysical features.
     features = extract_features(inp.sequence, gc_ratio=inp.gc_ratio, n_ratio=inp.n_ratio)
@@ -142,6 +178,9 @@ def route_sequence(inp: RouterInput) -> RouteResult:
         fallback_routes=fallbacks,
         reason_codes=deduped_reasons,
         raw_scores=raw_scores,
+        router_method=RouterMethod.heuristic.value,
+        route_probabilities=probs,
+        probabilities_calibrated=False,
     )
 
 
@@ -153,6 +192,56 @@ def route_batch(sequences: list[RouterInput]) -> list[RouteResult]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _low_quality_result(inp: RouterInput, reasons: list[str]) -> RouteResult:
+    return RouteResult(
+        sequence_id=inp.sequence_id,
+        route=TaxonomicRoute.low_quality,
+        route_confidence=1.0,
+        confidence_tier=ConfidenceTier.high,
+        fallback_routes=[],
+        reason_codes=reasons,
+        raw_scores={"low_quality": 1.0},
+        router_method=RouterMethod.low_quality_gate.value,
+    )
+
+
+def _learned_result(
+    inp: RouterInput, model, probs: dict[str, float], raw: dict[str, float]
+) -> RouteResult:
+    """Build a RouteResult from the learned router's calibrated probabilities.
+
+    Same conventions as the heuristic, so existing consumers keep working:
+    route_confidence is the top probability, the tier uses the same 0.70/0.40
+    cut-offs (now on calibrated probabilities), fallback_routes lists up to two
+    alternatives above 0.05 and then misc_unknown as the last resort.
+    """
+    ranked = sorted(probs, key=probs.__getitem__, reverse=True)
+    best = ranked[0]
+    conf = probs[best]
+    tier = _confidence_tier(conf)
+    reasons = ["learned_router"]
+    if tier == ConfidenceTier.low:
+        reasons.append("low_confidence_fallback")
+    elif tier == ConfidenceTier.medium:
+        reasons.append("medium_confidence_fallback")
+    fallbacks = [r for r in ranked[1:] if probs[r] > 0.05 and r != "misc_unknown"][:2]
+    if "misc_unknown" not in fallbacks and best != "misc_unknown":
+        fallbacks.append("misc_unknown")
+    return RouteResult(
+        sequence_id=inp.sequence_id,
+        route=TaxonomicRoute(best),
+        route_confidence=round(conf, 4),
+        confidence_tier=tier,
+        fallback_routes=fallbacks,
+        reason_codes=reasons,
+        raw_scores=raw,
+        router_method=RouterMethod.learned.value,
+        router_version=model.version,
+        route_probabilities=probs,
+        probabilities_calibrated=True,
+    )
+
 
 def _is_low_quality(inp: RouterInput, reasons: list[str]) -> bool:
     low = False

@@ -40,6 +40,14 @@ class SequenceResult(BaseModel):
     contamination_score: Optional[float] = None
     reason_codes: list[str] = Field(default_factory=list)
     model_version_used: Optional[str] = None
+    # Which router chose `route` (worker model_router, B19): "learned",
+    # "heuristic_fallback" (with router_fallback_reason), "heuristic" or
+    # "low_quality_gate". None on results written before B19.
+    router_method: Optional[str] = None
+    router_version: Optional[str] = None
+    router_fallback_reason: Optional[str] = None
+    route_probabilities: Optional[dict[str, float]] = None
+    route_probabilities_calibrated: Optional[bool] = None
 
 
 class AnalysisSummary(BaseModel):
