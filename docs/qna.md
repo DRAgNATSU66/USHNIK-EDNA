@@ -1064,3 +1064,75 @@ The API container now also gets the data root read-only, because registration mu
 No. Registration refuses an entry without test_accuracy, test_macro_f1 and test_size. Promotion
 re-verifies the artifact's sha256 against what was registered. Both steps are admin-only and audited
 with the actor id.
+
+## QNA-015 — 2026-10-18 — Abyss routes with an offline copy of the learned router; offline credentials are no longer API tokens; AbyssSetup runs the full expedition lifecycle (B25, U4, F3; tracker t-1029-1)
+
+**Commit:** `9db53ce` (B25 offline learned router) and `70a1e01` (offline credentials rejected as
+access tokens), both from the interrupted session. Then `20e3603` (WIP `api.js` and `abyssDevice.js`,
+kept) and `4ad24ed` (AbyssSetup) from a session-3 agent. All on `sprint/d16-abyss`, merged into
+`LATEST_USHNIK` as `b341c7a`. The merge had one conflict, in `infra/docker/docker-compose.yml`: both
+branches wrote a comment above the same `SYNTHVEDA_DATA_ROOT: /data` line, and both comments were kept.
+The Playwright half of Day 16 (t-1029-2) is **not** done.
+
+**Q1. Mechanism: how does Abyss route now, step by step?**
+`services/api/app/abyss/learned_router.py` is an inference-only copy of the worker's `learned.py` plus
+`kmer.py`. It:
+1. Reads the same registry entry (route `router`, chosen with the API's mirror of `best_available`).
+2. Loads the same `router.npz`, checking its SHA-256 and loading with `allow_pickle=False`.
+3. Computes the same k-mer features, temperature and softmax.
+It needs only numpy, and it loads only `data:` URIs or existing local paths; anything else is
+`artifact_not_local`, so it never touches the network.
+
+Every result carries `router_method` (learned / gc_fallback / gc_only / low_quality_gate),
+`router_version`, `router_fallback_reason` and calibrated `route_probabilities`. Each batch carries a
+router summary (model_id, version, artifact sha256, per-method counts), and `/abyss/sync` stores it.
+
+**Q2. Rationale: why a copy rather than importing the worker's module?**
+The old import of `app.model_router` clashed with the API's own `app` package (`ModuleNotFoundError`),
+and the API image doesn't contain the worker code at all. So every Abyss result was GC-only (B25),
+and B12 had made that visible. A copy can drift from the original; a parity test pins it (Q5).
+
+**Q3. Mechanism: the credential fix and the UI flow.**
+- *Before `70a1e01`*, `get_current_user` accepted any JWT signed with the API secret. That meant an
+  offline license (`type=offline_license`, up to 90 days) or an expedition session
+  (`mode=abyss_offline`, 45 days) authenticated API calls with the issuer's role, and neither could be
+  revoked. Both now get 401 (`services/api/app/auth/deps.py`).
+- *AbyssSetup flow:* create → issue license (now offered *before* departure, because `/activate`
+  refuses without one; previously no expedition could be activated from the UI) →
+  `/auth/expedition/session` + `/verify` (only a server-verified token is kept) → activate →
+  field triage via `/abyss/analyze` → **Sync now**, which posts to `/abyss/sync` with `expedition_id`
+  in the body.
+- Only items the server acknowledged are removed from the device.
+- The offline tokens live in localStorage under `sv_abyss_device_v1`, never `sv_access_token`, which
+  is the only key `lib/api.js` puts in the Authorization header.
+- Also fixed: the create form posted `expedition_name`, but the API requires `name`, so every create
+  returned 422.
+
+**Q4. Blast radius.**
+- If the copy drifts, Abyss routes differently from the online worker on the same sequence, and
+  results synced back from the field would disagree with an online re-analysis.
+- If the credential check regressed, a stolen field device would hold a 90-day API credential that
+  cannot be revoked.
+- Logging out does **not** clear the device store. That is deliberate for a field device, and a risk
+  on a shared machine.
+- Sync sends no re-analysis upload ids, so 0 re-analysis jobs are queued after a sync.
+- B23 still applies: the copied router is v1, so it has the same reverse-complement weakness.
+
+**Q5. Verification (measured).**
+- `services/api/tests/test_abyss_learned_router.py` checks parity with the worker's own `learned.py`,
+  on a synthetic artifact and on the real v1 artifact; a 1% temperature change fails both. It also
+  covers every unavailable reason, the kill switch, `no_valid_kmers`, and routing with sockets disabled.
+- `test_abyss_offline_credentials.py` checks that both token kinds get 401 and that session → verify →
+  sync works.
+- `LATEST_USHNIK` after the merge: API **455 passed**, worker **279 passed**, `npm run build` OK,
+  `docker compose config -q` OK.
+- Live run by the agent against local uvicorn and a throwaway Mongo, driven in a browser: create →
+  license → session/verify (`expedition_operator`, 45 days) → activate → triage (2 sequences, router
+  `learned`, risk medium) → Sync now (1 analysis and 4 logs stored, status `synced`).
+- With the API stopped, Sync shows "Sync failed: Failed to fetch" and keeps the last good sync.
+- With curl: activating before a license gives 400, and both offline tokens get 401 as bearer tokens.
+
+**Q6. Defence: "Two copies of the router is a maintenance hazard."**
+It is, and the parity test is the control: CI fails if the copy's output on the real artifact differs
+from the worker's. The alternative is a shared package installed into both images, which is the v2
+cleanup. For v1, the API image staying free of torch and the worker code matters more.
