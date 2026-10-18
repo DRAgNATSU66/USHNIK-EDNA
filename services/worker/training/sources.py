@@ -85,34 +85,154 @@ def iter_bold(parquet_path: Path, batch_size: int = 50_000) -> Iterator[Record]:
 
 
 # ---------------------------------------------------------------------------
-# MIDORI2 (.fasta packed in .zip; header carries a taxid on its last token)
+# MIDORI2 (one .zip holding per-gene .fasta(.gz) members; the header carries
+# the full lineage with a taxid on every token)
 # ---------------------------------------------------------------------------
+#
+# GB273 ships as a single MIDORI2_GB273_RAW.zip with 15 genes x 3 selections
+# (RAW/total/, RAW/uniq/, RAW/longest/), e.g.
+#   RAW/uniq/MIDORI2_UNIQ_NUC_GB273_CO1_RAW.fasta.gz
+# Older releases were one zip per gene holding one plain .fasta. The member
+# name tokens are not in a fixed order across archives (the _sp variants put
+# SP first), so the selection and gene are found by token, not by position.
 
-def iter_midori2(zip_path: Path, taxonomy: TaxonomyResolver) -> Iterator[Record]:
+MIDORI2_SELECTIONS = ("UNIQ", "LONGEST", "TOTAL")
+_MIDORI2_FASTA_SUFFIXES = (".fasta", ".fa", ".fas", ".fasta.gz", ".fa.gz", ".fas.gz")
+# MIDORI2 lineage tokens after "root_1" are positional: superkingdom,
+# phylum, class, order, family, genus, species (no kingdom).
+_MIDORI2_POSITIONAL_RANKS = ("superkingdom", "phylum", "class", "order", "family", "genus", "species")
+
+
+@dataclass(frozen=True)
+class Midori2Member:
+    name: str
+    selection: str | None   # UNIQ / LONGEST / TOTAL, None for pre-GB273 single-file zips
+    gene: str | None        # CO1, srRNA, ... None if the name carries no GB token
+
+
+def midori2_members(zf: zipfile.ZipFile) -> list[Midori2Member]:
+    """Every nucleotide FASTA member of a MIDORI2 zip with its selection and
+    gene. Amino-acid members are left out: _clean_sequence folds IUPAC
+    letters into N, so protein text would otherwise pass as N-rich DNA."""
+    out: list[Midori2Member] = []
+    for name in zf.namelist():
+        if not name.lower().endswith(_MIDORI2_FASTA_SUFFIXES):
+            continue
+        base = name.rsplit("/", 1)[-1]
+        tokens = re.split(r"[_.]", base)
+        if "AA" in tokens:
+            continue
+        selection = next((t for t in tokens if t in MIDORI2_SELECTIONS), None)
+        gene = None
+        for i, tok in enumerate(tokens[:-1]):
+            if re.fullmatch(r"GB\d+", tok):
+                gene = tokens[i + 1]
+                break
+        out.append(Midori2Member(name=name, selection=selection, gene=gene))
+    return out
+
+
+_MIDORI2_RANK_LABELS = {
+    "domain": "superkingdom", "superkingdom": "superkingdom", "kingdom": "kingdom", "phylum": "phylum",
+    "class": "class", "order": "order", "family": "family", "genus": "genus", "species": "species",
+}
+
+
+def parse_midori2_header(header: str, taxonomy: TaxonomyResolver | None) -> tuple[str, str, dict[str, str], int | None] | None:
+    """(accession, organism_name, lineage, taxid) for one MIDORI2 header, or
+    None if it carries no taxonomy. Two layouts exist:
+
+      GB273 (rank-labelled, tab-separated, MIDORI2's own frozen taxdump):
+        "MG559732.1.<1.>690\troot_1;cellularroot_cellular_organisms_131567;
+         domain_Eukaryota_2759;...;genus_Clydonella_218657;species_Clydonella sawyeri_2201168"
+      pre-GB273 (positional, "###"):
+        "MG559732.1.<1.>690###root_1;Eukaryota_2759;...;Clydonella_sawyeri_2201168"
+
+    Rank-labelled headers are read as-is. Positional ones lack kingdom (which
+    routing needs), so their lineage comes from the local taxdump via the
+    species taxid, falling back to the positional ranks when that taxid is
+    newer than the snapshot."""
+    if "###" in header:
+        acc_part, _, taxo = header.partition("###")
+        labelled = False
+    else:
+        parts = header.split(None, 1)
+        if len(parts) != 2:
+            return None
+        acc_part, taxo = parts
+        labelled = True
+    tokens = [t for t in taxo.strip().split(";") if t]
+    if tokens and tokens[0].startswith("root"):
+        tokens = tokens[1:]
+    if not tokens:
+        return None
+    # accession is "MG559732.1" out of "MG559732.1.<1.>690"
+    acc_bits = acc_part.strip().split(".")
+    accession = ".".join(acc_bits[:2]) if len(acc_bits) >= 2 and acc_bits[1].isdigit() else acc_part.strip()
+
+    def split_token(tok: str) -> tuple[str, int | None]:
+        name_part, _, tail = tok.rpartition("_")
+        if tail.isdigit() and name_part:
+            return name_part.replace("_", " "), int(tail)
+        return tok.replace("_", " "), None
+
+    if labelled:
+        lineage: dict[str, str] = {}
+        organism_name, taxid = "", None
+        for tok in tokens:
+            label, _, rest = tok.partition("_")
+            name, tok_taxid = split_token(rest)
+            rank = _MIDORI2_RANK_LABELS.get(label)
+            if rank and name and rank not in lineage:
+                lineage[rank] = name
+            organism_name, taxid = name, tok_taxid
+        if "species" in lineage:
+            organism_name = lineage["species"]
+        return accession, organism_name, lineage, taxid
+
+    organism_name, taxid = split_token(tokens[-1])
+    lineage = dict(taxonomy.lineage(taxid)) if (taxonomy is not None and taxid is not None) else {}
+    if not lineage:
+        for rank, tok in zip(_MIDORI2_POSITIONAL_RANKS, tokens):
+            name, _ = split_token(tok)
+            if name:
+                lineage[rank] = name
+    return accession, organism_name, lineage, taxid
+
+
+def iter_midori2_member(zf: zipfile.ZipFile, member: str) -> Iterator[tuple[str, str]]:
+    """(header, raw_sequence) for one member, gunzipping .gz members."""
+    with zf.open(member) as fh:
+        raw = gzip.open(fh) if member.lower().endswith(".gz") else fh
+        text = io.TextIOWrapper(raw, encoding="utf-8", errors="replace")
+        yield from _iter_fasta(text)
+
+
+def iter_midori2(zip_path: Path, taxonomy: TaxonomyResolver, selection: str | None = "UNIQ",
+                 genes: tuple[str, ...] | list[str] | None = None) -> Iterator[Record]:
+    """Records from every gene FASTA in the zip (not just the first member).
+
+    selection: UNIQ (every unique haplotype per species, the default),
+    LONGEST, TOTAL, or None for all members. Zips whose members carry no
+    selection token (pre-GB273, one gene per zip) are read whole whatever
+    `selection` says. genes: restrict to these gene tokens (e.g. ("CO1",
+    "srRNA")); None = all 15."""
     with zipfile.ZipFile(zip_path) as zf:
-        inner_name = next(n for n in zf.namelist() if n.lower().endswith((".fasta", ".fa")))
-        with zf.open(inner_name) as fh:
-            text = io.TextIOWrapper(fh, encoding="utf-8", errors="replace")
-            for header, raw_seq in _iter_fasta(text):
+        members = midori2_members(zf)
+        has_selection = any(m.selection for m in members)
+        for m in members:
+            if has_selection and selection is not None and m.selection != selection:
+                continue
+            if genes is not None and m.gene not in genes:
+                continue
+            for header, raw_seq in iter_midori2_member(zf, m.name):
                 seq = _clean_sequence(raw_seq)
                 if not seq:
                     continue
-                # "MG559732.1.<1.>690###root_1;Eukaryota_2759;...;Clydonella_sawyeri_2201168"
-                _, sep, taxo = header.partition("###")
-                if not sep:
+                parsed = parse_midori2_header(header, taxonomy)
+                if parsed is None:
                     continue
-                tokens = taxo.split(";")
-                if not tokens:
-                    continue
-                last = tokens[-1]
-                name_part, _, tail = last.rpartition("_")
-                if tail.isdigit():
-                    taxid = int(tail)
-                    organism_name = name_part.replace("_", " ")
-                    lineage = taxonomy.lineage(taxid)
-                else:
-                    organism_name = last.replace("_", " ")
-                    lineage = {}
+                _, organism_name, lineage, _ = parsed
                 yield Record(sequence=seq, organism_name=organism_name, lineage=lineage, source="midori2")
 
 
