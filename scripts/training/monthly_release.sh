@@ -14,12 +14,12 @@
 #   2. Fine-tune DNABERT-2 with LoRA on the dataset
 #   3. Evaluate model on the validation split
 #   4. Pause and show metrics — human must decide whether to promote
-#   5. On human approval, write new registry JSON entry (status=experimental)
+#   5. On human approval, register via the API (status=candidate) and offer promotion
 #
 # Anti-poisoning:
-#   This script NEVER automatically sets status=production.
-#   After promotion, edit models/registry/<run-id>.json to set "status": "production"
-#   only after A/B validation against the current production model.
+#   Promotion to production needs an admin token and a typed confirmation of the model_id.
+#   Registration alone never changes what the worker serves.
+#   (POST /models/register, POST /models/{id}/promote; scripts/training/promote.py)
 #
 # Prerequisites:
 #   pip install -r scripts/training/requirements.txt
@@ -118,22 +118,23 @@ echo "║  (accuracy, per-class F1, confusion matrix)              ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-read -rp "  Promote to registry? [y/N] " CONFIRM
+read -rp "  Register with the API (and offer promotion)? [y/N] " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
-  echo "  Skipped. Re-run promote.py manually when ready:"
-  echo "    python scripts/training/promote.py --run-id ${RUN_ID} --approve"
+  echo "  Skipped. Register and promote later with:"
+  echo "    make train-promote ROUTE=${ROUTE} RUN_ID=${RUN_ID} BATCH_ID=${BATCH_ID}"
   exit 0
 fi
 
-PROMOTE_ARGS="--run-id ${RUN_ID} --status experimental --approve"
-if [[ -n "$PROMOTED_BY" ]]; then
-  PROMOTE_ARGS="${PROMOTE_ARGS} --promoted-by ${PROMOTED_BY}"
-fi
-
+# Registration and promotion go through the API (B8): POST /models/register
+# verifies the artifact checksum under the data root and writes the entry as
+# status "candidate" (not served); POST /models/{id}/promote makes it serve,
+# after promote.py shows the metric deltas and asks for the model_id.
+# The worker only loads a head.pt/.bin under the data root, so ARTIFACT_URI
+# must point at one (training/finetune.py writes them); a LoRA adapter in
+# models/runs/ is refused by the API.
 echo ""
-echo "▶ Step 4/4 — Promoting ${RUN_ID} to registry (status=experimental) …"
-# shellcheck disable=SC2086
-python scripts/training/promote.py $PROMOTE_ARGS \
+echo "▶ Step 4/4 — Registering ${RUN_ID} via the API …"
+make train-promote ROUTE="${ROUTE}" RUN_ID="${RUN_ID}" BATCH_ID="${BATCH_ID}" \
   2>&1 | tee "${LOG_DIR}/promote.log"
 
 echo ""
@@ -141,14 +142,7 @@ echo "╔═══════════════════════�
 echo "║  Monthly release complete                                ║"
 echo "╠══════════════════════════════════════════════════════════╣"
 echo "║  Registry entry: models/registry/${RUN_ID}.json"
-echo "║  Status: experimental                                    ║"
-echo "║                                                          ║"
-echo "║  NEXT STEPS (manual):                                    ║"
-echo "║  1. A/B test vs current production model                 ║"
-echo "║  2. Edit registry JSON → \"status\": \"staging\"            ║"
-echo "║  3. Monitor worker inference metrics for 1 week          ║"
-echo "║  4. Edit registry JSON → \"status\": \"production\"         ║"
-echo "║                                                          ║"
-echo "║  Anti-poisoning: NO automatic status=production path.    ║"
+echo "║  Promotion is recorded in audit_logs + model_eval_metrics║"
+echo "║  Commit the changed models/registry/*.json files.        ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
