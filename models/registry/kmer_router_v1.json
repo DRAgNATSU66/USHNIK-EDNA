@@ -1,0 +1,44 @@
+{
+  "model_id": "kmer_router_v1",
+  "route": "router",
+  "base_model": "kmer8-linear-svm",
+  "head_type": "route_classification",
+  "embedding_dim": 65536,
+  "label_set_version": "routes-v1",
+  "label_set": [
+    "fish",
+    "plant",
+    "bacteria_pathogen",
+    "animal_general",
+    "human_domestic_contamination",
+    "misc_unknown"
+  ],
+  "training_dataset_version": "processed-2026-10-18",
+  "metrics": {
+    "test_accuracy": 0.8999,
+    "test_macro_f1": 0.8553,
+    "test_balanced_accuracy": 0.8717,
+    "test_clean_accuracy": 0.9077,
+    "test_ece_before": 0.2825,
+    "test_ece_after": 0.0191,
+    "test_reverse_complement_accuracy": 0.1655,
+    "protocol_qna001_accuracy": 0.8644,
+    "protocol_qna001_macro_f1": 0.8665,
+    "protocol_qna001_heuristic_accuracy": 0.2539,
+    "temperature": 0.4471,
+    "train_size": 34707,
+    "dev_size": 7724,
+    "test_size": 7705
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.4
+  },
+  "artifact_uri": "data:checkpoints/router/v1/router.npz",
+  "checksum": "f335be9afab5707b9f827172cf00457393a18f73fe9c050d73ed33fad1d93a8c",
+  "created_at": "2026-10-18",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "Learned route classifier (B19): LinearSVC (C=1.0, class_weight=balanced) over exact L2-normalised 8-mer counts, forward strand only, temperature 0.4471 fitted on dev. Selected by dev balanced accuracy over k=4..8, canonical/forward, svm C=0.1/1.0, logreg C=10. Trained by services/worker/training/train_router.py; metrics from checkpoints/router/v1/eval_report.json. Reverse-complemented test reads score 16.6%: not strand-invariant.",
+  "trusted_remote_code": false
+}
