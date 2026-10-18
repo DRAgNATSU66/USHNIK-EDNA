@@ -101,3 +101,7 @@ services/api/uploads/
 
 # Reference/training data and model checkpoints (tens of GB) live outside git
 synthveda-data/
+
+# Local scratch: untracked notes folder and Playwright MCP screenshots/logs
+PSEUDO FILE/
+.playwright-mcp/

@@ -45,16 +45,8 @@ wsl --install -d Ubuntu-22.04
 #   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_setup.sh
 
 # -----------------------------------------------------------------------------
-# STEP 5: Run training
+# STEP 5: Training -- see services/worker/training/README.md
 # -----------------------------------------------------------------------------
-# In Ubuntu terminal:
-#   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_train_nt.sh
-
-# -----------------------------------------------------------------------------
-# STEP 6: Run inference test
-# -----------------------------------------------------------------------------
-# In Ubuntu terminal:
-#   bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_infer_nt.sh
 
 # =============================================================================
 # QUICK REFERENCE - Copy-paste commands
@@ -69,8 +61,3 @@ wsl --install -d Ubuntu-22.04
 # Ubuntu WSL - Run setup:
 # bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_setup.sh
 
-# Ubuntu WSL - Run training:
-# bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_train_nt.sh
-
-# Ubuntu WSL - Run inference:
-# bash /mnt/c/Users/ushni/Documents/SYNTH\ VEDA/scripts/wsl_infer_nt.sh

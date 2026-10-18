@@ -72,5 +72,5 @@ that got violated) — not speculatively.
   something to reproduce here as code.
 - Treat `uploads/` under `services/api/uploads/` as generated/test artifacts, not source
   — don't hand-edit or read them as if they were spec.
-- `legacy/` is superseded code kept for reference — don't build new features on it or
-  assume it reflects current architecture (see `architecture.md`).
+- The pre-refactor `legacy/` tree was deleted 2026-10-30 (t-1030-2); recover it from git
+  history if ever needed, don't reintroduce it.
