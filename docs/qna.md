@@ -1349,3 +1349,65 @@ They are labelled as context, not measurements. Each one carries its product id,
 the grid cell and distance actually used, and when it was retrieved. Field measurements, when given,
 take precedence and are marked `user_provided`. The alternative was the hard-coded "4.2 °C / 1840 m"
 mock values this replaces.
+
+## QNA-019 — 2026-10-18 — Refuse the default/short JWT secret outside dev; nginx rate limits on auth endpoints; legacy/ removed (B18; tracker t-1030-1, t-1030-2)
+
+**Commit:** `55dc8de` (B18) and `e4705a3` (cleanup) on `sprint/d17-harden-cleanup`, merged into
+`LATEST_USHNIK` as `1928f6a`. Done ahead of order: neither task depends on outstanding work. The agent was
+interrupted by an API usage limit between the two commits and resumed at 23:20.
+
+**Q1. Mechanism: the startup check.**
+- `services/api/app/config.py` gains `APP_ENV` (`dev | test | staging | production`, default `dev`).
+- Outside dev/test, the settings validator rejects either placeholder secret (the code default or the
+  `.env.example` value) and any `JWT_SECRET` under 32 bytes. 32 bytes is the 256-bit minimum
+  RFC 7518 §3.2 sets for HS256.
+- Settings load when the app is imported, so uvicorn stops with "APP_ENV=…: JWT_SECRET … Refusing to
+  start".
+- `cloud-run-api.yml` and terraform `main.tf` set `APP_ENV=production`. Compose uses
+  `${APP_ENV:-dev}`.
+
+**Q2. Mechanism: rate limits** (`infra/docker/nginx-lb.conf`, per client IP, 429 when exceeded).
+- `/auth/admin-key/redeem`: 5 requests/min, burst 5.
+- `/auth/google/code-exchange` and `/auth/supabase/exchange`: 30 requests/min, burst 20.
+- Smoke test in nginx:1.27-alpine: the 7th redeem request and the 22nd login request got 429; other
+  paths were unlimited.
+
+**Q3. Rationale and rejected alternatives.**
+- *Default `dev`*, so tests, scripts and `make api-run` keep working. The cost: a deploy that forgets
+  `APP_ENV` skips the check. The deploy configs set it explicitly to cover that.
+- *Rejected:* refusing the default secret everywhere. That breaks every local run and test for no
+  security gain.
+- *Rate limits in nginx, not in app middleware:* this matches B18's wording, and the LB already exists
+  in the scale compose.
+
+**Q4. Blast radius.**
+- **Production has no proxy rate limit.** The nginx LB exists only in the compose scale setup; Cloud
+  Run has nothing in front. A per-app or Cloud Armor limit would be needed there. Recorded, not done.
+- Too strict a redeem limit could lock out an admin on a shared NAT; 5/min with burst 5 was chosen to
+  allow retries.
+- `legacy/` removal: 31 tracked files deleted. Every file is listed in `e4705a3`'s message and is
+  recoverable from git history. No Makefile, CI, Dockerfile or compose file referenced it.
+- References fixed: README quick start (it ran legacy paths), `scripts/wsl_setup.sh`,
+  `scripts/wsl_powershell_setup.ps1`, the `models/sandipan_models/model_interface.py` docstring,
+  `docs/architecture.md`, `flow.md`, `rules.md`, and the audit doc.
+- `scripts/wsl_train_nt.sh` was also deleted; its only job was running the legacy trainer.
+- **4 untracked, git-ignored files remain under `legacy/src/data/`** (`debug_fasta_parse.py`,
+  `convert.py`, `raw/sample.fasta`, `raw/sample.csv`). They were never in git, so the orchestrator
+  left them in place rather than delete local files with no copy anywhere.
+- The root PNGs moved to `docs/images/`; nothing referenced them.
+- `.gitignore` gains `PSEUDO FILE/` and `.playwright-mcp/`. `synthveda-data/` was already ignored,
+  with 0 tracked files.
+
+**Q5. Verification (measured).**
+- `services/api/tests/test_jwt_secret_check.py`: 16 cases, including a subprocess import of `app.main`
+  with `APP_ENV=production`.
+- `nginx -t` OK; `docker compose config -q` OK.
+- The API imports with this machine's local `.env` (no `APP_ENV` set, so dev).
+- `LATEST_USHNIK` after the merge: API **509 passed**, worker **295 passed**, `npm run build` OK,
+  Playwright **37 passed**.
+
+**Q6. Defence: "A default of dev means production is unprotected by default."**
+The deploy definitions in the repo (Cloud Run YAML, terraform) set `APP_ENV=production`, and the test
+proves that mode refuses a weak secret. The remaining risk is a hand-rolled deploy that ignores those
+files. Making `APP_ENV` mandatory, with no default, would close it, at the cost of every local run;
+that is listed for v2.
