@@ -344,8 +344,9 @@ def local_copy_for_upload(upload: dict, settings: Any) -> Iterator[Path]:
     Yield a local path holding the bytes of an upload document's file.
 
     - storage_uri local://  -> the file under UPLOAD_STORAGE_DIR, read in place.
-    - storage_uri s3://     -> streamed into a temp file (same extension, so
-                               format detection still works), deleted on exit.
+    - storage_uri s3://     -> streamed into a temp file with the key's
+                               basename (so format detection and source_file
+                               match the local backend), deleted on exit.
     - no storage_uri, but a legacy `file_path` (pre-B7 docs) -> that path.
 
     When the doc records checksum_sha256 the bytes are verified against it.
@@ -376,10 +377,13 @@ def local_copy_for_upload(upload: dict, settings: Any) -> Iterator[Path]:
         yield path
         return
 
-    suffix = "".join(PurePosixPath(key).suffixes[-1:])
-    fd, tmp = tempfile.mkstemp(prefix="synthveda-upload-", suffix=suffix)
+    # The temp file keeps the key's basename (<upload_id>_<filename>): the
+    # parser picks the format by extension and records the name as each
+    # sequence's source_file, so it must match what the local backend gives.
+    tmpdir = Path(tempfile.mkdtemp(prefix="synthveda-upload-"))
+    tmp = tmpdir / PurePosixPath(key).name
     try:
-        with os.fdopen(fd, "wb") as out:
+        with tmp.open("wb") as out:
             body = storage.open(key)
             try:
                 reader = _HashingReader(body)
@@ -387,6 +391,6 @@ def local_copy_for_upload(upload: dict, settings: Any) -> Iterator[Path]:
             finally:
                 body.close()
         _verify(upload, reader.sha256, uri)
-        yield Path(tmp)
+        yield tmp
     finally:
-        Path(tmp).unlink(missing_ok=True)
+        shutil.rmtree(tmpdir, ignore_errors=True)

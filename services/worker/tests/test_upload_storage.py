@@ -76,7 +76,11 @@ async def test_parses_an_s3_upload(settings, s3, monkeypatch):
     monkeypatch.setattr(settings, "storage_backend", "s3")
     obj = storage_from_settings(settings).put("upl_1_sample.fasta", BytesIO(FASTA))
     assert obj.uri == f"s3://{BUCKET}/upl_1_sample.fasta"
-    assert _ids(await _stage_parse(_doc(obj))) == ["seq_001", "seq_002"]
+    records = await _stage_parse(_doc(obj))
+    assert _ids(records) == ["seq_001", "seq_002"]
+    # source_file is the stored name, as with the local backend -- not the
+    # name of the worker's temp copy.
+    assert {r["source_file"] for r in records} == {"upl_1_sample.fasta"}
 
 
 async def test_s3_upload_is_read_even_if_worker_backend_is_local(settings, s3, monkeypatch):

@@ -283,9 +283,11 @@ def test_local_copy_streams_s3_to_a_temp_file_and_cleans_up(tmp_path, s3):
     obj = storage_from_settings(settings).put("upl_1_a.fasta", BytesIO(FASTA))
     doc = {"upload_id": "upl_1", "storage_uri": obj.uri, "checksum_sha256": obj.sha256}
     with local_copy_for_upload(doc, settings) as path:
-        assert path.suffix == ".fasta"  # the parser picks the format by extension
+        # Same name as the local backend's file: the parser picks the format
+        # by extension and records the name as source_file.
+        assert path.name == "upl_1_a.fasta"
         assert path.read_bytes() == FASTA
-    assert not path.exists()
+    assert not path.exists() and not path.parent.exists()
 
 
 def test_local_copy_reads_legacy_file_path(tmp_path):
