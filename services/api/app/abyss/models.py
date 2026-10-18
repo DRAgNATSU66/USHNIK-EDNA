@@ -60,7 +60,8 @@ class OfflinePackManifest(BaseModel):
 
 class OfflinePackComponent(BaseModel):
     name: str
-    component_type: str  # model_pack | reference_pack | contaminant_pack | metadata_pack | license
+    component_type: str  # model_pack | reference_pack | contaminant_pack | metadata_pack | license | route_classifier
+    # status: available | not_yet_trained | not_yet_available | requires_manual_download | unavailable
     status: str  # available | not_yet_trained | requires_manual_download
     size_mb_estimate: float
     description: str
@@ -103,10 +104,38 @@ class AbyssSequenceResult(BaseModel):
     reason_codes: list[str]
     # Explicit field-triage action
     field_action: str  # preserve_sample | continue_sampling | resample | return_for_full_analysis
-    # True when the heuristic router raised and the GC-only fallback was used;
-    # router_error carries "<ExceptionType>: <message>" (B12).
+    # Which router produced `route` (B25):
+    #   learned          learned k-mer router (learned_router.py)
+    #   gc_fallback      learned router unavailable or failed; GC-only routing
+    #   gc_only          GC-only routing forced by SYNTHVEDA_ROUTER=heuristic
+    #   low_quality_gate QC gate fired before any router ran
+    router_method: str = "gc_fallback"
+    router_version: Optional[str] = None
+    # Why the learned router was not used (e.g. "artifact_missing"); None when it was.
+    router_fallback_reason: Optional[str] = None
+    # Per-route probabilities; calibrated (dev-fitted temperature) when
+    # probabilities_calibrated is True. Empty for GC-only routing.
+    route_probabilities: dict[str, float] = Field(default_factory=dict)
+    probabilities_calibrated: bool = False
+    # True when GC-only routing was used because the learned router was
+    # unavailable or failed (not when forced); router_error carries
+    # "<reason>: <detail>" (B12, B25).
     router_error_fallback: bool = False
     router_error: Optional[str] = None
+
+
+class AbyssRouterSummary(BaseModel):
+    """Which router ran for a batch (B25)."""
+    # learned | gc_fallback | gc_only: the router state for this batch. With
+    # "learned", single sequences can still fall back (e.g. no valid k-mer);
+    # `counts` gives the per-sequence router_method tally.
+    method: str
+    model_id: Optional[str] = None
+    version: Optional[str] = None
+    artifact_sha256: Optional[str] = None
+    fallback_reason: Optional[str] = None
+    detail: Optional[str] = None
+    counts: dict[str, int] = Field(default_factory=dict)
 
 
 class AbyssAnalysisResult(BaseModel):
@@ -123,6 +152,7 @@ class AbyssAnalysisResult(BaseModel):
     batch_recommendation: str
     batch_risk_level: str  # low | medium | high
     requires_cloud_confirmation: bool
+    router: Optional[AbyssRouterSummary] = None
 
 
 class OfflineSyncedAnalysis(BaseModel):
@@ -134,6 +164,8 @@ class OfflineSyncedAnalysis(BaseModel):
     analyzed_at: Optional[datetime] = None
     device_id: Optional[str] = None
     raw_results: list[dict] = Field(default_factory=list)
+    # AbyssAnalysisResult.router, so the synced record says which router ran.
+    router: Optional[dict] = None
 
 
 class AbyssSyncRequest(BaseModel):

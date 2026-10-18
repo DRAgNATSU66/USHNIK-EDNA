@@ -40,6 +40,7 @@ services:
       MODELS_REGISTRY_PATH: /app/models/registry
       # POST /models/register and /promote verify artifact checksums under the
       # data root and write models/registry (shared with the worker) (B8).
+      # Abyss loads the router.npz named by the registry from here (B25).
       SYNTHVEDA_DATA_ROOT: /data
       <<: *object-storage-env
     depends_on:
