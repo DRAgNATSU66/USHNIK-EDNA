@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Any, Literal
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Possible-novelty cutoff: a sequence with novelty_score >= this is counted as
@@ -82,6 +82,27 @@ class Settings(BaseSettings):
 
     # Novelty (see DEFAULT_NOVELTY_THRESHOLD above). Exposed on GET /health.
     novelty_threshold: float = Field(default=DEFAULT_NOVELTY_THRESHOLD, gt=0.0, lt=1.0)
+
+    # Environmental context per upload (Q5, t-1026-1; app/environment/).
+    # Looked up in a background task after an upload with coordinates +
+    # collected_at; providers and their order are in app/environment/providers.py.
+    environment_context_enabled: bool = True
+    environment_provider_timeout_s: float = Field(default=15.0, gt=0)  # per HTTP request
+    environment_provider_retries: int = Field(default=1, ge=0, le=3)  # extra attempts on network/5xx
+    # Coastal samples often fall on a land cell; use the nearest ocean cell
+    # within this distance (inside the fetched chunk), else "unavailable".
+    environment_max_cell_distance_km: float = Field(default=30.0, gt=0)
+    # Optional Copernicus Marine account. Without it the ARCO stores are read
+    # anonymously (worked 2026-10-18, undocumented). The toolbox's own env
+    # names are accepted too.
+    copernicus_marine_username: str = Field(
+        default="",
+        validation_alias=AliasChoices("COPERNICUS_MARINE_USERNAME", "COPERNICUSMARINE_SERVICE_USERNAME"),
+    )
+    copernicus_marine_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("COPERNICUS_MARINE_PASSWORD", "COPERNICUSMARINE_SERVICE_PASSWORD"),
+    )
 
 
 @lru_cache

@@ -106,6 +106,26 @@ export const getUpload = (upload_id) =>
   request("GET", `/uploads/${upload_id}`);
 
 // ---------------------------------------------------------------------------
+// Environmental context (Q5): public temperature / salinity / DO / pH /
+// currents / wind for an upload with coordinates + collected_at.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cached environmental context for an upload. `status` is not_applicable |
+ * pending | complete | partial | failed; each entry in `variables` has
+ * status ok | user_provided | unavailable (with `reason`), the value + unit,
+ * and `public` (source, dataset_id, query_url, grid_point, retrieved_at).
+ * A user-entered DO/pH/temperature/salinity wins; the public value is kept
+ * alongside it.
+ */
+export const getEnvironmentContext = (upload_id) =>
+  request("GET", `/environment/uploads/${upload_id}`);
+
+/** Admin only: re-fetch from the public sources, skipping the shared cache. */
+export const refreshEnvironmentContext = (upload_id) =>
+  request("POST", `/environment/uploads/${upload_id}/refresh`);
+
+// ---------------------------------------------------------------------------
 // Analysis jobs
 // ---------------------------------------------------------------------------
 

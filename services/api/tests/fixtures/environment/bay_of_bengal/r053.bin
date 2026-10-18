@@ -1,0 +1,10 @@
+{
+  "table": {
+    "columnNames": ["time", "depth", "latitude", "longitude", "sst"],
+    "columnTypes": ["String", "float", "float", "float", "float"],
+    "columnUnits": ["UTC", "m", "degrees_north", "degrees_east", "Celsius"],
+    "rows": [
+      ["2026-10-01T12:00:00Z", 0, 15.625, 82.375, 29.859999]
+    ]
+  }
+}

@@ -180,7 +180,9 @@ class TestSingleSourceOfTruth:
         assert set(OPTIONAL_METADATA_FIELDS) <= set(UploadDoc.model_fields)
 
     def test_post_uploads_accepts_exactly_the_optional_fields(self):
-        params = set(inspect.signature(create_upload).parameters) - {"current_user", "file"}
+        params = set(inspect.signature(create_upload).parameters) - {
+            "current_user", "file", "background_tasks",  # background_tasks: Q5 env lookup
+        }
         assert params == set(OPTIONAL_METADATA_FIELDS)
 
     def test_report_metadata_carries_every_optional_field(self):

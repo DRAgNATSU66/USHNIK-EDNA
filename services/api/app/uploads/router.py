@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.concurrency import run_in_threadpool
 
 from ..auth.deps import get_current_user
@@ -11,6 +11,7 @@ from ..models.upload import UploadDoc, UploadStatus
 from ..db import get_db
 from ..config import get_settings
 from ..storage import storage_from_settings, upload_key
+from .access import can_view_upload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ def _validation_error(detail: str) -> HTTPException:
 @router.post("", response_model=UploadDoc, status_code=status.HTTP_201_CREATED)
 async def create_upload(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     # Every metadata field is optional (decisions.md 2026-10-14, Q2); the
     # list of them lives in models/upload.py OPTIONAL_METADATA_FIELDS.
@@ -133,6 +135,19 @@ async def create_upload(
     db = get_db()
     await db["uploads"].insert_one(doc.model_dump())
 
+    # Environmental context (Q5, t-1026-1): with coordinates + collection date,
+    # look up public temperature/salinity/DO/pH/currents/wind after the
+    # response is sent. It never blocks or fails the upload; results land in
+    # environment_contexts and are served by GET /environment/uploads/{id}.
+    if (
+        settings.environment_context_enabled
+        and latitude is not None
+        and longitude is not None
+        and collected_at is not None
+    ):
+        from ..environment.service import run_lookup  # lazy: avoids an import cycle
+        background_tasks.add_task(run_lookup, doc.upload_id)
+
     return doc
 
 
@@ -148,11 +163,8 @@ async def get_upload(
 
     upload = UploadDoc(**{k: v for k, v in doc.items() if k != "_id"})
 
-    # Users can only see their own uploads unless admin
-    from ..models.user import UserRole
-    if upload.user_id != current_user.user_id and current_user.role not in (
-        UserRole.admin, UserRole.company_owner
-    ):
+    # Users can only see their own uploads unless admin / company_owner
+    if not can_view_upload(upload.user_id, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     return upload

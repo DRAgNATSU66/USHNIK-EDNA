@@ -46,6 +46,16 @@ class _AsyncCursor:
         raise StopAsyncIteration
 
 
+@pytest.fixture(autouse=True)
+def _no_live_environment_lookups(monkeypatch):
+    """POST /uploads schedules a public-data lookup (Q5, app/environment/) for
+    uploads with coordinates + collected_at. The suite never makes live calls:
+    lookups are off unless a test turns them on (tests/test_environment_context.py
+    does, with a recorded-fixture transport)."""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "environment_context_enabled", False)
+
+
 @pytest.fixture
 def app_instance():
     return create_app()

@@ -1,0 +1,224 @@
+{
+    "metadata": {
+        ".zattrs": {
+            "Conventions": "CF-1.6",
+            "area": "GLOBAL",
+            "contact": "https://marine.copernicus.eu/contact",
+            "credit": "E.U. Copernicus Marine Service Information (CMEMS)",
+            "institution": "Mercator Ocean",
+            "licence": "http://marine.copernicus.eu/services-portfolio/service-commitments-and-licence/",
+            "producer": "CMEMS - Global Monitoring and Forecasting Centre",
+            "quality_information_document": "http://marine.copernicus.eu/documents/QUID/CMEMS-GLO-QUID-001-028.pdf",
+            "references": "http://marine.copernicus.eu",
+            "title": "daily mean fields from Global Ocean Biogeochemistry Analysis and Forecast"
+        },
+        ".zgroup": {
+            "zarr_format": 2
+        },
+        "elevation/.zarray": {
+            "chunks": [
+                50
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                50
+            ],
+            "zarr_format": 2
+        },
+        "elevation/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "elevation"
+            ],
+            "axis": "Z",
+            "long_name": "Elevation",
+            "positive": "up",
+            "standard_name": "elevation",
+            "unit_long": "Meters",
+            "units": "m"
+        },
+        "latitude/.zarray": {
+            "chunks": [
+                681
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                681
+            ],
+            "zarr_format": 2
+        },
+        "latitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "latitude"
+            ],
+            "axis": "Y",
+            "long_name": "Latitude",
+            "standard_name": "latitude",
+            "step": 0.25,
+            "unit_long": "Degrees North",
+            "units": "degrees_north",
+            "valid_max": 90.0,
+            "valid_min": -80.0
+        },
+        "longitude/.zarray": {
+            "chunks": [
+                1440
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "longitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "longitude"
+            ],
+            "axis": "X",
+            "long_name": "Longitude",
+            "standard_name": "longitude",
+            "step": 0.25,
+            "unit_long": "Degrees East",
+            "units": "degrees_east",
+            "valid_max": 179.75,
+            "valid_min": -180.0
+        },
+        "nppv/.zarray": {
+            "chunks": [
+                155,
+                2,
+                32,
+                64
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": 9.969209968386869e+36,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                1822,
+                50,
+                681,
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "nppv/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "elevation",
+                "latitude",
+                "longitude"
+            ],
+            "long_name": "Total Primary Production of Phyto",
+            "standard_name": "net_primary_production_of_biomass_expressed_as_carbon_per_unit_volume_in_sea_water",
+            "unit_long": "milligrams of Carbon per cubic meter per day",
+            "units": "mg m-3 day-1",
+            "valid_max": 2500.0,
+            "valid_min": 0.0
+        },
+        "o2/.zarray": {
+            "chunks": [
+                155,
+                2,
+                32,
+                64
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": 9.969209968386869e+36,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                1822,
+                50,
+                681,
+                1440
+            ],
+            "zarr_format": 2
+        },
+        "o2/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "elevation",
+                "latitude",
+                "longitude"
+            ],
+            "long_name": "Dissolved Oxygen",
+            "standard_name": "mole_concentration_of_dissolved_molecular_oxygen_in_sea_water",
+            "unit_long": "millimoles of Oxygen per cubic meter",
+            "units": "mmol m-3",
+            "valid_max": 2000.0,
+            "valid_min": 0.0
+        },
+        "time/.zarray": {
+            "chunks": [
+                775
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f4",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                1822
+            ],
+            "zarr_format": 2
+        },
+        "time/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time"
+            ],
+            "calendar": "gregorian",
+            "units": "hours since 1950-01-01"
+        }
+    },
+    "zarr_consolidated_format": 1
+}
