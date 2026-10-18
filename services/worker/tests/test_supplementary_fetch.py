@@ -203,8 +203,7 @@ class TestLabelCandidate:
         out, reason = fs.label_candidate(q, SEQ_300, "5", "", FakeTaxonomy())
         assert out is None and reason == "routed_to:animal_general"
 
-    @pytest.mark.parametrize("qid", ["ncbi_human_mito_control_region", "ncbi_human_mito_rrna",
-                                     "ncbi_human_nuclear_rrna"])
+    @pytest.mark.parametrize("qid", ["ncbi_human_mito_control_region", "ncbi_human_nuclear_rrna"])
     def test_human_queries_label_through_taxonomy(self, qid):
         q = fs.QUERIES_BY_ID[qid]
         assert q.label_basis == "taxonomy"
@@ -215,7 +214,7 @@ class TestLabelCandidate:
         assert fs.label_candidate(q, SEQ_300, "2", "", FakeTaxonomy())[1] == "routed_to:animal_general"
 
     def test_human_queries_exclude_archaic_subspecies_and_pdb(self):
-        for qid in ("ncbi_human_mito_control_region", "ncbi_human_mito_rrna", "ncbi_human_nuclear_rrna"):
+        for qid in ("ncbi_human_mito_control_region", "ncbi_human_nuclear_rrna"):
             assert "txid9606[Organism:noexp]" in fs.QUERIES_BY_ID[qid].base_query
         assert "NOT srcdb_pdb[PROP]" in fs.QUERIES_BY_ID["ncbi_human_nuclear_rrna"].base_query
 

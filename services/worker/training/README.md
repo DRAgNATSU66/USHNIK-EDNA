@@ -30,23 +30,37 @@ exact search terms). In summary:
 | `ncbi_fish_env` | NCBI E-utilities | Actinopterygii "environmental samples" | any | 150–2000 | fish / possible_novelty |
 | `ena_fish_env` | ENA Portal API | Actinopterygii, `environmental_sample=true` | any | 150–2000 | same |
 | `ncbi_human_mito_control_region` | NCBI E-utilities | Homo sapiens (not expanded), mitochondrion | D-loop / control region / HVR | 150–2000 | human_domestic_contamination / known_species |
-| `ncbi_human_mito_rrna` | NCBI E-utilities | same | mito 12S/16S rRNA | 150–2000 | same |
 | `ncbi_human_nuclear_rrna` | NCBI E-utilities | Homo sapiens (not expanded), PDB chains excluded | 18S/28S/5.8S/45S rRNA | 150–2000 | same |
 | `ncbi_cloning_vectors` | NCBI E-utilities | taxon 29278 "vectors", complete sequences | vector | 1000–20000 | human_domestic_contamination / possible_contamination |
 | `ncbi_phix174` | NCBI E-utilities | Escherichia phage phiX174, complete genomes | genome | 4000–6000 | same |
 
-Kept per query on the 2026-10-15 / 2026-10-18 runs (records, then unique sequences): animal COI
-2000/1945, animal 18S 1500/1291, animal 16S 225/146, ENA animal 1500/1492, NCBI fish 872/836,
-ENA fish 4/4, human control region 800/779, human mito rRNA 400/346, human nuclear rRNA 358/138,
-vectors 1500/1500, PhiX174 157/145. `run.json` has the rejection reasons for each.
+Kept per query on the 2026-10-15 and 2026-10-18 runs, as records then unique sequences:
 
-The human queries do not fill an empty class (`human_domestic_contamination/known_species` is
-already at the 5000 cap). They change what is in it. In the current `processed/`, about 35% of
-that class is 400 bp GRCh38 windows, all from chr1 (`iter_grch38` reaches its 20k-window cap
-inside the first chromosome). The rest are gene-length mitochondrial records. Neither group
-covers the mtDNA control region or nuclear rRNA, and those are the human reads an eDNA or
-metabarcoding run actually picks up. These records are labelled through taxonomy (Homo sapiens
-gives this route, and `assign_label` gives known_species), so they follow the same path as GRCh38.
+| Query | Records | Unique |
+|-------|--------:|-------:|
+| animal COI | 2000 | 1945 |
+| animal 18S | 1500 | 1291 |
+| animal 16S | 225 | 146 |
+| ENA animal | 1500 | 1492 |
+| NCBI fish | 872 | 836 |
+| ENA fish | 4 | 4 |
+| human control region | 800 | 779 |
+| human nuclear rRNA | 358 | 138 |
+| vectors | 1500 | 1500 |
+| PhiX174 | 157 | 145 |
+
+Each query's `run.json` gives its rejection reasons.
+
+The human queries do not fill an empty class. `human_domestic_contamination/known_species` is
+already at the 5000 cap, and the queries add loci that class lacks. Measured on `processed/` on
+2026-10-18, 1732 of its 5000 rows are 400 bp windows. The rest are gene-length mito records
+(cytb, COI, 12S, 16S). The overlap check counts fetched records that share at least one 32-mer
+with an existing row: 1 of 358 for nuclear rRNA and 110 of 800 for the control region.
+`chunk_long_sequence` keeps only the first 3.6 kb of a mitogenome, so HVR1 never arrives from long
+records. A human mito 12S/16S query was also run (400 records). It was dropped because 390 of
+those 400 already shared a 32-mer with existing rows, so it added near-duplicates and no new
+coverage. These records are labelled through taxonomy (Homo sapiens gives this route, and
+`assign_label` gives known_species), the same path GRCh38 takes.
 
 Fish yield is low by construction. 2581 of the 3453 NCBI fish hits are "Actinopterygii
 environmental sample". In the NCBI taxonomy, Actinopterygii is a superclass, so that lineage has

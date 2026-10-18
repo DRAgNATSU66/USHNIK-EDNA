@@ -199,12 +199,14 @@ QUERIES: tuple[SupplementaryQuery, ...] = (
     ),
     # Human DNA as a contaminant. Taxonomy-labelled: Homo sapiens routes to
     # human_domestic_contamination and assign_label gives known_species, the same
-    # path the GRCh38 windows and the mito BLAST DB records take. processed/
-    # holds ~35% 400 bp nuclear windows (chr1 only: iter_grch38 hits its 20k
-    # window cap inside chr1) and the rest gene-length mito records; neither covers
-    # the mtDNA control region, the most-sequenced human locus, nor nuclear rRNA,
-    # which universal eukaryote 18S primers amplify from human handlers.
-    # [Organism:noexp] keeps out archaic Homo subspecies.
+    # path GRCh38 and the mito records take. Measured on processed/ (2026-10-18):
+    # 1732/5000 human known_species rows are 400 bp windows, and the rest are gene-length
+    # mito records (top lengths 1141, 1542, 1558, 954 = cytb, COI, 16S, 12S).
+    # Measured by shared 32-mers, nuclear rRNA (1/358 fetched records share
+    # one) and the control region (110/800) are mostly new. Human mito 12S/16S was
+    # fetched too (400 records) but 390/400 already shared a 32-mer with
+    # processed rows, so it added near-duplicates rather than coverage and was
+    # dropped (QNA transcript, t-1019-1). [Organism:noexp] keeps out archaic Homo.
     SupplementaryQuery(
         query_id="ncbi_human_mito_control_region", source="ncbi",
         target_route="human_domestic_contamination", target_label=SequenceResultClass.known_species,
@@ -213,19 +215,9 @@ QUERIES: tuple[SupplementaryQuery, ...] = (
         base_query='txid9606[Organism:noexp] AND ("D-loop"[Title] OR "control region"[Title] '
                    'OR "hypervariable region"[Title]) AND mitochondrion[Filter]',
         min_len=150, max_len=_AMPLICON_MAX, max_records=800,
-        rationale="Control-region amplicons are the classic human contaminant in eDNA/aDNA work "
-                  "and are absent from the current human route pool.",
-    ),
-    SupplementaryQuery(
-        query_id="ncbi_human_mito_rrna", source="ncbi",
-        target_route="human_domestic_contamination", target_label=SequenceResultClass.known_species,
-        label_basis="taxonomy", taxon="Homo sapiens (txid9606, not expanded)",
-        marker="mitochondrial 12S/16S rRNA",
-        base_query='txid9606[Organism:noexp] AND ("12S ribosomal RNA"[Title] OR '
-                   '"16S ribosomal RNA"[Title]) AND mitochondrion[Filter]',
-        min_len=150, max_len=_AMPLICON_MAX, max_records=400,
-        rationale="Vertebrate 12S/16S metabarcoding primers (MiFish, Riaz 12S, 16Smam) co-amplify "
-                  "human mtDNA; this is the human read a fish/animal eDNA run actually sees.",
+        rationale="Control-region amplicons are the classic human contaminant in eDNA/aDNA work; "
+                  "chunk_long_sequence keeps only the first 3.6 kb of a mitogenome, so HVR1 "
+                  "(rCRS 16024-16365) never reaches the human route from long records.",
     ),
     SupplementaryQuery(
         query_id="ncbi_human_nuclear_rrna", source="ncbi",
