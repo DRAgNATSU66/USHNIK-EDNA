@@ -159,16 +159,38 @@ def load_from_registry(registry=None) -> LearnedRouterModel:
 # ---------------------------------------------------------------------------
 
 _lock = threading.Lock()
-_state: dict[str, Any] = {"loaded": False, "model": None, "reason": None}
+# "selection" is the registry entry the cached result was loaded for, as
+# (model_id, artifact_uri, checksum). When a promotion changes the router the
+# registry would select, the cache is dropped and the new entry loaded (B8).
+# "pinned" marks a model installed by set_learned_router(), which is kept.
+_state: dict[str, Any] = {"loaded": False, "model": None, "reason": None, "selection": None, "pinned": False}
+
+
+def _current_selection() -> tuple | None:
+    """Identity of the router entry the registry selects now, or None."""
+    try:
+        from ..inference.registry import get_registry
+
+        entry = get_registry().best_available(ROUTER_REGISTRY_ROUTE)
+    except Exception:  # registry problems surface through load_from_registry
+        return None
+    return None if entry is None else (entry.model_id, entry.artifact_uri, entry.checksum)
 
 
 def get_learned_router() -> tuple[LearnedRouterModel | None, str | None]:
     """(model, None) when the learned router is usable, else (None, reason)."""
     if os.environ.get(ROUTER_ENV, "").strip().lower() == "heuristic":
         return None, "router_forced_heuristic"
+    selection = None if _state["pinned"] else _current_selection()
+    if _state["loaded"] and not _state["pinned"] and selection != _state["selection"]:
+        logger.info("Router registry selection changed (%s -> %s); reloading",
+                    _state["selection"], selection)
+        with _lock:
+            _state["loaded"] = False
     if not _state["loaded"]:
         with _lock:
             if not _state["loaded"]:
+                _state["selection"] = selection
                 try:
                     _state["model"] = load_from_registry()
                     _state["reason"] = None
@@ -189,10 +211,11 @@ def get_learned_router() -> tuple[LearnedRouterModel | None, str | None]:
 def set_learned_router(model: LearnedRouterModel | None, reason: str | None = None) -> None:
     """Install a model (or a failure reason) directly. For tests and evaluation scripts."""
     with _lock:
-        _state.update(loaded=True, model=model, reason=None if model is not None else (reason or "no_model_installed"))
+        _state.update(loaded=True, model=model, reason=None if model is not None else (reason or "no_model_installed"),
+                      pinned=True, selection=None)
 
 
 def reset_learned_router() -> None:
     """Forget the cached model so the next call reloads from the registry."""
     with _lock:
-        _state.update(loaded=False, model=None, reason=None)
+        _state.update(loaded=False, model=None, reason=None, pinned=False, selection=None)
