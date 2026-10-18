@@ -14,6 +14,14 @@ Run from services/worker/:
     python -m training.evaluate_checkpoint --route bacteria_pathogen
     python -m training.evaluate_checkpoint --route bacteria_pathogen \
         --checkpoint-dir E:/synthveda-data/checkpoints/bacteria_pathogen_nt500m_clean
+
+Scoring an old checkpoint on a *different* (e.g. rebuilt) test set must not
+overwrite that checkpoint's own eval_report.json / metrics.json -- those are
+the record of what it scored on the data it was trained against. Pass
+--report-out to write the report elsewhere; the checkpoint dir is then
+left untouched:
+    python -m training.evaluate_checkpoint --route fish --data-dir <root> \
+        --checkpoint-dir <root>/checkpoints/fish --report-out /tmp/fish_v1_on_new.json
 """
 from __future__ import annotations
 
@@ -45,6 +53,11 @@ def main() -> None:
     parser.add_argument("--checkpoint-dir", default=None, help="Defaults to <data-dir>/checkpoints/<route>")
     parser.add_argument("--max-length", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument(
+        "--report-out", default=None,
+        help="Write eval_report.json here instead of into the checkpoint dir, and leave "
+             "the checkpoint's metrics.json untouched.",
+    )
     args = parser.parse_args()
 
     from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, AutoConfig
@@ -81,7 +94,7 @@ def main() -> None:
         embedding_dim = backbone.config.hidden_size
 
     head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(labels)).to(device)
-    head.load_state_dict(torch.load(head_path, map_location=device))
+    head.load_state_dict(torch.load(head_path, map_location=device, weights_only=True))
     head.eval()
 
     data_dir = Path(args.data_dir) / "processed" / args.route
@@ -103,12 +116,22 @@ def main() -> None:
             all_labels.extend(batch_labels.tolist())
 
     report = build_eval_report(all_labels, all_preds, label_names)
+    report["checkpoint_dir"] = str(checkpoint_dir)
+    report["test_csv"] = str(data_dir / "test.csv")
+    report["max_length"] = args.max_length
     print(f"\nTEST  acc={report['accuracy']:.4f}  macro_f1={report['f1_macro']:.4f}")
     from sklearn.metrics import classification_report
     print(classification_report(
         all_labels, all_preds, target_names=label_names,
         labels=list(range(len(labels))), zero_division=0,
     ))
+
+    if args.report_out:
+        report_path = Path(args.report_out)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2))
+        print(f"saved: {report_path} (checkpoint dir left untouched)")
+        return
 
     report_path = checkpoint_dir / "eval_report.json"
     report_path.write_text(json.dumps(report, indent=2))
