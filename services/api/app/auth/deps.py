@@ -20,6 +20,16 @@ async def get_current_user(
     except pyjwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
+    # Offline Abyss credentials are signed with the same secret but are not API
+    # access tokens: an offline license (type=offline_license, up to 90 days)
+    # or an expedition session (mode=abyss_offline, 45 days) cannot be revoked,
+    # so neither may authenticate API calls.
+    if payload.get("type") == "offline_license" or payload.get("mode") == "abyss_offline":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Offline expedition credentials cannot be used as an API access token",
+        )
+
     return UserProfile(
         user_id=payload["sub"],
         email=payload.get("email", ""),
