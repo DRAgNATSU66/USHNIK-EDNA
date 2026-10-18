@@ -17,11 +17,18 @@ these too.
 import json
 import logging
 import os
+from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Annotated, Any, Literal, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
+from ..auth.deps import require_role
+from ..db import get_db
+from . import promotion as promo
 from .analysis import TaxonomicRoute
+from .user import UserProfile, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +64,20 @@ DATA_URI_PREFIX = "data:"
 # a file missing any of them is dropped by the worker, so it is an error here.
 _REQUIRED_FIELDS = ("model_id", "route", "base_model")
 
-# Worker registry tier order (registry.ModelRegistry.for_route).
-_TIER_ORDER = {"experimental": 0, "staging": 1, "production": 2, "retired": -1}
+# Worker registry tier order (registry.STATUS_RANK). "candidate" (written by
+# POST /models/register) ranks below every serving tier: registered, not served.
+_TIER_ORDER = {"candidate": -1, "experimental": 0, "staging": 1, "production": 2, "retired": -1}
 
 # Routes that get a model. low_quality sequences never reach inference
 # (predictor.run_inference short-circuits them).
 MODEL_ROUTES = [r.value for r in TaxonomicRoute if r != TaxonomicRoute.low_quality]
+
+# Routes a registry entry may name: the six route models plus the learned
+# router (QNA-010), which the worker finds as the entry with "route": "router".
+REGISTRY_ROUTES = MODEL_ROUTES + [promo.ROUTER_ROUTE]
+
+# Same set the review/curation admin endpoints accept.
+_ADMIN_ROLES = (UserRole.admin, UserRole.company_owner)
 
 
 def _resolve_data_root() -> Path:
@@ -232,7 +247,367 @@ async def models_status():
 
 @router.get("/registry")
 async def models_registry():
-    """Return all model registry entries from models/registry/*.json, plus any files that failed to parse."""
+    """
+    Return all model registry entries from models/registry/*.json, plus any files
+    that failed to parse, and for each route (router included) the model_id the
+    worker would select.
+    """
     parsed, errors = _load_registry(REGISTRY_DIR)
     entries = [d for _, d in parsed]
-    return {"models": entries, "count": len(entries), "errors": errors}
+    selected = {}
+    for route in REGISTRY_ROUTES:
+        e = _select_entry(route, entries)
+        selected[route] = e["model_id"] if e else None
+    return {"models": entries, "count": len(entries), "errors": errors, "selected_by_route": selected}
+
+
+# ---------------------------------------------------------------------------
+# Registration and promotion (B8). Representation and rationale:
+# app/models/promotion.py module docstring.
+# ---------------------------------------------------------------------------
+
+class RegisterModelRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=(), extra="forbid")
+
+    model_id: str
+    route: str
+    base_model: str
+    artifact_uri: str = Field(description="data:<relative path> to the head (.pt/.bin) or router (.npz)")
+    checksum: str = Field(description="SHA-256 of the artifact file; verified against the file on disk")
+    metrics: dict[str, Any]
+    label_set_version: str
+    training_dataset_version: str
+    label_set: list[str] = []
+    head_type: Optional[str] = None
+    embedding_dim: int = 768
+    thresholds: dict[str, float] = {"high_confidence": 0.75, "low_confidence": 0.4}
+    trusted_remote_code: bool = False
+    created_at: Optional[str] = None  # YYYY-MM-DD the model was trained; default today (UTC)
+    notes: Optional[str] = None
+
+
+class PromoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # true: validate and return the plan (current model, deltas, demotions)
+    # without writing anything. The Admin page's confirmation step uses this.
+    dry_run: bool = False
+    # The model_id the caller saw serving the route when it decided (null for
+    # "none"). If the route changed since, the promotion is refused with 409.
+    # Omit to skip the check (make train-promote does).
+    expected_current_model_id: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+
+def _raise(exc: promo.RegistryError):
+    raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _actor(user: UserProfile) -> dict:
+    return {"actor_id": user.user_id, "actor_email": user.email, "actor_role": str(user.role)}
+
+
+def _registry_dir_writable() -> Path:
+    if not REGISTRY_DIR.is_dir():
+        raise promo.RegistryError(503, "model registry directory not found on the API host")
+    if not os.access(REGISTRY_DIR, os.W_OK):
+        raise promo.RegistryError(503, "model registry directory is read-only on the API host")
+    return REGISTRY_DIR
+
+
+@router.post("/register", status_code=201)
+async def register_model(
+    body: RegisterModelRequest,
+    current_user: Annotated[UserProfile, Depends(require_role(*_ADMIN_ROLES))],
+):
+    """
+    Add a trained model to the registry as status "candidate".
+
+    Validates the model_id, route, required metrics, and the artifact: it must
+    be a data: path under the data root whose SHA-256 equals `checksum`. A
+    candidate is never served; POST /models/{model_id}/promote makes it serve.
+    """
+    try:
+        if not promo.MODEL_ID_RE.match(body.model_id):
+            raise promo.RegistryError(422, "model_id must be 3-64 chars of a-z, 0-9, '_', '.', '-'")
+        if body.route not in REGISTRY_ROUTES:
+            raise promo.RegistryError(422, f"route must be one of {REGISTRY_ROUTES}")
+        problems = promo.metric_problems(body.metrics)
+        if problems:
+            raise promo.RegistryError(422, "; ".join(problems))
+        created_at = body.created_at or date.today().isoformat()
+        if not promo.DATE_RE.match(created_at):
+            raise promo.RegistryError(422, "created_at must be YYYY-MM-DD")
+
+        data_root = _resolve_data_root()
+        entry = {
+            "model_id": body.model_id,
+            "route": body.route,
+            "base_model": body.base_model,
+            "head_type": body.head_type or (
+                "route_classification" if body.route == promo.ROUTER_ROUTE else "sequence_classification"
+            ),
+            "embedding_dim": body.embedding_dim,
+            "label_set_version": body.label_set_version,
+            "label_set": body.label_set,
+            "training_dataset_version": body.training_dataset_version,
+            "metrics": body.metrics,
+            "thresholds": body.thresholds,
+            "artifact_uri": body.artifact_uri,
+            "checksum": body.checksum.lower(),
+            "created_at": created_at,
+            "promoted_by": None,
+            "status": promo.CANDIDATE_STATUS,
+            "notes": body.notes,
+            "trusted_remote_code": body.trusted_remote_code,
+        }
+        promo.check_base_model(entry, data_root)
+        await promo.verify_artifact(entry, data_root)
+
+        registry_dir = _registry_dir_writable()
+        now = _now_iso()
+        entry["registered_by"] = current_user.user_id
+        entry["registered_at"] = now
+        target = registry_dir / f"{body.model_id}.json"
+
+        async with promo.registry_lock(registry_dir):
+            parsed, _errors = _load_registry(registry_dir)
+            if target.exists() or any(d["model_id"] == body.model_id for _, d in parsed):
+                raise promo.RegistryError(409, f"model_id {body.model_id!r} is already registered")
+            promo.write_json_atomic(target, entry)
+            try:
+                await get_db()["audit_logs"].insert_one({
+                    "action": "model_registered",
+                    "model_id": body.model_id,
+                    "route": body.route,
+                    "registry_file": target.name,
+                    "checksum": entry["checksum"],
+                    "artifact_uri": body.artifact_uri,
+                    "training_dataset_version": body.training_dataset_version,
+                    "metrics": body.metrics,
+                    **_actor(current_user),
+                    "timestamp": datetime.now(timezone.utc),
+                })
+            except Exception:
+                # No audit record, no registration.
+                promo.restore_text(target, None)
+                logger.exception("audit write for registration of %s failed; registry file removed", body.model_id)
+                raise promo.RegistryError(503, "audit log unavailable; registration not recorded")
+            selected = _select_entry(body.route, [d for _, d in _load_registry(registry_dir)[0]])
+    except promo.RegistryError as exc:
+        _raise(exc)
+
+    logger.info("Model %s registered as candidate on route %s by %s", body.model_id, body.route, current_user.user_id)
+    return {
+        "ok": True,
+        "model": entry,
+        "registry_file": target.name,
+        "serving_model_id": selected["model_id"] if selected else None,
+    }
+
+
+def _promotion_plan(model_id: str, parsed: list[tuple[str, dict]]) -> dict:
+    """Work out a promotion against the registry as it is now; writes nothing."""
+    by_id: dict[str, list[tuple[str, dict]]] = {}
+    for name, d in parsed:
+        by_id.setdefault(d["model_id"], []).append((name, d))
+    if model_id not in by_id:
+        raise promo.RegistryError(404, f"model {model_id!r} is not in the registry")
+    if len(by_id[model_id]) > 1:
+        files = ", ".join(n for n, _ in by_id[model_id])
+        raise promo.RegistryError(409, f"model_id {model_id!r} appears in more than one registry file ({files})")
+    file_name, entry = by_id[model_id][0]
+    route = entry["route"]
+    status = entry.get("status", "experimental")
+    if status == "production":
+        raise promo.RegistryError(409, f"{model_id} is already the production model for route {route}")
+    if status == "retired":
+        raise promo.RegistryError(409, f"{model_id} is retired; register a new version instead")
+    if route not in REGISTRY_ROUTES:
+        raise promo.RegistryError(422, f"{model_id} has route {route!r}, which no worker stage reads")
+    problems = promo.metric_problems(entry.get("metrics"))
+    if problems:
+        raise promo.RegistryError(422, f"{model_id}: " + "; ".join(problems))
+
+    entries = [d for _, d in parsed]
+    current = _select_entry(route, entries)
+    demote = [
+        (name, d) for name, d in parsed
+        if d["route"] == route and d.get("status") == "production" and d["model_id"] != model_id
+    ]
+    compare_to = current if current is not None and current["model_id"] != model_id else None
+    return {
+        "file_name": file_name,
+        "entry": entry,
+        "route": route,
+        "current": current,
+        "demote": demote,
+        "deltas": promo.metric_deltas(entry, compare_to),
+        "warnings": promo.comparability_warnings(entry, compare_to),
+    }
+
+
+def _plan_summary(model_id: str, plan: dict) -> dict:
+    cur = plan["current"]
+    return {
+        "model_id": model_id,
+        "route": plan["route"],
+        "from_status": plan["entry"].get("status", "experimental"),
+        "current_model_id": cur["model_id"] if cur else None,
+        "current_status": cur.get("status", "experimental") if cur else None,
+        "demoted_model_ids": [d["model_id"] for _, d in plan["demote"]],
+        "metric_deltas": plan["deltas"],
+        "warnings": plan["warnings"],
+    }
+
+
+@router.post("/{model_id}/promote")
+async def promote_model(
+    model_id: str,
+    body: PromoteRequest,
+    current_user: Annotated[UserProfile, Depends(require_role(*_ADMIN_ROLES))],
+):
+    """
+    Make a registered model the one the worker serves for its route.
+
+    Sets the entry's status to "production" and demotes any other production
+    entry on that route to "staging", so each route has one promoted model.
+    The artifact checksum is re-verified first. Each promotion writes a
+    model_eval_metrics document and an audit_logs document; if either write
+    fails, the registry files are restored and the promotion is refused.
+    """
+    try:
+        registry_dir = REGISTRY_DIR
+        data_root = _resolve_data_root()
+        if not body.dry_run:
+            _registry_dir_writable()
+        async with promo.registry_lock(registry_dir) if not body.dry_run else _nolock():
+            parsed, _errors = _load_registry(registry_dir)
+            plan = _promotion_plan(model_id, parsed)
+            promo.check_base_model(plan["entry"], data_root)
+            checksum = await promo.verify_artifact(plan["entry"], data_root)
+            summary = _plan_summary(model_id, plan)
+
+            if "expected_current_model_id" in body.model_fields_set and \
+                    body.expected_current_model_id != summary["current_model_id"]:
+                raise promo.RegistryError(
+                    409,
+                    f"route {plan['route']} is now served by {summary['current_model_id']!r}, not "
+                    f"{body.expected_current_model_id!r}; reload and review the comparison again",
+                )
+            if body.dry_run:
+                return {"ok": True, "dry_run": True, **summary}
+
+            now = _now_iso()
+            originals: dict[Path, str] = {}
+
+            def write(name: str, data: dict) -> None:
+                path = registry_dir / name
+                originals.setdefault(path, path.read_text(encoding="utf-8"))
+                promo.write_json_atomic(path, data)
+
+            inserted: list[tuple[str, Any]] = []
+            try:
+                # Demote first: a crash between the two writes leaves the route
+                # on its previous model (now staging), never on two productions.
+                for name, d in plan["demote"]:
+                    write(name, {**d, "status": "staging", "demoted_at": now,
+                                 "demoted_by": current_user.user_id, "demoted_for": model_id})
+                write(plan["file_name"], {**plan["entry"], "status": "production",
+                                          "promoted_by": current_user.user_id, "promoted_at": now,
+                                          "promoted_from_status": summary["from_status"]})
+
+                after = _select_entry(plan["route"], [d for _, d in _load_registry(registry_dir)[0]])
+                if after is None or after["model_id"] != model_id:
+                    raise _PostCheckFailed(
+                        f"post-check failed: route {plan['route']} selects "
+                        f"{after['model_id'] if after else None}, not {model_id}"
+                    )
+
+                db = get_db()
+                metrics = plan["entry"].get("metrics") or {}
+                res = await db["model_eval_metrics"].insert_one({
+                    "model_id": model_id,
+                    "route": plan["route"],
+                    "eval_set": "test",
+                    "event": "promotion",
+                    "accuracy": metrics.get("test_accuracy"),
+                    "f1_macro": metrics.get("test_macro_f1"),
+                    "n": metrics.get("test_size"),
+                    "metrics": metrics,
+                    "checksum": checksum,
+                    "training_dataset_version": plan["entry"].get("training_dataset_version"),
+                    "label_set_version": plan["entry"].get("label_set_version"),
+                    "compared_to_model_id": summary["current_model_id"],
+                    "metric_deltas": summary["metric_deltas"],
+                    "recorded_by": current_user.user_id,
+                    "recorded_at": datetime.now(timezone.utc),
+                })
+                inserted.append(("model_eval_metrics", res.inserted_id))
+                res = await db["audit_logs"].insert_one({
+                    "action": "model_promoted",
+                    "model_id": model_id,
+                    "route": plan["route"],
+                    "from_status": summary["from_status"],
+                    "to_status": "production",
+                    "previous_model_id": summary["current_model_id"],
+                    "previous_status": summary["current_status"],
+                    "demoted_model_ids": summary["demoted_model_ids"],
+                    "checksum": checksum,
+                    "metrics": metrics,
+                    "metric_deltas": summary["metric_deltas"],
+                    "warnings": summary["warnings"],
+                    "notes": body.notes,
+                    **_actor(current_user),
+                    "timestamp": datetime.now(timezone.utc),
+                })
+                inserted.append(("audit_logs", res.inserted_id))
+            except Exception as exc:
+                for path, text in originals.items():
+                    promo.restore_text(path, text)
+                for coll, _id in inserted:
+                    try:
+                        await get_db()[coll].delete_one({"_id": _id})
+                    except Exception:
+                        logger.exception("could not remove %s %s after a failed promotion", coll, _id)
+                logger.exception("promotion of %s failed; registry restored", model_id)
+                if isinstance(exc, _PostCheckFailed):
+                    raise promo.RegistryError(500, str(exc))
+                raise promo.RegistryError(503, "audit/metrics store unavailable; promotion rolled back")
+    except promo.RegistryError as exc:
+        _raise(exc)
+
+    logger.info("Model %s promoted to production on route %s by %s (was %s)",
+                model_id, plan["route"], current_user.user_id, summary["current_model_id"])
+    return {"ok": True, "dry_run": False, "promoted_at": now, "serving_model_id": model_id, **summary}
+
+
+class _PostCheckFailed(Exception):
+    """After writing, the registry does not select the promoted model."""
+
+
+class _nolock:
+    async def __aenter__(self):
+        return None
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+@router.get("/promotions")
+async def list_promotions(
+    current_user: Annotated[UserProfile, Depends(require_role(*_ADMIN_ROLES))],
+    limit: int = Query(20, ge=1, le=200),
+):
+    """Most recent registration and promotion audit records, newest first."""
+    cursor = (
+        get_db()["audit_logs"]
+        .find({"action": {"$in": ["model_registered", "model_promoted"]}}, {"_id": 0})
+        .sort("timestamp", -1)
+        .limit(limit)
+    )
+    return {"events": [doc async for doc in cursor]}
