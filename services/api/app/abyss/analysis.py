@@ -5,8 +5,12 @@ Runs a lightweight version of the analysis pipeline suitable for offline
 field conditions:
 
   1. QC   — length, GC, N-ratio, invalid chars (pure Python, no deps)
-  2. Route — heuristic router (markers + biophysical scoring, no ML)
-  3. Novelty — Phase 8 novelty + contamination scoring
+  2. Route — the learned k-mer router (learned_router.py: numpy, local
+     artifact, no network); GC-only fallback, marked on every result, when the
+     router artifact is unavailable (B25)
+  3. Novelty — Phase 8 novelty + contamination scoring. The API has no
+     app.novelty package, so today this always takes the stub path and marks
+     results with the reason code "abyss_stub".
 
 Deliberately omits the foundation model inference stage (Phase 7).
 The router result_class is used as a stub result_class so the novelty scorer
@@ -28,7 +32,9 @@ import math
 from typing import Any
 
 from ..config import NOVELTY_THRESHOLD
+from .learned_router import FORCED_REASON, AbyssRouterModel, get_router
 from .models import (
+    AbyssRouterSummary,
     AbyssSequenceInput,
     AbyssSequenceResult,
     AbyssAnalysisResult,
@@ -37,10 +43,10 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# Fallbacks (router errors, missing novelty scorer) already logged, keyed by
-# (kind, message), so a batch of 500 sequences hitting the same import error
-# logs one traceback, not 500.  Every affected result is still marked
-# (router_error_fallback / reason code "abyss_stub").
+# Fallbacks (router unavailable or failing, missing novelty scorer) already
+# logged, keyed by (kind, message), so a batch of 500 sequences hitting the same
+# problem logs once, not 500 times.  Every affected result is still marked
+# (router_method / router_error_fallback / reason code "abyss_stub").
 _LOGGED_FALLBACKS: set[tuple[str, str]] = set()
 
 # Max sequences per abyss analysis call (field triage — not bulk pipeline)
@@ -81,6 +87,7 @@ def run_abyss_analysis(
         batch_recommendation=batch_rec,
         batch_risk_level=risk,
         requires_cloud_confirmation=requires_cloud,
+        router=_router_summary(results),
     )
 
 
@@ -110,10 +117,11 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
             requires_cloud_confirmation=False,
             reason_codes=["low_quality_skipped"],
             field_action="resample",
+            router_method="low_quality_gate",
         )
 
-    # Route via heuristic router (no torch required)
-    route_result = _heuristic_route(raw, qc, seq)
+    # Route: learned k-mer router, GC-only fallback (no torch, no network)
+    route_result = _route(raw, qc, seq)
 
     # Build a sequence dict that the novelty scorer understands
     seq_dict: dict[str, Any] = {
@@ -178,6 +186,11 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
         requires_cloud_confirmation=True,  # always True in Abyss Mode
         reason_codes=reason_codes,
         field_action=field_action,
+        router_method=route_result["router_method"],
+        router_version=route_result.get("router_version"),
+        router_fallback_reason=route_result.get("router_fallback_reason"),
+        route_probabilities=route_result.get("route_probabilities", {}),
+        probabilities_calibrated=route_result.get("probabilities_calibrated", False),
         router_error_fallback=route_result.get("router_error_fallback", False),
         router_error=route_result.get("router_error"),
     )
@@ -213,64 +226,106 @@ def _compute_qc(sequence: str) -> dict[str, Any]:
     }
 
 
-def _heuristic_route(
+def _route(
     sequence: str,
     qc: dict[str, Any],
     seq_input: AbyssSequenceInput,
 ) -> dict[str, Any]:
     """
-    Fast heuristic routing using marker gene detection and biophysical priors.
-    Tries to use the worker model_router if available; otherwise falls back
-    to a simplified inline version.
+    Route one sequence offline (B25).
+
+    First stage: the learned k-mer router (learned_router.py), loaded from the
+    same registry entry and router.npz as the worker's, with numpy only and
+    no network. When it is unavailable (artifact missing, checksum mismatch,
+    numpy missing, SYNTHVEDA_ROUTER=heuristic) or cannot score this sequence
+    (no valid k-mer, prediction error), _simple_gc_route answers instead and
+    the result says so: router_method "gc_fallback" (or "gc_only" when
+    forced), router_fallback_reason, router_error_fallback=True and the reason
+    code "router_error_fallback". Each distinct failure is logged once.
     """
-    try:
-        import sys
-        import os
-        worker_path = os.path.normpath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "worker")
-        )
-        if worker_path not in sys.path:
-            sys.path.insert(0, worker_path)
+    model, reason, detail = get_router()
+    if model is not None:
+        try:
+            probs = model.predict_proba(sequence)
+        except Exception as exc:
+            reason, detail = "predict_error", f"{type(exc).__name__}: {exc}"
+            key = ("predict_error", detail)
+            if key not in _LOGGED_FALLBACKS:
+                _LOGGED_FALLBACKS.add(key)
+                logger.warning(
+                    "Abyss learned router failed on %s (%s); falling back to GC-only routing",
+                    seq_input.sequence_id, detail, exc_info=True,
+                )
+        else:
+            if probs is not None:
+                return _learned_route(model, probs)
+            reason, detail = "no_valid_kmers", f"no valid {model.k}-mer (non-ACGT bases)"
 
-        from app.model_router import route_sequence, RouterInput  # type: ignore
-
-        inp = RouterInput(
-            sequence_id=seq_input.sequence_id,
-            sequence=sequence,
-            length=qc["length"],
-            gc_ratio=qc["gc_ratio"],
-            n_ratio=qc["n_ratio"],
-            sha256="",
-            source_file="abyss",
-            habitat=seq_input.habitat,
-            depth_meters=seq_input.depth_meters,
-        )
-        result = route_sequence(inp)
-        return {
-            "route": str(result.route),
-            "route_confidence": result.route_confidence,
-            "confidence_tier": str(result.confidence_tier),
-            "fallback_routes": result.fallback_routes,
-            "reason_codes": result.reason_codes,
-        }
-    except Exception as exc:
-        # Inline fallback — simplified GC-based routing.  Never silent: log it
-        # and mark the result so the fallback is visible to the caller (B12).
-        error = f"{type(exc).__name__}: {exc}"
-        key = (type(exc).__name__, str(exc))
+    forced = reason == FORCED_REASON
+    if not forced:
+        key = ("router_unavailable", f"{reason}: {detail}")
         if key not in _LOGGED_FALLBACKS:
             _LOGGED_FALLBACKS.add(key)
-            logger.warning(
-                "Abyss heuristic router failed (%s); falling back to GC-only routing",
-                error, exc_info=True,
-            )
-        else:
-            logger.debug("Abyss heuristic router failed again (%s); GC-only fallback", error)
-        fallback = _simple_gc_route(qc, seq_input.habitat)
-        fallback["router_error_fallback"] = True
-        fallback["router_error"] = error
+            logger.warning("Abyss routing uses GC-only fallback (%s: %s)", reason, detail)
+    fallback = _simple_gc_route(qc, seq_input.habitat)
+    fallback["router_method"] = "gc_only" if forced else "gc_fallback"
+    fallback["router_fallback_reason"] = reason
+    fallback["router_error_fallback"] = not forced
+    fallback["router_error"] = f"{reason}: {detail}" if detail else reason
+    if not forced:
         fallback["reason_codes"] = ["router_error_fallback", *fallback["reason_codes"]]
-        return fallback
+    return fallback
+
+
+def _learned_route(model: AbyssRouterModel, probs: dict[str, float]) -> dict[str, Any]:
+    """Same conventions as the worker's router._learned_result: route_confidence
+    is the top calibrated probability, tiers at 0.70 / 0.40, up to two
+    fallbacks above 0.05 and then misc_unknown as the last resort."""
+    ranked = sorted(probs, key=probs.__getitem__, reverse=True)
+    best = ranked[0]
+    conf = probs[best]
+    tier = "high" if conf >= 0.70 else "medium" if conf >= 0.40 else "low"
+    reasons = ["learned_router"]
+    if tier == "low":
+        reasons.append("low_confidence_fallback")
+    elif tier == "medium":
+        reasons.append("medium_confidence_fallback")
+    fallbacks = [r for r in ranked[1:] if probs[r] > 0.05 and r != "misc_unknown"][:2]
+    if "misc_unknown" not in fallbacks and best != "misc_unknown":
+        fallbacks.append("misc_unknown")
+    return {
+        "route": best,
+        "route_confidence": round(conf, 4),
+        "confidence_tier": tier,
+        "fallback_routes": fallbacks,
+        "reason_codes": reasons,
+        "router_method": "learned",
+        "router_version": model.version,
+        "route_probabilities": {r: round(v, 4) for r, v in probs.items()},
+        "probabilities_calibrated": True,
+    }
+
+
+def _router_summary(results: list[AbyssSequenceResult]) -> AbyssRouterSummary:
+    """Which router ran for this batch, stated once at the top of the result."""
+    model, reason, detail = get_router()
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r.router_method] = counts.get(r.router_method, 0) + 1
+    if model is not None:
+        return AbyssRouterSummary(
+            method="learned",
+            model_id=model.model_id,
+            version=model.version,
+            artifact_sha256=model.sha256,
+            counts=counts,
+        )
+    return AbyssRouterSummary(
+        method="gc_only" if reason == FORCED_REASON else "gc_fallback",
+        fallback_reason=reason,
+        detail=detail,
+        counts=counts,
+    )
 
 
 def _simple_gc_route(qc: dict, habitat: str | None) -> dict[str, Any]:

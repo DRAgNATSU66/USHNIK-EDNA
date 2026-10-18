@@ -107,6 +107,8 @@ def build_pack_manifest(expedition: ExpeditionDoc) -> OfflinePackManifest:
                             (not_yet_available until Phase 14 curates data)
       4. contaminant_pack — known contaminant motifs (available: hardcoded list)
       5. metadata_pack    — local species/depth metadata stubs (available)
+      6. route_classifier — the learned k-mer router Abyss routes with (B25);
+                            status from the artifact actually found on disk
     """
     components = [
         OfflinePackComponent(
@@ -160,6 +162,8 @@ def build_pack_manifest(expedition: ExpeditionDoc) -> OfflinePackManifest:
         ),
     ]
 
+    components.append(_route_classifier_component())
+
     total_mb = sum(c.size_mb_estimate for c in components if c.status == "available")
 
     instructions = (
@@ -176,4 +180,38 @@ def build_pack_manifest(expedition: ExpeditionDoc) -> OfflinePackManifest:
         components=components,
         total_size_mb_estimate=round(total_mb, 3),
         instructions=instructions,
+    )
+
+
+def _route_classifier_component() -> OfflinePackComponent:
+    """The router artifact Abyss loads (learned_router.py), as found by this
+    process. "available" only when it loaded and passed its checksum."""
+    from pathlib import Path
+
+    from .learned_router import get_router
+
+    model, reason, detail = get_router()
+    if model is not None:
+        size_mb = Path(model.artifact_path).stat().st_size / (1024 * 1024)
+        return OfflinePackComponent(
+            name=model.model_id or "route_classifier",
+            component_type="route_classifier",
+            status="available",
+            size_mb_estimate=round(size_mb, 3),
+            description=(
+                f"Learned k-mer route classifier {model.model_id} (version {model.version}, "
+                f"k={model.k}, sha256 {model.sha256[:12]}). Abyss routes with it offline."
+            ),
+            artifact_uri=model.artifact_uri or None,
+        )
+    return OfflinePackComponent(
+        name="route_classifier",
+        component_type="route_classifier",
+        status="unavailable",
+        size_mb_estimate=0.0,
+        description=(
+            f"Learned route classifier not loaded ({reason}"
+            + (f": {detail}" if detail else "")
+            + "). Abyss falls back to GC-only routing, marked on every result."
+        ),
     )
