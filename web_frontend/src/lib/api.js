@@ -224,6 +224,21 @@ export const issueLicense = (expedition_id, duration_days) =>
     body: { duration_days },
   });
 
+/** Field triage. The body carries the offline license token (not a bearer token). */
+export const runAbyssAnalysis = (body) =>
+  request("POST", "/abyss/analyze", { body });
+
+/** Offline expedition session token for this device (U4). */
+export const createExpeditionSession = (expedition_id, device_fingerprint) =>
+  request("POST", "/auth/expedition/session", {
+    body: { expedition_id, device_fingerprint },
+  });
+
+export const verifyExpeditionSession = (expedition_session_token) =>
+  request("POST", "/auth/expedition/verify", {
+    body: { expedition_session_token },
+  });
+
 export const syncExpedition = (expedition_id, syncData) =>
   request("POST", "/abyss/sync", {
     body: { ...syncData, expedition_id },
