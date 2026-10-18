@@ -1,0 +1,12 @@
+{
+  "analysis_id": null,
+  "completed_at": null,
+  "error_message": null,
+  "job_id": "job_e2e_running01",
+  "mode": "online_full",
+  "queued_at": "2026-10-16T08:00:00",
+  "started_at": "2026-10-16T08:01:00",
+  "state": "inferencing",
+  "upload_id": "upl_e2e0000000001",
+  "user_id": "usr_e2e_researcher"
+}

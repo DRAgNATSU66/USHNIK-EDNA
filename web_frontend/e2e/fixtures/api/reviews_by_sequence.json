@@ -1,0 +1,29 @@
+[
+  {
+    "abyss_recommendation": null,
+    "analysis_id": "ana_e2e0000000001",
+    "contamination_score": null,
+    "correction_type": "species_correction",
+    "created_at": "2026-10-10T12:00:00",
+    "decided_at": "2026-10-11T14:00:00",
+    "decided_by": "usr_e2e_curator",
+    "decision_notes": null,
+    "evidence_attachments": [],
+    "evidence_notes": "Photophore pattern matches M. nitidulum.",
+    "is_contamination": null,
+    "is_low_quality": null,
+    "is_novelty": null,
+    "novelty_level": null,
+    "novelty_score": null,
+    "proposed_taxon": "Myctophum nitidulum",
+    "review_id": "rev_e2e_correct01",
+    "review_type": "manual_correction",
+    "sequence_id": "seq_e2e_lantern_002",
+    "state": "accepted",
+    "submitted_by": "usr_e2e_researcher",
+    "training_batch_id": null,
+    "triage_priority": "normal",
+    "triaged_at": null,
+    "triaged_by": null
+  }
+]

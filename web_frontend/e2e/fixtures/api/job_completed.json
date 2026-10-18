@@ -1,0 +1,12 @@
+{
+  "analysis_id": "ana_e2e0000000001",
+  "completed_at": "2026-10-10T08:05:00",
+  "error_message": null,
+  "job_id": "job_e2e_complete1",
+  "mode": "online_full",
+  "queued_at": "2026-10-10T08:00:00",
+  "started_at": "2026-10-10T08:01:00",
+  "state": "completed",
+  "upload_id": "upl_e2e0000000001",
+  "user_id": "usr_e2e_researcher"
+}

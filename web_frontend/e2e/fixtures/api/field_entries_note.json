@@ -1,0 +1,29 @@
+[
+  {
+    "analysis_id": "ana_e2e0000000001",
+    "anchor_sequence_id": null,
+    "author_id": "usr_e2e_researcher",
+    "author_name": "Rhea Researcher",
+    "body": "CTD cast showed an oxygen minimum near 1,200 m.",
+    "created_at": "2026-10-10T09:00:00",
+    "edits": [
+      {
+        "changes": [
+          {
+            "field": "body",
+            "new": "CTD cast showed an oxygen minimum near 1,200 m.",
+            "old": "CTD cast showed low oxygen."
+          }
+        ],
+        "edit_id": "fle_edit_e2e0001",
+        "edited_at": "2026-10-10T10:00:00",
+        "editor_id": "usr_e2e_researcher",
+        "editor_name": "Rhea Researcher"
+      }
+    ],
+    "entry_id": "fle_e2e_note0001",
+    "kind": "note",
+    "reply_to": null,
+    "updated_at": "2026-10-10T10:00:00"
+  }
+]

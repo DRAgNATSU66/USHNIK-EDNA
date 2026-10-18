@@ -1,0 +1,10 @@
+[
+  {
+    "analysis_id": "ana_e2e0000000001",
+    "created_at": "2026-10-10T08:05:00",
+    "partner_report_available": true,
+    "possible_novelty_count": 2,
+    "source_file": "e2e_arabian_sea_station7.fasta",
+    "total_sequences": 7
+  }
+]
