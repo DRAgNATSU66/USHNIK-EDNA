@@ -706,3 +706,161 @@ head retrain (t-1021-1) on the rebuilt Day 7 splits. That retrain's selection mu
 forward and reverse-complement accuracy side by side. Until then, a reverse-orientation upload
 (for example paired-end R2) is routed badly by v1. This is a known, recorded defect, not a hidden one.
 
+
+---
+
+## QNA-011 — 2026-10-18 — Supplementary sequences for thin classes from NCBI E-utilities and ENA; UniVec relabelled possible_contamination (Q1; tracker t-1019-1)
+
+**Commit:** `29cb8cf` (fetcher, `iter_supplementary`, build_dataset hook, UniVec relabel, 44 tests),
+`d35ad8d` (human control-region / nuclear-rRNA queries, all NCBI fish hits, ENA fish) and `c49f887`
+(drop the redundant human mito 12S/16S query) on `sprint/d6-supplementary-data`, with `LATEST_USHNIK`
+merged in as `9fb0e19` and `0792f68`. Merged into `LATEST_USHNIK` as `003eae2`. `processed/` was **not** rebuilt.
+That is Day 7. The data lives in `synthveda-data/raw/supplementary/` (gitignored, 22 MB).
+
+**Q1. Mechanism: how does a fetched sequence get into the dataset, step by step?**
+`training/fetch_supplementary.py` defines 10 queries in `QUERIES` (`:137`). Each query does the
+following:
+
+1. Runs an Entrez `esearch` (NCBI) or an ENA Portal `search` with a length clause.
+2. Draws a seeded sample of the full hit list (`sample_candidates`, seed `20261019`).
+3. Fetches the sample in batches of 200 (NCBI) or 100 (ENA).
+4. Labels each record (`label_candidate`, `:383`), in one of two ways:
+   - *Taxonomy-labelled* (animal and fish novelty, human known_species): the taxid is resolved with
+     the local taxdump, then put through the same `lineage_to_route` (`:404`) and `assign_label`
+     (`:407`) as every other source. The record is kept only if that path lands on the query's
+     target independently. The query narrows the search; it never assigns the label.
+   - *Provenance-labelled* (cloning vectors, PhiX174): labelled
+     `human_domestic_contamination/possible_contamination`.
+5. Drops accessions already held for the same class by another query (`already_gathered`, `:543`;
+   check at `:567`), because ENA and NCBI mirror the same INSDC data.
+
+Every kept record writes a manifest row with: accession, versionless accession, source, query_id,
+taxid, organism, title, length, route, label, label_basis, retrieved_at, the full licence text and
+sha256.
+
+`sources.iter_supplementary` (`training/sources.py:284`) reads the manifests and FASTA back into
+`Record`s:
+- Taxonomy rows carry their lineage, and build_dataset re-derives route and label from it.
+- Provenance rows carry a fixed route and label, which `ingest` honours
+  (`build_dataset.py:77-82`); low-quality windows are dropped rather than given that label.
+
+build_dataset calls `iter_supplementary` after UniVec (`build_dataset.py:229-233`;
+`--skip-supplementary` opts out). Dedup against the existing sources is the existing one:
+`write_splits` collapses identical sequences within a route before shuffling. A sequence that
+carries two labels is dropped (`build_dataset.py:135-144`). UniVec now yields
+`possible_contamination` (`sources.py:276`) instead of falling through to known_species.
+`inject_contamination` draws from both human pools (`build_dataset.py:107`), so UniVec still reaches
+plant and bacteria as injected contamination.
+
+**Q2. What was gathered, per source and class, under what licence?** (measured; "unique" means
+unique 400 bp windows or whole sequences after `chunk_long_sequence`, which is what the Collector sees)
+
+| Source | Query | Target class | Hits | Records kept | Unique after chunking |
+|---|---|---|---:|---:|---:|
+| NCBI | `ncbi_animal_env_coi` | animal_general / possible_novelty | 16071 | 2000 | 1945 |
+| NCBI | `ncbi_animal_env_18s` | same | 2569 | 1500 | 1291 |
+| NCBI | `ncbi_animal_env_16s` | same | 229 | 225 | 146 |
+| ENA | `ena_animal_env_any` | same | 72848 | 1500 | 1492 |
+| | **animal novelty total** | | | **5225** | **4857** (was 17/1/4 train/dev/test) |
+| NCBI | `ncbi_fish_env` | fish / possible_novelty | 3453 | 872 | 836 |
+| ENA | `ena_fish_env` | same | 3189 (after accession dedup) | 4 | 4 |
+| | **fish novelty total** | | | **876** | **840** (was 0/0/0) |
+| NCBI | `ncbi_human_mito_control_region` | human_domestic_contamination / known_species | 132233 | 800 | 779 |
+| NCBI | `ncbi_human_nuclear_rrna` | same | 358 | 358 | 138 |
+| | **human known_species total** | | | **1158** | **917** (class already at 5000 cap) |
+| NCBI | `ncbi_cloning_vectors` | human_domestic_contamination / possible_contamination | 30955 | 1500 | 5243 windows (of 7123) |
+| NCBI | `ncbi_phix174` | same | 157 | 157 | 316 windows (of 785) |
+| | **human possible_contamination total** | | | **1657** | **5559** (was 0/0/0) |
+
+Licences, stored per row in each manifest (`fetch_supplementary.py:85`):
+- **NCBI/GenBank**, including the RefSeq XR_ "PREDICTED" 18S models among the nuclear-rRNA hits: NCBI
+  places no restrictions on use or redistribution, though submitters may claim IP in their own
+  records. Access is under the E-utilities guidelines.
+- **ENA/INSDC**: free and unrestricted under the INSDC policy, with the EMBL-EBI Terms of Use applying.
+
+Requests sent `tool=synthveda`, no email and no API key (`:72`), spaced at least 0.40 s apart (`:75`,
+under NCBI's 3 req/s), and ENA at 0.5 s. Bytes downloaded this session (2026-10-18): about 14.0 MB.
+The 2026-10-15 runs downloaded 39.3 MB (`index.json`).
+
+**Q3. Rationale: why these queries, and why were MGnify, kitome bacteria and human mito 12S/16S not used?**
+- *Human queries.* processed/`human_domestic_contamination/known_species` is full (5000), so these
+  queries change what the class holds rather than fill it. Measured: 1732 of its 5000 rows are
+  400 bp windows. The rest are gene-length mito records, with top lengths 1141, 1542, 1558 and 954
+  (cytb, COI, 16S, 12S).
+- *How "new coverage" was measured.* A fetched record counts as already covered if it shares at
+  least one 32-mer with an existing row: nuclear rRNA 1/358, control region 110/800. So both add
+  loci the head has not seen.
+- *Human mito 12S/16S was fetched and then dropped* (`c49f887`). 400 records, of which 390 already
+  shared a 32-mer with existing rows, so they would have added near-duplicates rather than coverage.
+  The files were deleted and the `index.json` entry removed.
+- *Nuclear rRNA query excludes PDB* (`:231`, `NOT srcdb_pdb[PROP]`). 78 of 436 first-run hits were
+  PDB cryo-EM ribosome chains. These are not INSDC records and have no taxid in esummary, and they
+  had been rejected only by accident, as `no_taxid`.
+- *MGnify was probed* (`/metagenomics/api/v1/`, 2026-10-18; 1922 aquatic studies listed). The API
+  serves studies, runs, analyses, assemblies and prokaryotic MAGs. It has no endpoint that returns a
+  sequence with a curated organism identification. Its OTU and contig taxonomy is its own pipeline's
+  SILVA/PR2 prediction, so labelling from it would train the heads on another classifier's output.
+- *Kitome genera* (Ralstonia, Bradyrhizobium) are also real environmental organisms, and no single
+  record shows that it is a contaminant.
+- *Lambda phage* has 7 complete genomes. `chunk_long_sequence` keeps the first 3.6 kb of each, so they
+  would add a handful of near-identical windows.
+
+**Q4. Blast radius, including leakage: what breaks if this is wrong?**
+- *Near-duplicate leakage (the main risk).* write_splits removes exact duplicates only. Within each
+  supplementary class, the share of unique sequences that have a near-identical partner (16-mer
+  Jaccard ≥ 0.8; MinHash with 64 hashes in 16 LSH bands, so a lower bound) is:
+  - animal novelty 949/4857 = **19.5%**
+  - fish novelty 449/840 = **53.5%**
+  - human known_species 513/917 = **55.9%** (human mtDNA haplotypes)
+  - human possible_contamination 2150/5559 = **38.7%** (shared vector backbones, PhiX variants)
+
+  A random 80/10/10 split will put many of these partners on both sides of the train/test line and
+  inflate test scores for these classes. The Day 7 rebuild should split these classes by cluster (or
+  by accession group), or report test scores split into near-duplicate and truly-unseen subsets, as
+  was done for the exact-duplicate leak (`build_dataset.py:127-133` comment: 84.88% vs 82.41%).
+- *Exact overlap with the current `processed/`* (`--check-overlap`, `overlap_report.json`): 34 train,
+  3 dev and 7 test chunks out of 12173.
+- *Cross-route duplicates*, which write_splits does not catch because it dedups per route. 31 fish
+  novelty sequences are identical to `animal_general/likely_taxonomic_group` rows (23 train, 3 dev,
+  5 test), 2 animal novelty sequences are in `misc_unknown`, and 7 vector windows are in other
+  routes. The learned router (QNA-010) takes the route from the folder (`train_router.py:11`), so
+  these 40 sequences become contradictory router supervision and can leak between router splits.
+- *Label noise in vectors.* 3 vector windows (backbones of pAT153, pGETS109, pXtale) are identical
+  to current human known_species rows. Those rows are UniVec windows under the old label. After the
+  rebuild, UniVec is possible_contamination too, so these conflicts disappear. Vectors that carry
+  human or other inserts would label insert windows as lab reagent. Only these 3 exact clashes were
+  measured, so that risk is not quantified.
+- *Fish routing gap.* 2581 of the 3453 NCBI fish hits are "Actinopterygii environmental sample". In
+  NCBI, Actinopterygii is a superclass, so the lineage has no class rank, `routing.py:57` falls
+  through to animal_general, and the record is rejected (`run.json` reasons). The same gap already
+  places real fish in animal_general: the 31 cross-route duplicates above. The fix belongs in
+  `routing.py`, and none was made.
+
+**Q5. Verification: what proves it?**
+- `cd services/worker && python -m pytest -q`: **252 passed** after merging `LATEST_USHNIK`
+  (`0792f68`). `tests/test_supplementary_fetch.py` has 57 tests, among them:
+  - human queries label through taxonomy, and a non-human record is rejected (`:207`)
+  - superclass-only fish is rejected (`:200`)
+  - manifest to FASTA to `iter_supplementary` to `ingest` round trip (`:257`)
+  - UniVec is possible_contamination (`:296`)
+- Dry run (ingest of the supplementary data only into an uncapped Collector, read-only against
+  `processed/`; script in the session scratchpad, not committed): 0 label conflicts and 0
+  cross-route sequences inside the supplementary set. Against `processed/`, 3 same-label exact
+  duplicates (animal) and 3 conflicts (the UniVec rows above).
+- `python -m training.fetch_supplementary --check-overlap` gives totals of 12173 unique chunks
+  (34/3/7 in train/dev/test).
+- `index.json` matches the files on disk: 10 queries, 30 files.
+
+**Q6. Defence: "a query for 'environmental samples' just hands you the novelty label. Isn't that circular?"**
+No. The query only shrinks the candidate pool. The label comes from `assign_label`, the same rule that
+labels every BOLD, MIDORI2, SILVA and BLAST DB record (`fetch_supplementary.py:404-407`). Records that
+the rule labels otherwise are rejected and counted, for example:
+- `labelled:known_species`: 147 in ENA animal, 492 in ENA fish
+- `routed_to:animal_general`: 2581 in NCBI fish
+
+On rebuild, build_dataset re-derives the label from the stored lineage rather than trusting the
+manifest. The honest limits:
+- possible_novelty here means "INSDC submitter could not name it". That is the operational definition
+  the project already uses, not proof of a new species.
+- The near-duplicate rates in Q4 mean test scores on these classes after Day 7 are not trustworthy
+  until the split is cluster-aware.
