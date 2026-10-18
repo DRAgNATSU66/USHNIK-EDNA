@@ -362,3 +362,71 @@ slider minimum would imply rows the API never sent.
   (t-1029-1, AbyssSetup).
 - ESLint reports a pre-existing fast-refresh error at `main.jsx:31`.
 - The AbyssSetup refresh path was not exercised: the dev user has no expeditions.
+
+---
+
+## QNA-008 — 2026-10-18 — Upload sends the metadata fields; FieldLog and NegativeControlFlag render real values; results show the API's provided/missing context (F5, F6, F7; tracker t-1018-3)
+
+**Commit:** `c5e988f` (feature) and `300d5a8` (noValidate fix) on `sprint/d5-metadata-frontend`, with `ec47d59` merging `LATEST_USHNIK` (at `0c1a9b6`) into the branch. Merged into `LATEST_USHNIK` as `019dcff`. This is the frontend half of QNA-005 (backend `3abbd1c`).
+
+**Q1. Mechanism: what does the frontend now do, step by step?**
+- **Upload** (`web_frontend/src/pages/Upload.jsx`): `buildMetadata` (line 135) turns the form state into `{ fields, errors }`, using the API's field names from `OPTIONAL_METADATA_FIELDS`.
+  - Empty inputs are left out, never sent as `""`. The API returns 422 for `""` in a number or date field (QNA-005 Q3).
+  - Date and time become one `collected_at` value with the browser's UTC offset (line 173), e.g. `2026-10-16T09:15:00+05:30`. A date with no time is recorded as 00:00 local, and the form says so.
+  - The "lat, long" text is split and sent only as a pair (line 160).
+  - The negative control is a three-way choice: Included / Not included / Not recorded (line 61). It sends `negative_control_included=true|false`, or leaves the field out when "Not recorded" (line 177).
+  - Range checks match `services/api/app/uploads/router.py:36-49` and show inline. Line 299 appends only the fields that were built. The form uses `noValidate` (line 385); see Q4.
+- **Results** (`pages/AnalysisResults.jsx`): `SampleContextPanel` (line 173, rendered at line 609) shows `report.context` exactly as the API sends it:
+  - the `provided` and `missing` lists, with the API's `labels`;
+  - `partner_report.available` and `missing_required`;
+  - `flags` as pills, with the full message on hover;
+  - the `accuracy_note`.
+
+  Values for the provided fields come from `report.metadata` through `lib/sampleMetadata.js:44`. The header link reads "Sample context: N of 14 optional fields provided · Partner report available/not available", using the API's list lengths.
+- **NegativeControlFlag** (`components/shared/NegativeControlFlag.jsx:34-53`) accepts the API's three-state value or the raw boolean: `true` → included, `false` → not included, `null` → not recorded, `undefined` → pending (still loading). Both warning states show the API's `no_negative_control` message (`AnalysisResults.jsx:302-303, 413`).
+- **FieldLog** (`pages/researcher/FieldLog.jsx:256-270`) reads all 12 Run Context rows from `report.metadata`. It no longer calls `getUpload`, and the hardcoded mock rows are gone ("12 Aug 2026 · 06:40 IST", "Metabarcoding", "Included", "M. Fernandes"). A `null` value shows "Not recorded".
+
+**Q2. Rationale: why render the API's context instead of working out provided/missing in the browser?**
+QNA-005 Q2 makes `OPTIONAL_METADATA_FIELDS` the single source of truth. `build_metadata_context` (`services/api/app/uploads/context.py:67`) builds the block at read time. If the browser recomputed it, the field list would exist in two places, and the page could disagree with the JSON export a partner downloads. The browser only formats values and never decides what counts as "provided".
+
+The browser does map the raw boolean to a state in one place: `ncState` uses it only if a report arrives without `context`. The API always returns `context` on `GET /reports/{id}`, so in practice the API value is used. The fallback means the flag still shows a warning rather than a wrong "pending".
+
+FieldLog reads `report.metadata` instead of `GET /uploads/{id}` because curators get a 403 on the upload endpoint (QNA-005 Q3).
+
+The offset is attached to `collected_at` because MongoDB stores naive UTC. A plain local time would be read as UTC and come back shifted. `lib/sampleMetadata.js:12` treats a stored value with no offset as UTC when displaying it.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+- **Field-name mismatch.** FastAPI silently ignores unknown form fields, so a typo would drop the value without any error. The browser e2e run in Q4 shows every typed value coming back under the API's names, which rules this out for the fields tested.
+- **Wrong offset.** The stored collection time would be off by the browser's UTC offset. Q4 shows 06:40+05:30 stored as `01:10:00` UTC and displayed again as 06:40 GMT+5:30.
+- **`NegativeControlFlag` props changed** from `included` to `state`. The only caller is `AnalysisResults.jsx:413`; a grep of `web_frontend/src` finds no other use.
+- **Merge.** `LATEST_USHNIK`'s threshold-from-/health change (QNA-007) auto-merged into `AnalysisResults.jsx`. `useNoveltyThreshold()` at line 247 and the threshold text both survive alongside the context panel.
+- **Not changed:** Supabase, API code, worker code.
+
+**Q4. Verification: what proves it?**
+- **Build:** `npm run build` in `web_frontend` → `✓ 163 modules transformed. ✓ built` after the merge and after the final commit. The >500 kB chunk-size warning was already there.
+- **Lint:** `npx eslint` on the five touched files reported nothing.
+- **API tests:** `services/api/.venv/bin/python -m pytest -q` → **325 passed**. `tests/test_api_contract.py` alone → **36 passed**, so every `lib/api.js` path is still a real route.
+- **Auth for the e2e runs:** there is no password login (Google, Supabase or admin-key OAuth only). I minted a researcher JWT for synthetic user `e2e-t1018-3` with the project's `app.auth.jwt.create_access_token`, as `tests/conftest.py` does. All runs went against the live API on :8000 and worker.
+- **curl:** `POST /uploads` with 12 fields, `negative_control_included=false`, `source_type` and `temperature_celsius` left out → `upl_548aa1c761234023` → job `job_16a4d77ea7e6445c` → `ana_c24fe3c3e0a74218`.
+  - `GET /reports/{id}`, `/summary`, `/export/json` and `GET /analysis/{id}` all returned 200 with the same `context.provided` (12 fields).
+  - `missing` was `["source_type","temperature_celsius"]`, `negative_control` was `"not_included"`, and `partner_report.available` was `true`.
+  - The one flag was `no_negative_control` with "No negative control, contamination not ruled out."
+  - `metadata.collected_at` came back as `"2026-10-17T01:10:00"` (sent as `06:40:00+05:30`).
+- **Browser:** this worktree's Vite on :3000 (CORS allows `localhost:3000` and `localhost:5173` only, and rejects :5174), in Playwright, timezone Asia/Calcutta. I filled the real Upload form with: location, date 2026-10-16, time 09:15, "12.5, -45.25", temperature 4.5, pH 7.9, methodology qPCR, collector "Browser tester", negative control Included.
+  - The `POST /uploads` response (`upl_05c2a8d377994289`) echoed `collected_at "2026-10-16T09:15:00+05:30"`, `latitude 12.5`, `longitude -45.25`, `temperature_celsius 4.5`, `ph 7.9`, `methodology "qPCR"`, `negative_control_included true`, `collector "Browser tester"`. All untouched fields were `null`.
+  - Results `ana_c7ccae609f8c4e1c` showed "Negative control: Included", "PROVIDED · 9 of 14", values such as "16 Oct 2026 · 09:15 GMT+5:30" and "45.2500° W", "MISSING · 5 of 14" (Depth, Source type, Habitat, Salinity, Dissolved oxygen) and "PARTNER REPORT Available".
+  - FieldLog for the same analysis showed the same values, with "Not recorded" for depth, habitat/source, salinity and dissolved O₂.
+- **Browser, other states:**
+  - A file-only upload (`ana_4e6da59238a943f6`) showed the pill "Negative control not recorded, contamination not ruled out.", "PROVIDED · 0 of 14", "Not available · Needs collection date/time, latitude, longitude", and flag pills "Partner report unavailable" and "Contamination not ruled out".
+  - The curl analysis showed the pill "No negative control, contamination not ruled out." So true, false and null were each seen rendered.
+- **Bug found in the browser and fixed in `300d5a8`.** With pH 15, "95, 10" and depth −3, native validation (`max=14`) stopped the submit with a browser tooltip before `buildMetadata` ran, so the lat/long error never appeared. After `noValidate`, all three inline errors render, plus "Some metadata values are out of range…", and no `POST /uploads` was sent.
+- **Left behind:** the e2e runs left three uploads and analyses for user `e2e-t1018-3` in the dev database.
+
+**Q5. Defence: "the subtitle used to say metadata improves classification accuracy. Why did you change it?"**
+None of these fields feeds inference (QNA-005 Q5), so that claim was never measured. The subtitle now says only what the code enforces: "Optional — a partner report needs the collection date and coordinates" (Q2 decision). The results page passes through the API's `accuracy_note`, which says missing context "can reduce accuracy". That wording comes from the owner's decision, not from a measurement, and must not be cited as a measured effect.
+
+**Q6. What is still open?**
+- No frontend unit tests: `web_frontend` has no test runner (no vitest or jest in `package.json`). `buildMetadata` and `sampleMetadata.js` are covered only by the manual browser run above.
+- FieldLog still shows two labelled mock previews with no backend: Edit history (`MOCK_NOTE`) and Attachments (`MOCK_FILES`, which still contains "M. Fernandes"). They are tagged MOCK and are out of scope for t-1018-3.
+- FieldLog does not show the provided/missing summary. It shows values only, and Results is where the context block lives.
+- Day 13's `/partner/summary` must still refuse on `context.partner_report.available` (QNA-005 Q2).
