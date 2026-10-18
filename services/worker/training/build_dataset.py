@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app.inference.models import ROUTE_LABEL_SETS, SequenceResultClass
 from training import sources
-from training.labeling import assign_label
+from training.labeling import assign_label, is_low_quality
 from training.routing import ROUTES, lineage_to_route
 from training.taxonomy import TaxonomyResolver
 
@@ -74,9 +74,16 @@ def ingest(collector: Collector, records, forced_route: str | None = None,
         if scanned % 50_000 == 0 and all(collector.is_full(r) for r in watch_routes):
             print(f"    ...watched routes full at {scanned:,} scanned, stopping this source early")
             break
-        route = forced_route or lineage_to_route(rec.lineage)
+        route = forced_route or rec.route or lineage_to_route(rec.lineage)
         for chunk in chunk_long_sequence(rec.sequence):
-            label = assign_label(route, chunk, rec.organism_name, rec.lineage)
+            if rec.label is not None:
+                # Provenance-labelled record (vector, sequencing control).
+                # Still drop low-quality windows rather than mislabel them.
+                if is_low_quality(chunk) or rec.label not in ROUTE_LABEL_SETS.get(route, []):
+                    continue
+                label = rec.label
+            else:
+                label = assign_label(route, chunk, rec.organism_name, rec.lineage)
             if label is None:
                 continue
             collector.add(route, label, chunk)
@@ -91,7 +98,14 @@ def inject_contamination(collector: Collector, fraction: float = 0.08) -> None:
     containing route Y's organism) — pull real human/domestic sequences
     already collected and inject them into routes whose label set includes
     possible_contamination but wouldn't otherwise see any."""
-    human_pool = collector.buckets.get(("human_domestic_contamination", SequenceResultClass.known_species), [])
+    # Both human-route pools: organismal human/domestic DNA (known_species)
+    # and lab/technical sequences (possible_contamination: UniVec, vectors,
+    # PhiX). UniVec sat in known_species before 2026-10-19, so drawing from
+    # both keeps it in the injected contamination as before.
+    human_pool = (
+        collector.buckets.get(("human_domestic_contamination", SequenceResultClass.known_species), [])
+        + collector.buckets.get(("human_domestic_contamination", SequenceResultClass.possible_contamination), [])
+    )
     if not human_pool:
         return
     targets = ["plant", "bacteria_pathogen"]
@@ -160,6 +174,8 @@ def main() -> None:
     parser.add_argument("--data-dir", default=default_root)
     parser.add_argument("--cap", type=int, default=MAX_PER_LABEL)
     parser.add_argument("--skip-blastdb", action="store_true", help="Skip the slow multi-GB BLAST DB sources")
+    parser.add_argument("--skip-supplementary", action="store_true",
+                        help="Ignore raw/supplementary/ (fetch_supplementary.py output)")
     parser.add_argument("--only-routes", default=None,
                          help="Comma-separated route names to rebuild (e.g. bacteria_pathogen). "
                               "Other routes are still scanned-through as needed for cross-route "
@@ -211,6 +227,12 @@ def main() -> None:
             f = raw / "univec" / name
             if f.exists():
                 ingest(collector, sources.iter_univec(f), forced_route="human_domestic_contamination", watch_routes=watch_routes)
+
+    supplementary = raw / "supplementary"
+    if supplementary.exists() and not args.skip_supplementary:
+        # API-fetched sequences for thin classes; see training/README.md.
+        print("== Supplementary (fetch_supplementary.py) ==")
+        ingest(collector, sources.iter_supplementary(supplementary), watch_routes=watch_routes)
 
     if not args.skip_blastdb:
         # tools/blast/ is the Linux build fetch_reference_data.sh installs;

@@ -22,7 +22,9 @@ Verified against `services/api/app/main.py`, `services/worker/app/dispatcher.py`
 ```text
 web_frontend: user submits Upload/New Analysis form
   -> web_frontend/src/api.js posts to services/api
-  -> app/uploads/router.py saves the file, writes a MongoDB `uploads` doc,
+  -> app/uploads/router.py writes the file through app/storage.py
+     (STORAGE_BACKEND: local disk, or MinIO/S3 in compose) and records its
+     storage_uri + sha256 in a MongoDB `uploads` doc,
      app/queue.py enqueues a job onto Redis
   -> services/worker/app/dispatcher.py: an always-on poll loop
      (dequeue_job() from Redis), NOT a per-request router -- caps concurrent

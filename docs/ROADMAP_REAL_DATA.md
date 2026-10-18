@@ -126,6 +126,10 @@ progress. This file is the source of truth for scope.
 | B20 **[NEW]** | `scripts/seed_dev.py` | Seeds Mongo with mock analysis results. Must not be used on any database that feeds a demo or a report. |
 | B21 **[NEW]** | `synthveda-data/raw/` | The ~44 GB raw reference set was lost in the Ubuntu migration; re-fetch in progress (`scripts/fetch_reference_data.sh`), BOLD/UNITE/MIDORI2 manual. |
 | B22 **[NEW]** | `models/registry/dnabert2_bacteria_v1.json` | Registry described an older bacteria run (acc 0.8006, train 12,320) than the `head.pt` on disk (acc 0.842, train 37,832); checksum did not match. Corrected 2026-10-14. |
+| B23 **[NEW 10-18]** | `model_router/learned.py`, router v1 | Learned router v1 (k=8, forward strand) scores 0.1655 on reverse-complemented test reads while reporting high confidence. Paired-end R2 / reverse-orientation uploads are misrouted. Fix: strand invariance is a stated requirement of the router retrain with t-1021-1 (QNA-010) |
+| B24 **[NEW 10-18]** | `infra/docker/docker-compose.yml` | The compose worker does not mount `synthveda-data`, so in Docker every result falls back to the heuristic router (`artifact_missing`) and the heads are unavailable. Visible, not silent. **Fixed 10-18:** read-only `/data` mount + `SYNTHVEDA_DATA_ROOT` |
+| B25 **[NEW 10-18]** | `services/api/app/abyss/analysis.py` | The Abyss path imports `app.model_router`, which collides with the API's own `app` package (`ModuleNotFoundError`), so Abyss always uses GC-only routing (`router_error_fallback`). Predates B19; B12 made it visible |
+| B26 **[NEW 10-18]** | `models/registry/kmer_router_v1.json` | The registry now holds a non-taxonomic `route: "router"` entry. `/models/status` skips it, but `/models/registry` and the Model Status page list it. **Kept as intended 10-18:** it is a registered model and its card shows its real metrics, reverse-complement accuracy included |
 
 ## A6. Open product decisions — resolve on Day 1 (recommended defaults given)
 

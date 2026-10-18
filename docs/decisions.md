@@ -9,6 +9,29 @@ the correction rather than silently rewriting.
 
 ---
 
+## 2026-10-18 — B7 upload storage: one module copied into both services, URIs in the doc
+
+- **Two backends behind one small interface** (`put/open/exists/delete/uri`) in
+  `services/api/app/storage.py`: `local` (default; files under `UPLOAD_STORAGE_DIR`,
+  temp-file + `os.replace` so a reader never sees half a file) and `s3` (boto3; MinIO in
+  docker-compose, AWS when `OBJECT_STORAGE_URL` is blank). Dev and tests need nothing new.
+- **Copied, not shared.** API and worker are separate images with separate build
+  contexts and no shared package (same situation as B14's `DEFAULT_NOVELTY_THRESHOLD`).
+  A shared package would mean changing both Dockerfiles' build context and both
+  install paths for ~400 lines of code; instead the worker carries a byte-identical
+  copy and `services/api/tests/test_storage.py` fails if they drift, and checks both
+  settings classes define the same storage fields and defaults.
+- **The upload doc stores a URI, not a path** (`storage_uri`, plus `storage_key` and
+  `checksum_sha256`). The URI names the backend, so the worker reads from wherever the
+  API wrote, whatever the worker's own `STORAGE_BACKEND` says; `local://` keys are
+  relative, so the API's and worker's mount points can differ. Pre-B7 docs keep
+  working through their absolute `file_path`. New docs leave `file_path` unset, which
+  also stops `GET /uploads/{id}` returning a server path.
+- **The worker verifies the sha256** recorded at upload before parsing, and a missing
+  object fails the job with the URI in the message — never a silent stub.
+- **pgsty/minio image**: MinIO Inc. stopped publishing community images; the pgsty
+  build is maintained and bundles `mc`, used by the one-shot `minio-init` service.
+
 ## 2026-10-15 — Day 5 metadata contract (F5–F7): context built at read time, in the API
 
 - **One list.** `OPTIONAL_METADATA_FIELDS` in `services/api/app/models/upload.py` (14 fields, name →

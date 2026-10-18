@@ -4,3 +4,9 @@
 pytest==8.3.4
 pytest-asyncio==0.25.0
 pytest-cov==6.0.0
+
+# Fakes S3 for tests/test_*storage*.py
+moto[s3]==5.0.28
+# Router training (training/train_router.py) and kmer_matrix in tests
+scipy==1.17.1
+scikit-learn==1.9.1

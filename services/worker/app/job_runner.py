@@ -15,11 +15,12 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from .config import NOVELTY_THRESHOLD
+from .config import NOVELTY_THRESHOLD, get_worker_settings
 from .fastx_parser import parse_and_batch_auto
 from .model_router import route_batch, RouterInput
 from .inference import run_inference_batch
 from .novelty import score_batch, contamination_score_batch
+from .storage import local_copy_for_upload
 
 
 async def run_job(db: AsyncIOMotorDatabase, job_id: str) -> None:
@@ -75,30 +76,27 @@ async def _stage_parse(upload: dict) -> list[dict]:
     Phase 5: parse the uploaded FASTA/FASTQ file into sequence records.
 
     Uses the Rust `synthveda-parse` binary when available (fast path), or falls
-    back to the pure-Python parser.  The file path comes from the upload doc's
-    `file_path` field (set by the API when it saves the upload to disk).
+    back to the pure-Python parser. The bytes are read through app/storage.py
+    from the upload doc's `storage_uri` (local:// under UPLOAD_STORAGE_DIR, or
+    s3:// streamed to a temp file); pre-B7 docs that carry only an absolute
+    `file_path` are read from that path.
+
+    An upload with no file at all, a missing object, or bytes that fail the
+    doc's checksum raise -- run_job() marks the job failed rather than
+    analysing a made-up sequence (a stub here once produced a "completed"
+    analysis of ATCGATCGATCG that looked like a real result).
 
     Returns a flat list of sequence dicts ready for the QC stage.
     """
-    file_path: str | None = upload.get("file_path")
-    if not file_path:
-        # Fail the job rather than analysing a made-up sequence: a stub here
-        # used to produce a "completed" analysis of ATCGATCGATCG that looked
-        # like a real result. run_job() catches this and marks the job failed.
-        raise ValueError(
-            f"Upload {upload.get('upload_id', '?')} has no file_path; nothing to parse"
-        )
+    settings = get_worker_settings()
 
-    # Run the blocking parser in a thread pool so the event loop is not blocked.
+    def parse() -> tuple[list, bool]:
+        with local_copy_for_upload(upload, settings) as path:
+            return parse_and_batch_auto(str(path), batch_size=1000, min_length=10)
+
+    # Fetching and parsing block, so they run in a thread pool.
     loop = asyncio.get_event_loop()
-    batches, used_rust = await loop.run_in_executor(
-        None,
-        lambda: parse_and_batch_auto(
-            file_path,
-            batch_size=1000,
-            min_length=10,
-        ),
-    )
+    batches, used_rust = await loop.run_in_executor(None, parse)
     backend = "Rust" if used_rust else "Python"
     total = sum(len(b) for b in batches)
     print(f"[worker] parsed {total} sequences via {backend} parser ({upload.get('original_filename', '?')})")
@@ -126,11 +124,12 @@ async def _stage_qc(sequences: list[dict]) -> list[dict]:
 
 async def _stage_route(sequences: list[dict]) -> list[dict]:
     """
-    Phase 6: assign each sequence a taxonomic route using the heuristic router.
+    Assign each sequence a taxonomic route.
 
-    The router uses marker gene detection + biophysical scoring (GC ratio, CpG
-    O/E, length, habitat metadata) to assign routes with confidence scores.
-    Phase 7 replaces the biophysical scorer with DNA foundation model embeddings.
+    B19: the learned k-mer router runs first and returns calibrated
+    probabilities for every route; the heuristic (marker + biophysical) router
+    is the fallback, and each result records which one ran (router_method,
+    router_version, router_fallback_reason).
     """
     if not sequences:
         return sequences
@@ -155,17 +154,31 @@ async def _stage_route(sequences: list[dict]) -> list[dict]:
     results = await loop.run_in_executor(None, route_batch, inputs)
 
     route_dist: dict[str, int] = {}
+    method_dist: dict[str, int] = {}
+    fallback_reasons: dict[str, int] = {}
     for seq, result in zip(sequences, results):
         seq["route"] = str(result.route)
         seq["route_confidence"] = result.route_confidence
         seq["confidence_tier"] = str(result.confidence_tier)
         seq["fallback_routes"] = result.fallback_routes
         seq["reason_codes"] = result.reason_codes
+        # B19: which router decided, its version, and all route probabilities.
+        seq["router_method"] = result.router_method
+        seq["router_version"] = result.router_version
+        seq["route_probabilities"] = result.route_probabilities
+        seq["route_probabilities_calibrated"] = result.probabilities_calibrated
+        seq["router_fallback_reason"] = result.router_fallback_reason
         route_dist[str(result.route)] = route_dist.get(str(result.route), 0) + 1
+        method_dist[result.router_method] = method_dist.get(result.router_method, 0) + 1
+        if result.router_fallback_reason:
+            fallback_reasons[result.router_fallback_reason] = fallback_reasons.get(result.router_fallback_reason, 0) + 1
 
     low_q = route_dist.get("low_quality", 0)
     routed = len(sequences) - low_q
-    print(f"[worker] routing complete: {routed} sequences routed, {low_q} low-quality")
+    print(f"[worker] routing complete: {routed} sequences routed, {low_q} low-quality, methods {method_dist}")
+    if method_dist.get("heuristic_fallback"):
+        print(f"[worker] WARNING: learned router not used for {method_dist['heuristic_fallback']} "
+              f"sequence(s), heuristic fallback; reasons {fallback_reasons}")
     return sequences
 
 
