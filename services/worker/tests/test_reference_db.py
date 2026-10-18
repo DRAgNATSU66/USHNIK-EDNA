@@ -262,8 +262,14 @@ def test_cap_keeps_longest_per_taxon_and_marker(tmp_path):
     lengths = sorted(acc.entries[d].length for d in keep)
     assert lengths == [60, 104, 105]
     # a base budget forces the cap down the ladder
-    keep, k, _ = acc.select(10, 200)
-    assert k == 1 and len(keep) == 2
+    keep, k, info = acc.select(10, 200)
+    assert k == 1 and len(keep) == 2 and not info["over_budget"]
+    # no ceiling and room to spare: nothing is removed
+    keep, k, info = acc.select(0, 10**9)
+    assert k is None and info["removed_by_cap"] == 0 and len(keep) == 6
+    # cannot fit even at k=1: kept at k=1 and flagged
+    keep, k, info = acc.select(0, 50)
+    assert k == 1 and info["over_budget"]
 
 
 def test_heldout_exclusion_exact_and_chunked(tmp_path):

@@ -27,9 +27,13 @@ choices differ from build_dataset.py:
     Day 10 taxon evaluation on held-out splits measures lookup of unseen
     sequences instead of each query finding itself at 100% identity. Long
     records are checked through the same chunking build_dataset applied.
-  * Per (taxon, marker) at most --max-per-taxon sequences are kept (longest
-    first); when a route still exceeds --max-route-bases the cap is lowered
-    step by step. Both the cap used and what it removed go in the manifest.
+  * Size: a route that fits in --max-route-bases (default 400 Mb) keeps
+    every unique sequence. A larger one is capped per (lowest taxon, marker),
+    longest first, stepping down CAP_LADDER (50, 20, 10, 5, 3, 2, 1) until it
+    fits. vsearch loads the whole UDB into RAM per call (measured on a 776 Mb
+    route: 3.45 GB UDB, 4.1 GB RSS per query), so the budget is set for it;
+    a route that cannot fit even at 1 per group is kept at 1 and marked
+    over_budget in the manifest - query it through BLAST, which memory-maps.
 
 Header format (one token, no whitespace, so vsearch keeps it whole):
 
@@ -92,9 +96,10 @@ MAX_LEN = 50_000        # vsearch's default --maxseqlength; longer = genome/chro
 MAX_N_FRACTION = 0.05
 CHUNK_SOURCE_LEN = 2000  # build_dataset.MAX_SEQ_LEN: longer records were chunked
 
-DEFAULT_MAX_PER_TAXON = 10
+DEFAULT_MAX_PER_TAXON = 0            # 0 = no hard ceiling; the base budget decides
 DEFAULT_MAX_ROUTE_BASES = 400_000_000
-CAP_LADDER = (10, 5, 3, 2, 1)
+# Per (taxon, marker) caps tried in order until the route fits; None = uncapped.
+CAP_LADDER = (None, 50, 20, 10, 5, 3, 2, 1)
 
 
 def _sanitize(name: str) -> str:
@@ -597,18 +602,21 @@ class RouteAccumulator:
     def close(self) -> None:
         self._fh.close()
 
-    def select(self, max_per_taxon: int, max_bases: int) -> tuple[set[bytes], int, dict]:
-        """Longest-first per (lowest taxon, marker), lowering the cap until the
-        route fits in max_bases."""
+    def select(self, max_per_taxon: int, max_bases: int) -> tuple[set[bytes], int | None, dict]:
+        """Longest-first per (lowest taxon, marker). A route that fits in
+        max_bases keeps every unique sequence; otherwise the per-group cap
+        steps down CAP_LADDER until it fits (or reaches 1, recorded as
+        over_budget). max_per_taxon > 0 is a hard ceiling on top."""
         groups: dict[tuple, list[tuple[int, bytes]]] = defaultdict(list)
         for d, e in self.entries.items():
             groups[(lowest_taxon(e.lineage), e.marker)].append((e.length, d))
         for g in groups.values():
             g.sort(key=lambda t: (-t[0], t[1]))
-        ladder = [k for k in CAP_LADDER if k <= max_per_taxon] or [max_per_taxon]
-        if max_per_taxon not in ladder:
+        ladder = [k for k in CAP_LADDER if max_per_taxon <= 0 or (k is not None and k <= max_per_taxon)]
+        if max_per_taxon > 0 and max_per_taxon not in ladder:
             ladder.insert(0, max_per_taxon)
         chosen_k = ladder[-1]
+        total = 0
         for k in ladder:
             total = sum(sum(length for length, _ in g[:k]) for g in groups.values())
             chosen_k = k
@@ -617,7 +625,8 @@ class RouteAccumulator:
         keep = {d for g in groups.values() for _, d in g[:chosen_k]}
         info = {"max_per_taxon_marker": chosen_k, "groups": len(groups),
                 "unique_before_cap": len(self.entries), "kept": len(keep),
-                "removed_by_cap": len(self.entries) - len(keep)}
+                "removed_by_cap": len(self.entries) - len(keep),
+                "bases_after_cap": total, "over_budget": total > max_bases}
         return keep, chosen_k, info
 
     def write(self, out_fasta: Path, keep: set[bytes], width: int = 0) -> dict:
