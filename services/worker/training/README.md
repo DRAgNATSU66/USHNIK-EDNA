@@ -7,8 +7,29 @@ Builds the per-route training data and fine-tunes the route heads.
 | `sources.py` | One iterator per reference source, all yielding `Record(sequence, organism_name, lineage, source, route?, label?)` |
 | `routing.py` / `labeling.py` | Lineage → route, and (route, sequence, name, lineage) → label. Every source goes through these. |
 | `build_dataset.py` | Walks `raw/`, routes, labels, caps, dedups, writes `processed/<route>/{train,dev,test}.csv` |
+| `near_dup.py` | MinHash/LSH near-duplicate groups (16-mer Jaccard ≥ 0.8) used to split without near-duplicate leakage |
+| `check_leakage.py` | Exact cross-split check (THEORY_README §3, exit 1 if non-zero) plus near-duplicate and cross-route counts |
 | `fetch_supplementary.py` | Fetches extra sequences for thin classes from official APIs into `raw/supplementary/` |
 | `finetune.py`, `evaluate_checkpoint.py` | Training and evaluation |
+
+## Rebuilding `processed/` (`build_dataset.py`)
+
+```bash
+cd services/worker
+python -m training.build_dataset --data-dir <root> --route-cap bacteria_pathogen=20000 \
+    --exclude-blastdb nt_viruses,ref_prok_rep_genomes      # tier-2 DBs while they download
+python -m training.check_leakage --processed <root>/processed --json <root>/processed/leakage_report.json
+```
+
+- **BOLD** is read from the newest `raw/bold/BOLD_Public*.parquet`. With none present the build logs
+  `WARNING: skipping BOLD` and carries on. Reading it needs `pyarrow`, which no requirements file
+  installs yet.
+- **MIDORI2** is ingested one gene at a time (UNIQ selection), so the per-source scan cap applies per gene.
+- **Splits.** Rows are exact-deduplicated per route as before. Then, by default (`--split-mode group`),
+  near-duplicate groups (`near_dup.py`) are kept inside a single split. Groups are placed largest first, so the
+  largest clusters go to train. `--split-mode random` restores the old shuffle-and-slice.
+- `processed/build_report.json` records sources scanned or skipped, caps, candidates seen per class,
+  per-split counts and wall time.
 
 ## Supplementary data (`fetch_supplementary.py`)
 
