@@ -194,6 +194,33 @@ export const listFieldEntries = (analysis_id, kind) =>
 export const createFieldEntry = (data) =>
   request("POST", "/field-log/entries", { body: data });
 
+// No getFieldEntry (GET /field-log/entries/{id}) helper: the list already
+// carries every entry's `edits`, and PATCH returns the updated entry.
+
+/**
+ * Edit an entry's `body` and/or `anchor_sequence_id`. The server appends
+ * {editor, edited_at, changes: [{field, old, new}]} to `edits`; 409 means
+ * someone else edited it first.
+ */
+export const updateFieldEntry = (entry_id, changes) =>
+  request("PATCH", `/field-log/entries/${entry_id}`, { body: changes });
+
+export const listFieldAttachments = (analysis_id) =>
+  request("GET", "/field-log/attachments", { params: { analysis_id } });
+
+/** PDF, JPEG or PNG; the server checks size, type (by content) and sha256. */
+export const uploadFieldAttachment = (analysis_id, file, entry_id) => {
+  const form = new FormData();
+  form.append("analysis_id", analysis_id);
+  if (entry_id) form.append("entry_id", entry_id);
+  form.append("file", file);
+  return request("POST", "/field-log/attachments", { body: form });
+};
+
+/** Returns a raw Response (Content-Disposition: attachment) — call .blob(). */
+export const downloadFieldAttachment = (attachment_id) =>
+  request("GET", `/field-log/attachments/${attachment_id}/download`);
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
