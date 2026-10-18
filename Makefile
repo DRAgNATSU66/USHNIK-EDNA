@@ -177,6 +177,14 @@ frontend-build:
 	cd web_frontend && npm run build
 
 # -------------------------------------------------------------------------
+# Terminal dashboard (read-only): sprint, training, models, data, system
+# -------------------------------------------------------------------------
+.PHONY: watch
+
+watch:
+	python3 scripts/watch.py
+
+# -------------------------------------------------------------------------
 # Security
 # -------------------------------------------------------------------------
 .PHONY: security-scan
