@@ -1,7 +1,14 @@
 from functools import lru_cache
 from typing import Any
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Possible-novelty cutoff: a sequence with novelty_score >= this is counted as
+# possible novelty, gets an auto_novelty review and is listed in the report's
+# novelty table. Override with the NOVELTY_THRESHOLD env var. The worker image
+# defines the same default in services/worker/app/config.py (the two services
+# share no package); tests/test_novelty_threshold.py checks the two are equal.
+DEFAULT_NOVELTY_THRESHOLD = 0.45
 
 
 class Settings(BaseSettings):
@@ -10,7 +17,6 @@ class Settings(BaseSettings):
     # App
     app_name: str = "Synth Veda API"
     app_version: str = "0.1.0"
-    debug: bool = False
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -62,7 +68,15 @@ class Settings(BaseSettings):
     # Workers
     worker_concurrency: int = 2
 
+    # Novelty (see DEFAULT_NOVELTY_THRESHOLD above). Exposed on GET /health.
+    novelty_threshold: float = Field(default=DEFAULT_NOVELTY_THRESHOLD, gt=0.0, lt=1.0)
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Import this, never a bare 0.45. Resolved once at import time, like the
+# rest of the settings (get_settings is lru_cached).
+NOVELTY_THRESHOLD: float = get_settings().novelty_threshold

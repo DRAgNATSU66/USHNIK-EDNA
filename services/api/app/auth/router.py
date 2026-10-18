@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
@@ -14,6 +15,8 @@ from .jwt import create_access_token
 from .session import create_expedition_session, verify_expedition_session, OFFLINE_SESSION_DAYS
 from ..db.supabase_client import SupabaseClient, SupabaseUnavailableError
 from ..models.user import UserProfile, UserRole
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -109,9 +112,9 @@ async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenRespon
                 )
                 user_id = created["id"]
         await SupabaseClient.update_last_login(user_id)
-    except RuntimeError:
+    except RuntimeError as exc:
         # Supabase not configured (local dev without .env) — continue with defaults
-        pass
+        logger.info("Supabase unavailable during Google login, using default profile: %s", exc)
     except SupabaseUnavailableError:
         # Supabase configured but transiently unreachable even after
         # _with_retry's attempts -- surface as a clean, retryable 503
@@ -204,8 +207,9 @@ async def supabase_exchange(body: SupabaseExchangeRequest):
             role = UserRole(profile.get("role", UserRole.researcher))
             display_name = profile.get("display_name")
         await SupabaseClient.update_last_login(claims.user_id)
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        # Supabase not configured (local dev) — continue with the default role.
+        logger.info("Supabase unavailable during Supabase login, using default profile: %s", exc)
 
     user = UserProfile(
         user_id=claims.user_id,
@@ -362,8 +366,13 @@ async def create_offline_session(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Expedition not found"
             )
-    except RuntimeError:
-        pass  # MongoDB not connected in dev — skip the check
+    except RuntimeError as exc:
+        # MongoDB not connected in dev — skip the check, but say so: the
+        # session below is issued without verifying the expedition exists.
+        logger.warning(
+            "Expedition %s existence not verified (MongoDB unavailable: %s)",
+            body.expedition_id, exc,
+        )
 
     offline_token = create_expedition_session(
         expedition_id=body.expedition_id,
@@ -381,8 +390,11 @@ async def create_offline_session(
             actor_role=current_user.role,
             payload={"device_fingerprint": body.device_fingerprint},
         )
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        logger.warning(
+            "Audit log for expedition session %s not written (MongoDB unavailable: %s)",
+            body.expedition_id, exc,
+        )
 
     return ExpeditionSessionResponse(
         expedition_session_token=offline_token,

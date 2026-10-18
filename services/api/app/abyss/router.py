@@ -14,6 +14,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,6 +38,8 @@ from .offline_pack import (
     validate_offline_license,
 )
 from .analysis import run_abyss_analysis
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/abyss", tags=["abyss"])
 
@@ -402,7 +405,13 @@ async def sync_expedition(
         try:
             await enqueue_job(job_id=job.job_id, upload_id=upload_id, mode="abyss_synced")
         except Exception:
-            pass  # Redis unavailable — job stays in MongoDB for worker to poll
+            # Redis unavailable. The job doc stays "queued" in MongoDB, but the
+            # worker only dequeues from Redis, so it will not run until re-enqueued.
+            logger.warning(
+                "Could not enqueue abyss sync job %s on Redis; it stays queued in "
+                "MongoDB and will not run until re-enqueued",
+                job.job_id, exc_info=True,
+            )
         job_ids.append(job.job_id)
 
     # 4. Mark expedition synced

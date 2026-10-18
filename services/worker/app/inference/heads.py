@@ -5,8 +5,12 @@ Each route gets a lightweight linear probe on top of a DNA foundation model's
 [CLS] token embedding.  The architecture is intentionally simple:
   dropout → linear → softmax
 
-Phase 14 trains and saves weights for each head.  Until then, heads are
-initialised with random weights and are not used for scientific predictions.
+A head is only ever returned with trained weights loaded.  When head.pt is
+missing or fails to load, get_head raises HeadUnavailableError instead of
+handing back a randomly initialised head: a random head produces confident-
+looking but meaningless probabilities, and the predictor would label them
+inference_mode="model".  The predictor turns the error into a stub prediction
+with stub_reason "head_missing" / "head_load_failed".
 
 This module is torch-optional: if torch is not installed all functions
 are no-ops / return None.  The predictor handles that gracefully.
@@ -14,6 +18,7 @@ are no-ops / return None.  The predictor handles that gracefully.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from .models import ROUTE_LABEL_SETS
@@ -69,6 +74,24 @@ else:
 # ---------------------------------------------------------------------------
 
 _HEAD_CACHE: dict[str, Any] = {}   # (route, model_id) → head
+# Remembered failures, so a missing/corrupt head.pt is logged once per process
+# instead of once per sequence.  (route, model_id) → (reason, detail)
+_HEAD_FAILURES: dict[str, tuple[str, str]] = {}
+
+
+class HeadUnavailableError(RuntimeError):
+    """
+    Trained head weights for a route could not be used.
+
+    reason is one of:
+      - "head_missing"      no weights path, or the file does not exist
+      - "head_load_failed"  the file exists but torch.load / load_state_dict failed
+    """
+
+    def __init__(self, reason: str, detail: str):
+        super().__init__(f"{reason}: {detail}")
+        self.reason = reason
+        self.detail = detail
 
 
 def get_head(
@@ -78,9 +101,11 @@ def get_head(
     head_weights_path: str | None = None,
 ) -> Any | None:
     """
-    Return a DNAClassifierHead for the given route, loading weights if available.
+    Return a DNAClassifierHead for the given route with trained weights loaded.
 
-    Returns None when torch is not available or weights cannot be loaded.
+    Returns None when torch is not available or the route has no label set.
+    Raises HeadUnavailableError when the trained weights are missing or cannot
+    be loaded.  It never returns a randomly initialised head.
     """
     if not _TORCH_AVAILABLE:
         return None
@@ -88,23 +113,35 @@ def get_head(
     cache_key = f"{route}:{model_id}"
     if cache_key in _HEAD_CACHE:
         return _HEAD_CACHE[cache_key]
+    if cache_key in _HEAD_FAILURES:
+        raise HeadUnavailableError(*_HEAD_FAILURES[cache_key])
 
     labels = ROUTE_LABEL_SETS.get(route, [])
     if not labels:
         logger.warning("No label set defined for route %r", route)
         return None
 
+    def _fail(reason: str, detail: str, exc_info: bool = False) -> HeadUnavailableError:
+        logger.warning(
+            "Head weights unavailable for %s (%s): %s -- route will run in stub mode",
+            cache_key, reason, detail, exc_info=exc_info,
+        )
+        _HEAD_FAILURES[cache_key] = (reason, detail)
+        return HeadUnavailableError(reason, detail)
+
+    if not head_weights_path:
+        raise _fail("head_missing", "registry entry has no .pt/.bin head weights path")
+    if not os.path.isfile(head_weights_path):
+        raise _fail("head_missing", f"file not found: {head_weights_path}")
+
     num_classes = len(labels)
     head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=num_classes)
-
-    if head_weights_path:
-        try:
-            import torch
-            state = torch.load(head_weights_path, map_location="cpu", weights_only=True)
-            head.load_state_dict(state)
-            logger.info("Loaded head weights for %s from %s", cache_key, head_weights_path)
-        except Exception as exc:
-            logger.warning("Could not load head weights for %s: %s — using random init", cache_key, exc)
+    try:
+        state = torch.load(head_weights_path, map_location="cpu", weights_only=True)
+        head.load_state_dict(state)
+    except Exception as exc:
+        raise _fail("head_load_failed", f"{head_weights_path}: {exc}", exc_info=True) from exc
+    logger.info("Loaded head weights for %s from %s", cache_key, head_weights_path)
 
     head.eval()
     _HEAD_CACHE[cache_key] = head
@@ -113,6 +150,7 @@ def get_head(
 
 def clear_head_cache() -> None:
     _HEAD_CACHE.clear()
+    _HEAD_FAILURES.clear()
 
 
 # ---------------------------------------------------------------------------

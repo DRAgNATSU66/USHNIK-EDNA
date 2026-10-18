@@ -78,8 +78,6 @@ spec:
                   key: latest
             - name: ALLOWED_ORIGINS
               value: "https://synthveda.vercel.app,https://synthveda.io"
-            - name: DEBUG
-              value: "false"
             - name: MAX_UPLOAD_SIZE_MB
               value: "500"
 

@@ -5,13 +5,15 @@ import ProvenanceTag from "../../components/shared/ProvenanceTag";
 import DisclaimerBanner from "../../components/shared/DisclaimerBanner";
 import { tokens } from "../../components/shared/tokens";
 import Dropdown from "../../components/shared/Dropdown";
-import { getReport, listReports } from "../../lib/api";
+import { getReportSummary, getNoveltyTable, getContaminationWarnings, listReports } from "../../lib/api";
+import { useNoveltyThreshold } from "../../lib/noveltyThreshold";
 
-// Same reasoning as Analysis Report's novelty gauge: the backend only
-// returns per-sequence scores for entries already above its 0.45 flagging
-// cutoff, so the mockup's 40-97% slider range is clamped to 45-97 here --
-// there's no real data to slide into below the floor.
-const NOVELTY_FLOOR_PCT = 45;
+// The backend only returns novelty entries already at or above its flagging
+// threshold, so the slider's floor is that threshold -- there's no real data
+// to slide into below it. The threshold comes from GET /health
+// (novelty_threshold), never a frontend literal; if the API doesn't report
+// it, the slider starts at 0 and the page says the threshold is unavailable.
+const SLIDER_MAX_PCT = 97;
 
 const pageStyle = {
   position: "relative",
@@ -94,7 +96,7 @@ function SolidButton({ children, onClick, disabled, title }) {
 // Researcher Mode list pages read as one consistent design.
 const GRID_COLS = "26px 170px 1fr 1.4fr 168px";
 
-function CandidateRow({ n, i, bulkMode, selected, onToggleSelect, onOpen }) {
+function CandidateRow({ n, i, bulkMode, selected, contaminationFlagged, onToggleSelect, onOpen }) {
   const pct = (n.novelty_score * 100).toFixed(1);
   return (
     <div
@@ -147,6 +149,7 @@ function CandidateRow({ n, i, bulkMode, selected, onToggleSelect, onOpen }) {
         <span style={plainTagStyle(n.requires_cloud_confirmation ? "warning" : "success")}>
           {n.requires_cloud_confirmation ? "cloud confirm needed" : n.abyss_recommendation}
         </span>
+        {contaminationFlagged && <span style={plainTagStyle("warning")}>contamination warning</span>}
       </span>
       <span style={{ fontSize: 12, color: tokens.pending }}>{n.reason_codes?.length > 0 ? n.reason_codes.join(" · ") : "—"}</span>
       <SolidButton
@@ -160,7 +163,7 @@ function CandidateRow({ n, i, bulkMode, selected, onToggleSelect, onOpen }) {
   );
 }
 
-function AlignmentViewerDrawer({ candidate, onClose }) {
+function AlignmentViewerDrawer({ candidate, contaminationFlagged, onClose }) {
   if (!candidate) return null;
   const pct = (candidate.novelty_score * 100).toFixed(1);
   const fastaLines = candidate.sequence ? candidate.sequence.match(/.{1,60}/g) ?? [] : [];
@@ -216,8 +219,11 @@ function AlignmentViewerDrawer({ candidate, onClose }) {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <span style={noveltyTierStyle(candidate.novelty_score * 100)}>{pct}% novel</span>
           <span style={plainTagStyle("accent")}>{candidate.route}</span>
-          <span style={plainTagStyle(candidate.contamination_score >= 0.5 ? "warning" : "pending")}>
+          {/* Warning tone comes from the server's contamination list
+              (GET /reports/{id}/contamination), not a browser-side cutoff. */}
+          <span style={plainTagStyle(contaminationFlagged ? "warning" : "pending")}>
             contamination {(candidate.contamination_score * 100).toFixed(1)}%
+            {contaminationFlagged && " · flagged"}
           </span>
         </div>
 
@@ -280,9 +286,15 @@ export default function NoveltyDNA() {
   const requestedId = searchParams.get("analysis_id");
 
   const [analysisId, setAnalysisId] = useState(requestedId);
+  // { metadata, candidates, contaminatedIds } -- assembled from the three
+  // narrow report endpoints instead of the full report.
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
-  const [threshold, setThreshold] = useState(NOVELTY_FLOOR_PCT);
+  const { loading: thresholdLoading, threshold: serverThreshold } = useNoveltyThreshold();
+  const floorPct = serverThreshold == null ? 0 : Math.round(serverThreshold * 100);
+  // null = the user hasn't moved the slider yet, so it tracks the floor.
+  const [cutoff, setCutoff] = useState(null);
+  const threshold = cutoff ?? floorPct;
   const [routeFilter, setRouteFilter] = useState("All");
   const [sortBy, setSortBy] = useState("novelty");
   const [bulkMode, setBulkMode] = useState(false);
@@ -311,19 +323,35 @@ export default function NoveltyDNA() {
 
   useEffect(() => {
     if (!analysisId) return;
-    getReport(analysisId)
-      .then(setReport)
-      .catch((e) => setError(e.message || "Failed to load report."));
+    let live = true;
+    setReport(null);
+    // min_score is left to the server's default, i.e. its own flagging
+    // threshold -- the slider below only narrows within what it returns.
+    Promise.all([
+      getReportSummary(analysisId),
+      getNoveltyTable(analysisId),
+      getContaminationWarnings(analysisId),
+    ])
+      .then(([summary, novelty, contamination]) => {
+        if (!live) return;
+        setReport({
+          metadata: summary.metadata,
+          candidates: novelty.entries ?? [],
+          contaminatedIds: new Set((contamination.warnings ?? []).map((w) => w.sequence_id)),
+        });
+      })
+      .catch((e) => { if (live) setError(e.message || "Failed to load report."); });
+    return () => { live = false; };
   }, [analysisId]);
 
   const routes = useMemo(() => {
     if (!report) return [];
-    return [...new Set(report.possible_novelty.map((n) => n.route))].sort();
+    return [...new Set(report.candidates.map((n) => n.route))].sort();
   }, [report]);
 
   const rows = useMemo(() => {
     if (!report) return [];
-    let list = report.possible_novelty.filter(
+    let list = report.candidates.filter(
       (n) => n.novelty_score * 100 >= threshold && (routeFilter === "All" || n.route === routeFilter)
     );
     list = [...list].sort((a, b) =>
@@ -333,7 +361,7 @@ export default function NoveltyDNA() {
   }, [report, threshold, routeFilter, sortBy]);
 
   const selCount = Object.values(selected).filter(Boolean).length;
-  const drawerCandidate = report?.possible_novelty.find((n) => n.sequence_id === drawerId) ?? null;
+  const drawerCandidate = report?.candidates.find((n) => n.sequence_id === drawerId) ?? null;
 
   const toggleBulk = () => {
     setBulkMode((b) => !b);
@@ -403,11 +431,18 @@ export default function NoveltyDNA() {
             <input
               type="range"
               className="sv-novelty-slider"
-              min={NOVELTY_FLOOR_PCT}
-              max={97}
+              min={floorPct}
+              max={Math.max(SLIDER_MAX_PCT, floorPct)}
               value={threshold}
-              onChange={(e) => setThreshold(+e.target.value)}
+              onChange={(e) => setCutoff(+e.target.value)}
             />
+            <span style={{ fontSize: 11.5, color: serverThreshold == null && !thresholdLoading ? tokens.warningAlt : tokens.pending }}>
+              {thresholdLoading
+                ? "Loading flagging threshold…"
+                : serverThreshold == null
+                  ? "Flagging threshold unavailable (not reported by the API)"
+                  : `Server flags at ≥ ${floorPct}%`}
+            </span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             <span style={{ fontSize: 11.5, letterSpacing: "0.08em", color: tokens.labelText }}>ROUTE</span>
@@ -476,7 +511,7 @@ export default function NoveltyDNA() {
         {/* Candidate list */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <span style={{ fontSize: 13, letterSpacing: "0.08em", color: tokens.labelText }}>
-            {rows.length} OF {report.possible_novelty.length} CANDIDATES SHOWN · THRESHOLD ≥ {threshold}%
+            {rows.length} OF {report.candidates.length} CANDIDATES SHOWN · THRESHOLD ≥ {threshold}%
           </span>
 
           {rows.length > 0 ? (
@@ -497,6 +532,7 @@ export default function NoveltyDNA() {
                       i={i}
                       bulkMode={bulkMode}
                       selected={!!selected[n.sequence_id]}
+                      contaminationFlagged={report.contaminatedIds.has(n.sequence_id)}
                       onToggleSelect={() => setSelected((s) => ({ ...s, [n.sequence_id]: !s[n.sequence_id] }))}
                       onOpen={() => setDrawerId(n.sequence_id)}
                     />
@@ -538,7 +574,11 @@ export default function NoveltyDNA() {
         </div>
       </div>
 
-      <AlignmentViewerDrawer candidate={drawerCandidate} onClose={() => setDrawerId(null)} />
+      <AlignmentViewerDrawer
+        candidate={drawerCandidate}
+        contaminationFlagged={!!drawerCandidate && report.contaminatedIds.has(drawerCandidate.sequence_id)}
+        onClose={() => setDrawerId(null)}
+      />
     </div>
   );
 }

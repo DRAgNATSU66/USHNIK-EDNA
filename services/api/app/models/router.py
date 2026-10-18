@@ -180,13 +180,9 @@ def _route_status(route: str, entries: list[dict], data_root: Path) -> dict:
         # Loader cannot find it locally, tries it as a Hub id, fails, worker stubs.
         status, reason, mode = "missing_artifacts", "backbone_not_found", "stub"
     elif not head["present"]:
-        # heads.get_head logs a warning and falls back to a randomly initialised
-        # head; predictor still labels those results inference_mode="model".
-        status, reason, mode = "missing_artifacts", "head_weights_not_found", "model"
-        warnings.append(
-            "head weights not found: the worker will run a randomly initialised head "
-            "and still label results inference_mode=model"
-        )
+        # heads.get_head refuses to build a randomly initialised head; the
+        # predictor returns stubs with stub_reason="head_missing".
+        status, reason, mode = "missing_artifacts", "head_weights_not_found", "stub"
     elif backbone["present"] is None:
         status, reason, mode = "unverified", "backbone_from_hub", "model"
         warnings.append("backbone is a Hub id; availability depends on the worker's network/cache")

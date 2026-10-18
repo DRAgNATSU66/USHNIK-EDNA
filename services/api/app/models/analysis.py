@@ -48,6 +48,10 @@ class SequenceResult(BaseModel):
     router_fallback_reason: Optional[str] = None
     route_probabilities: Optional[dict[str, float]] = None
     route_probabilities_calibrated: Optional[bool] = None
+    # "model" | "stub" | "low_quality"; stub_reason says why a stub was used
+    # (e.g. head_missing). Written by the worker's _stage_infer; None on old docs.
+    inference_mode: Optional[str] = None
+    stub_reason: Optional[str] = None
 
 
 class AnalysisSummary(BaseModel):

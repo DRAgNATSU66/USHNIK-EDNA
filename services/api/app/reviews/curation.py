@@ -15,13 +15,17 @@ Anti-poisoning rule:
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from ..config import NOVELTY_THRESHOLD
 from ..models.review import ReviewDoc, ReviewState, ReviewType, TriagePriority
 from ..db.supabase_client import SupabaseClient
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +111,10 @@ async def triage_review(
     try:
         await SupabaseClient.update_review_state(review_id, ReviewState.triaged, triaged_by, notes)
     except Exception:
-        pass
+        logger.warning(
+            "Supabase mirror of triage for review %s failed; MongoDB updated, Supabase not",
+            review_id, exc_info=True,
+        )
 
     updated = {**{k: v for k, v in doc.items() if k != "_id"}, **update}
     return ReviewDoc(**updated)
@@ -230,6 +237,11 @@ async def create_monthly_training_batch(
             await SupabaseClient.insert_curated_sequence(sd)
         batch_status = "assembled"
     except Exception:
+        # Visible to the caller via batch_status; log why.
+        logger.warning(
+            "Supabase write for training batch %s failed; batch assembled locally only",
+            batch_id, exc_info=True,
+        )
         batch_status = "assembled_local_only"
 
     # Stamp each accepted review in MongoDB
@@ -278,7 +290,10 @@ async def freeze_training_batch(
     try:
         await SupabaseClient.freeze_training_batch(batch_id)
     except Exception:
-        pass
+        logger.warning(
+            "Supabase freeze of training batch %s failed; frozen in MongoDB only",
+            batch_id, exc_info=True,
+        )
 
     # Audit log
     await db["audit_logs"].insert_one({
@@ -307,7 +322,7 @@ def build_auto_review(
     the returned dict is inserted directly into MongoDB.
 
     Triggers:
-      - novelty_score >= 0.45  → auto_novelty review
+      - novelty_score >= NOVELTY_THRESHOLD  → auto_novelty review
       - contamination_flagged  → auto_contamination review
       Both can trigger simultaneously; one document is created per trigger type.
     """
@@ -320,7 +335,7 @@ def build_auto_review(
 
     reviews = []
 
-    if novelty_score >= 0.45:
+    if novelty_score >= NOVELTY_THRESHOLD:
         reviews.append({
             "review_id": f"rev_{uuid.uuid4().hex[:16]}",
             "analysis_id": analysis_id,
@@ -356,7 +371,7 @@ def build_auto_review(
             "contamination_type": seq.get("contamination_type"),
             "abyss_recommendation": seq.get("abyss_recommendation"),
             "correction_type": "auto_contamination_flag",
-            "is_novelty": novelty_score >= 0.45,
+            "is_novelty": novelty_score >= NOVELTY_THRESHOLD,
             "is_contamination": True,
             "evidence_notes": None,
             "evidence_attachments": [],
