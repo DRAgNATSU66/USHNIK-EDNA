@@ -20,6 +20,9 @@ import {
   modelRadioOuterStyle,
   modelRadioDotStyle,
   modelTagStyle,
+  segmentOptionStyle,
+  segmentRadioOuterStyle,
+  segmentRadioDotStyle,
   heroCardStyle,
   heroCardTitleStyle,
   heroCardSubtitleStyle,
@@ -30,22 +33,41 @@ const VALID_EXTS = [".fasta", ".fa", ".fastq", ".json", ".jsonl"];
 // (settings.max_upload_size_mb); keep it equal to the backend default.
 const DEFAULT_MAX_SIZE_MB = 100;
 
-// "Date", "Time", and the combined "Latitude, Longitude" field are handled
-// separately from this list (see META_FIELDS below + parseLatLong) since
-// they need custom input types / parsing before hitting the backend, which
-// only accepts separate `latitude`/`longitude` floats and has no date/time
-// field at all yet (see the note above handleSubmit).
+// Optional sample metadata, sent to POST /uploads under the API's own field
+// names (OPTIONAL_METADATA_FIELDS in services/api/app/models/upload.py).
+// Three inputs are reshaped in buildMetadata below: "date" + "time" become
+// `collected_at` (ISO with the browser's UTC offset), "lat_long" is split
+// into `latitude`/`longitude` (sent only as a pair), and the negative
+// control is a tri-state segmented control rendered after this list.
+// `hint` mirrors the backend's range checks; the backend stays the authority.
 const META_FIELDS = [
   { key: "location_label", label: "Location label", type: "text", placeholder: "Indian Ocean, Site 7" },
-  { key: "date", label: "Date", type: "date", placeholder: "" },
-  { key: "time", label: "Time", type: "time", placeholder: "" },
-  { key: "lat_long", label: "Latitude, Longitude", type: "text", placeholder: "-18.432, 73.211" },
-  { key: "depth_meters", label: "Depth (m)", type: "number", placeholder: "2500" },
+  { key: "date", label: "Collection date", type: "date", placeholder: "" },
+  { key: "time", label: "Collection time", type: "time", placeholder: "", hint: "local" },
+  { key: "lat_long", label: "Latitude, Longitude", type: "text", placeholder: "-18.432, 73.211", hint: "±90, ±180" },
+  { key: "depth_meters", label: "Depth (m)", type: "number", placeholder: "2500", min: 0, hint: "≥ 0" },
   { key: "source_type", label: "Source type", type: "text", placeholder: "water, sediment" },
   { key: "habitat", label: "Habitat", type: "text", placeholder: "hydrothermal_vent" },
   { key: "salinity_ppt", label: "Salinity (ppt)", type: "number", placeholder: "35.2" },
   { key: "temperature_celsius", label: "Temperature (°C)", type: "number", placeholder: "4.5" },
+  { key: "dissolved_oxygen_mg_l", label: "Dissolved O₂ (mg/L)", type: "number", placeholder: "6.8", min: 0, hint: "≥ 0" },
+  { key: "ph", label: "pH", type: "number", placeholder: "8.1", min: 0, max: 14, hint: "0–14" },
+  { key: "methodology", label: "Methodology", type: "text", placeholder: "metabarcoding, qPCR" },
+  { key: "collector", label: "Collector", type: "text", placeholder: "Name or team" },
 ];
+
+// Tri-state. "" = not recorded, so the field is omitted and the result says
+// "not recorded"; otherwise the string the API's bool form field parses.
+const NEGATIVE_CONTROL_OPTIONS = [
+  { value: "true", label: "Included" },
+  { value: "false", label: "Not included" },
+  { value: "", label: "Not recorded" },
+];
+
+// Same tolerance as the API's _COLLECTED_AT_FUTURE_TOLERANCE.
+const COLLECTED_AT_FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
+const emptyMeta = () => ({ ...Object.fromEntries(META_FIELDS.map((f) => [f.key, ""])), negative_control: "" });
 
 const MODES = [
   { value: "online_full", title: "Online Full", desc: "Full cloud analysis with every model. Best for publishable results." },
@@ -85,17 +107,77 @@ function validateFile(file, maxSizeMb) {
   return null;
 }
 
-// "-18.432, 73.211" -> { latitude, longitude } — returns {} (and silently
-// drops the field, same as leaving it blank) if it doesn't parse cleanly.
-// This is optional metadata, not a validated form field, so a malformed
-// entry just doesn't get sent rather than blocking submission.
+// "-18.432, 73.211" -> { latitude, longitude }, or null if it isn't two
+// numbers. A malformed entry is now reported instead of silently dropped:
+// coordinates decide whether a partner report is possible, so losing them
+// without a word would be worse than asking the user to fix the format.
 function parseLatLong(value) {
-  const parts = value.split(",").map((s) => s.trim());
-  if (parts.length !== 2) return {};
-  const latitude = parseFloat(parts[0]);
-  const longitude = parseFloat(parts[1]);
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) return {};
+  const parts = value.split(",").map((x) => x.trim());
+  if (parts.length !== 2 || parts.some((x) => x === "")) return null;
+  const latitude = Number(parts[0]);
+  const longitude = Number(parts[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   return { latitude, longitude };
+}
+
+// "+05:30" for the browser's offset on that particular date (DST-correct).
+function formatOffset(d) {
+  const mins = -d.getTimezoneOffset();
+  const sign = mins >= 0 ? "+" : "-";
+  const abs = Math.abs(mins);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+// Form state -> { fields, errors }. `fields` holds only values that were
+// actually entered, under API field names: an empty input is omitted, never
+// sent as "" (the API answers 422 for "" in a number or date field). Range
+// checks match services/api/app/uploads/router.py.
+function buildMetadata(meta) {
+  const fields = {};
+  const errors = {};
+  const v = Object.fromEntries(Object.entries(meta).map(([k, x]) => [k, typeof x === "string" ? x.trim() : x]));
+
+  for (const key of ["location_label", "source_type", "habitat", "methodology", "collector"]) {
+    if (v[key]) fields[key] = v[key];
+  }
+
+  const num = (key, ok, message) => {
+    if (v[key] === "") return;
+    const n = Number(v[key]);
+    if (!Number.isFinite(n) || (ok && !ok(n))) errors[key] = message;
+    else fields[key] = n;
+  };
+  num("depth_meters", (n) => n >= 0, "Depth must be 0 or more.");
+  num("salinity_ppt", null, "Enter a number.");
+  num("temperature_celsius", null, "Enter a number.");
+  num("dissolved_oxygen_mg_l", (n) => n >= 0, "Dissolved oxygen must be 0 or more.");
+  num("ph", (n) => n >= 0 && n <= 14, "pH must be between 0 and 14.");
+
+  if (v.lat_long) {
+    const ll = parseLatLong(v.lat_long);
+    if (!ll) errors.lat_long = "Enter two numbers: latitude, longitude.";
+    else if (Math.abs(ll.latitude) > 90 || Math.abs(ll.longitude) > 180) errors.lat_long = "Latitude must be within ±90, longitude within ±180.";
+    else Object.assign(fields, ll);
+  }
+
+  if (v.time && !v.date) {
+    errors.date = "Add the date this time belongs to.";
+  } else if (v.date) {
+    // No time entered -> 00:00 local; the hint under the time field says so.
+    const time = v.time || "00:00";
+    const [y, mo, d] = v.date.split("-").map(Number);
+    const [hh, mm] = time.split(":").map(Number);
+    const local = new Date(y, mo - 1, d, hh, mm);
+    if (Number.isNaN(local.getTime())) errors.date = "Enter a valid date.";
+    else if (local.getTime() > Date.now() + COLLECTED_AT_FUTURE_TOLERANCE_MS) errors.date = "Collection date can't be in the future.";
+    else fields.collected_at = `${v.date}T${time}:00${formatOffset(local)}`;
+  }
+
+  if (v.negative_control === "true" || v.negative_control === "false") {
+    fields.negative_control_included = v.negative_control;
+  }
+
+  return { fields, errors };
 }
 
 function UploadIcon() {
@@ -141,9 +223,8 @@ export default function Upload() {
   const [fileError, setFileError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
-  const [meta, setMeta] = useState(
-    Object.fromEntries(META_FIELDS.map((f) => [f.key, ""]))
-  );
+  const [meta, setMeta] = useState(emptyMeta);
+  const [metaErrors, setMetaErrors] = useState({});
 
   const [mode, setMode] = useState("online_full");
   const [modelIndex, setModelIndex] = useState(0);
@@ -174,7 +255,16 @@ export default function Upload() {
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
 
-  const setMetaField = (k) => (e) => setMeta((prev) => ({ ...prev, [k]: e.target.value }));
+  const setMetaValue = (k, value) => {
+    setMeta((prev) => ({ ...prev, [k]: value }));
+    setMetaErrors((prev) => {
+      if (!prev[k]) return prev;
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+  };
+  const setMetaField = (k) => (e) => setMetaValue(k, e.target.value);
 
   const handleModeSelect = (value) => {
     setMode(value);
@@ -184,7 +274,8 @@ export default function Upload() {
   const handleReset = () => {
     setFile(null);
     setFileError("");
-    setMeta(Object.fromEntries(META_FIELDS.map((f) => [f.key, ""])));
+    setMeta(emptyMeta());
+    setMetaErrors({});
     setMode("online_full");
     setModelIndex(0);
     setError("");
@@ -194,26 +285,18 @@ export default function Upload() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) { setError("Please select a file first."); return; }
+    const { fields, errors } = buildMetadata(meta);
+    setMetaErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("Some metadata values are out of range. Fix them or clear the field.");
+      return;
+    }
     setError("");
     setSubmitting(true);
     try {
       const formData = new FormData();
       formData.append("file", file, file.name);
-
-      // date/time have no backend field yet — not sent (see META_FIELDS
-      // comment). lat_long gets parsed and split into the two fields the
-      // backend actually accepts.
-      const { date, time, lat_long, ...rest } = meta;
-      for (const [k, v] of Object.entries(rest)) {
-        if (v !== "" && v !== null) formData.append(k, v);
-      }
-      if (lat_long) {
-        const { latitude, longitude } = parseLatLong(lat_long);
-        if (latitude !== undefined) {
-          formData.append("latitude", latitude);
-          formData.append("longitude", longitude);
-        }
-      }
+      for (const [k, v] of Object.entries(fields)) formData.append(k, String(v));
 
       const upload = await createUpload(formData);
       const job = await createAnalysisJob(upload.upload_id, mode);
@@ -331,22 +414,69 @@ export default function Upload() {
 
             {/* Environmental Metadata */}
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <SlabHeader title="Environmental Metadata" subtitle="Optional — improves classification accuracy" />
+              {/* Subtitle states only what the code does: none of these
+                  fields feeds inference yet (qna.md QNA-005 Q5), but the
+                  partner report does need date + coordinates (Q2). */}
+              <SlabHeader title="Environmental Metadata" subtitle="Optional — a partner report needs the collection date and coordinates" />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px 24px" }}>
-                {META_FIELDS.map(({ key, label, type, placeholder }) => (
-                  <label key={key} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {META_FIELDS.map(({ key, label, type, placeholder, min, max, hint }) => {
+                  const fieldError = metaErrors[key];
+                  const timeNote = key === "time" && meta.date && !meta.time ? "No time entered — 00:00 local will be recorded" : null;
+                  return (
+                    <label key={key} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ fontSize: "10.5px", fontWeight: 600, letterSpacing: "0.11em", textTransform: "uppercase", color: uploadColors.labelText }}>
+                          {label}
+                        </span>
+                        {hint && <span style={{ fontSize: "10.5px", color: uploadColors.sectionSubtext, letterSpacing: "0.02em" }}>{hint}</span>}
+                      </span>
+                      <input
+                        type={type}
+                        className="sv-upload-field"
+                        placeholder={placeholder}
+                        value={meta[key]}
+                        onChange={setMetaField(key)}
+                        min={min}
+                        max={max}
+                        step={type === "number" ? "any" : undefined}
+                        aria-invalid={fieldError ? true : undefined}
+                        style={fieldError ? { borderColor: uploadColors.errorText } : undefined}
+                      />
+                      {fieldError && <span style={{ fontSize: "11.5px", color: uploadColors.errorText }}>{fieldError}</span>}
+                      {!fieldError && timeNote && <span style={{ fontSize: "11.5px", color: uploadColors.sectionSubtext }}>{timeNote}</span>}
+                    </label>
+                  );
+                })}
+                <div role="radiogroup" aria-label="Negative control" style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
                     <span style={{ fontSize: "10.5px", fontWeight: 600, letterSpacing: "0.11em", textTransform: "uppercase", color: uploadColors.labelText }}>
-                      {label}
+                      Negative control
                     </span>
-                    <input
-                      type={type}
-                      className="sv-upload-field"
-                      placeholder={placeholder}
-                      value={meta[key]}
-                      onChange={setMetaField(key)}
-                    />
-                  </label>
-                ))}
+                    <span style={{ fontSize: "10.5px", color: uploadColors.sectionSubtext, letterSpacing: "0.02em" }}>
+                      blank extraction run alongside the sample
+                    </span>
+                  </span>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {NEGATIVE_CONTROL_OPTIONS.map((opt) => {
+                      const active = meta.negative_control === opt.value;
+                      return (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => setMetaValue("negative_control", opt.value)}
+                          style={segmentOptionStyle(active)}
+                        >
+                          <span style={segmentRadioOuterStyle(active)}>
+                            <span style={segmentRadioDotStyle(active)} />
+                          </span>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 

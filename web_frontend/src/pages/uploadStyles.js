@@ -181,6 +181,23 @@ export const modelCardStyle = (active) => radioCard(active, { padding: "16px 18p
 export const modelRadioOuterStyle = (active) => radioOuter(active, 17);
 export const modelRadioDotStyle = (active) => radioDot(active, 7.5);
 
+// Inline tri-state option (Negative control) in the metadata grid: the
+// same radio-card material at input height, so it lines up with the
+// .sv-upload-field inputs beside it.
+export const segmentOptionStyle = (active) => ({
+  ...radioCard(active, { padding: "0 14px", gap: 9 }),
+  height: 46,
+  flex: 1,
+  alignItems: "center",
+  borderRadius: 3,
+  fontFamily: "inherit",
+  fontSize: 13.5,
+  fontWeight: active ? 600 : 500,
+  color: active ? uploadColors.cardTitle : uploadColors.cardDesc,
+});
+export const segmentRadioOuterStyle = (active) => ({ ...radioOuter(active, 14), marginTop: 0 });
+export const segmentRadioDotStyle = (active) => radioDot(active, 6);
+
 // isMain: true for the "Main" model in a mode's list, false for "Fallback".
 export const modelTagStyle = (isMain) => ({
   flex: "0 0 auto",
