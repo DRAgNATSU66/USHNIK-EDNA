@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Any, Literal
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Possible-novelty cutoff: a sequence with novelty_score >= this is counted as
@@ -10,6 +10,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # share no package); tests/test_novelty_threshold.py checks the two are equal.
 DEFAULT_NOVELTY_THRESHOLD = 0.45
 
+# JWT_SECRET startup check (B18). Outside APP_ENV=dev/test the API refuses to
+# start with a placeholder secret or one shorter than this many bytes. 32
+# bytes = 256 bits: RFC 7518 sec. 3.2 requires an HS256 key at least as long
+# as the hash output, and `openssl rand -hex 32` (64 chars) clears it easily.
+JWT_SECRET_MIN_BYTES = 32
+# The code default below and the .env.example placeholder: a copied example
+# file must not pass the length check by accident.
+_PLACEHOLDER_JWT_SECRETS = frozenset({
+    "change-me-in-production",
+    "change-me-to-a-random-256-bit-secret",
+})
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -17,6 +29,11 @@ class Settings(BaseSettings):
     # App
     app_name: str = "Synth Veda API"
     app_version: str = "0.1.0"
+    # Deployment environment (APP_ENV). dev and test skip the JWT_SECRET
+    # check below; the deploy manifests (infra/deployment/cloud-run-api.yml,
+    # infra/terraform/main.tf) set APP_ENV=production. The default stays dev
+    # so tests, scripts and a bare `make api-run` keep working.
+    app_env: Literal["dev", "test", "staging", "production"] = "dev"
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -34,6 +51,23 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
 
+    @model_validator(mode="after")
+    def _require_real_jwt_secret(self) -> "Settings":
+        """Refuse to load settings (so the API refuses to start: app.config
+        resolves them at import) outside dev/test with a weak JWT_SECRET."""
+        if self.app_env in ("dev", "test"):
+            return self
+        if self.jwt_secret in _PLACEHOLDER_JWT_SECRETS:
+            problem = "is a placeholder value"
+        elif len(self.jwt_secret.encode()) < JWT_SECRET_MIN_BYTES:
+            problem = f"is {len(self.jwt_secret.encode())} bytes, below the {JWT_SECRET_MIN_BYTES}-byte minimum"
+        else:
+            return self
+        raise ValueError(
+            f"APP_ENV={self.app_env}: JWT_SECRET {problem}. Refusing to start. "
+            "Set JWT_SECRET to a random secret (e.g. `openssl rand -hex 32`), "
+            "or set APP_ENV=dev for local development."
+        )
 
     # CORS
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

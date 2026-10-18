@@ -43,7 +43,6 @@ web_frontend/     React + Vite frontend
     components/     shared UI components
     contexts/       React context providers
     lib/            frontend utilities
-legacy/           superseded code kept for reference — not part of the live app
 docs/             this documentation tree
 ```
 

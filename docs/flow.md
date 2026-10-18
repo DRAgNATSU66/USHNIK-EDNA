@@ -12,7 +12,6 @@ in plain language, scoped to that session. Append to the change log; don't rewri
 | Worker | `services/worker/app/dispatcher.py` (`_process_loop`) | long-running poll loop, not a per-request handler — see call order below |
 | Frontend | `web_frontend/src/main.jsx` -> `App.jsx` | Vite entry, mounts React app + router |
 | Training pipeline | `services/worker/training/finetune.py` | standalone, not triggered by the live API — run manually/via monthly job |
-| Inference smoke test | `src/species_identification/nt_inference.py` (per root `README.md`) | legacy/local validation path, predates the `services/` split — verify it still matches current code before relying on it |
 
 ## Call order — analyze request (happy path)
 

@@ -212,6 +212,11 @@ resource "google_cloud_run_v2_service" "api" {
 
       # Non-secret config
       env {
+        # Enables the JWT_SECRET startup check (B18, app/config.py).
+        name  = "APP_ENV"
+        value = "production"
+      }
+      env {
         name  = "MONGODB_DB"
         value = "synthveda"
       }

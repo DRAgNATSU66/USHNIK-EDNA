@@ -339,6 +339,7 @@ the user clicking through it — a real user has no way to know their model choi
 
 - **`legacy/`** — a separate, older sklearn-based prototype (`legacy/src/species_identification`,
   `legacy/src/web_api`, etc.), clearly superseded by `services/api` + `services/worker`. Candidate
-  for deletion once nobody needs to reference it.
+  for deletion once nobody needs to reference it. *Resolved 2026-10-30 (t-1030-2): deleted; the
+  tree is in git history before that commit.*
 - **`frontend_zips_claude_design/`** — static design mockups/screenshots, not app code. Fine to
   keep as design reference but shouldn't be confused with the live frontend.
