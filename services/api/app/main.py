@@ -14,6 +14,7 @@ from .reviews import router as reviews_router
 from .abyss import router as abyss_router
 from .reports import router as reports_router
 from .field_log import router as field_log_router
+from .environment import router as environment_router
 
 
 @asynccontextmanager
@@ -101,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(abyss_router)
     app.include_router(reports_router)
     app.include_router(field_log_router)
+    app.include_router(environment_router)
 
     return app
 

@@ -15,6 +15,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await _abyss_indexes(db)
     await _audit_indexes(db)
     await _field_log_indexes(db)
+    await _environment_indexes(db)
 
 
 async def _uploads_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -102,6 +103,20 @@ async def _field_log_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["field_log_attachments"].create_indexes([
         IndexModel([("attachment_id", ASCENDING)], unique=True, name="field_attachment_id_unique"),
         IndexModel([("analysis_id", ASCENDING), ("created_at", ASCENDING)], name="field_attachment_analysis_created"),
+    ])
+
+
+async def _environment_indexes(db: AsyncIOMotorDatabase) -> None:
+    # Q5 environmental context (app/environment/service.py): one doc per
+    # upload, plus the coarse shared cache keyed by rounded lat/lon/date/depth.
+    await db["environment_contexts"].create_indexes([
+        IndexModel([("upload_id", ASCENDING)], unique=True, name="env_context_upload_id_unique"),
+    ])
+    await db["environment_cache"].create_indexes([
+        IndexModel([("cache_key", ASCENDING)], unique=True, name="env_cache_key_unique"),
+        # Recent dates expire after 24 h; old dates have expires_at=None and
+        # are never removed (TTL indexes skip null).
+        IndexModel([("expires_at", ASCENDING)], name="env_cache_expires_ttl", expireAfterSeconds=0),
     ])
 
 

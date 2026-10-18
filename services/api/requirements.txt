@@ -19,3 +19,7 @@ boto3==1.35.99
 # the worker. Without numpy Abyss routes GC-only with
 # router_fallback_reason=numpy_unavailable.
 numpy==2.4.6
+
+# Environmental context (Q5, app/environment/zarr_point.py): decompresses the
+# blosc/lz4 chunks of the Copernicus Marine ARCO Zarr stores.
+blosc==1.11.2
