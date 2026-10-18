@@ -1,0 +1,124 @@
+{
+ "fish": {
+  "route": "fish",
+  "method": "vsearch",
+  "reference_db": "synthveda-reference/fish",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "assigned": 289,
+     "below_threshold": 9,
+     "no_hit": 2
+    },
+    "assigned_pct": 96.3,
+    "rank_pct": {
+     "species": 63.7,
+     "genus": 22.3,
+     "family": 7.7,
+     "order": 0.7,
+     "class": 2.0
+    },
+    "with_hit_pct": 99.3,
+    "top_identity_median": 99.8,
+    "top_identity_quartiles": [
+     99.5,
+     99.8,
+     100.0
+    ],
+    "top_identity_bins": {
+     ">=99": 250,
+     "97-99": 24,
+     "95-97": 10,
+     "90-95": 5,
+     "<90": 9
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 87,
+    "ground_truth": {
+     "traced": 300,
+     "traced_pct": 100.0,
+     "species": {
+      "n": 294,
+      "assigned_at_species": 191,
+      "correct": 184,
+      "wrong": 7,
+      "recall_pct": 62.6,
+      "precision_pct": 96.3
+     },
+     "genus": {
+      "n": 298,
+      "assigned_with_genus": 258,
+      "correct": 256,
+      "wrong": 2,
+      "recall_pct": 85.9,
+      "precision_pct": 99.2
+     }
+    }
+   },
+   "possible_novelty": {
+    "n": 84,
+    "status": {
+     "assigned": 82,
+     "no_hit": 2
+    },
+    "assigned_pct": 97.6,
+    "rank_pct": {
+     "species": 50.0,
+     "genus": 6.0,
+     "family": 39.3,
+     "class": 2.4
+    },
+    "with_hit_pct": 97.6,
+    "top_identity_median": 99.5,
+    "top_identity_quartiles": [
+     99.1,
+     99.5,
+     99.85
+    ],
+    "top_identity_bins": {
+     ">=99": 66,
+     "97-99": 10,
+     "95-97": 5,
+     "90-95": 1,
+     "<90": 0
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 36,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   }
+  },
+  "wall_seconds": 132.7,
+  "search": {
+   "method": "vsearch",
+   "method_reason": "UDB 1.87 GB within 2.50 GB budget",
+   "batch_size": 384,
+   "unique_queries": 384,
+   "threads": 4,
+   "search_seconds": 128.82,
+   "peak_rss_mb": 3471.6,
+   "elapsed_seconds": 132.68,
+   "per_sequence_seconds": 0.3455
+  }
+ }
+}

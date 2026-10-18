@@ -1411,3 +1411,84 @@ The deploy definitions in the repo (Cloud Run YAML, terraform) set `APP_ENV=prod
 proves that mode refuses a weak secret. The remaining risk is a hand-rolled deploy that ignores those
 files. Making `APP_ENV` mandatory, with no default, would close it, at the cost of every local run;
 that is listed for v2.
+
+## QNA-020 — 2026-10-18 — Reference-lookup evidence provider: BLAST (default) or vsearch over reference v2, species/genus/family by identity with coverage and LCA tie rules (B4; tracker t-1021-2)
+
+**Commit:** `234bcbc` (WIP) and `05824ae` on `sprint/d8-reference-lookup`, merged into `LATEST_USHNIK`
+as `cd0fe87`. The measured summaries were copied from the session scratchpad into the repo:
+`docs/ml/results/reference_lookup_v2_blast_2026-10-18.json` and `…_auto_fish_2026-10-18.json`. The
+script that produces them is `services/worker/training/eval_reference_lookup.py`. The agent was
+interrupted once by an API usage limit and resumed.
+
+**Q1. Mechanism, step by step.**
+`ReferenceLookupProvider(settings).lookup([(id, seq), …], route)`
+(`services/worker/app/evidence/reference_lookup.py`) returns one `ReferenceEvidence` per input, in input
+order (`:239`).
+1. Identical sequences are searched once, and all queries go in one batched search under a host-wide
+   lock (`_search_lock`, `:423`), so only one search runs at a time.
+2. Hits are parsed from the SINTAX-style headers (`parse_reference_header`, `:109`).
+3. `eligible_hits` (`:328`) keeps hits that cover at least 80% of the query over at least 50 aligned bases.
+4. `assign_taxon` (`:333`) takes hits within 0.5 identity points of the best, collapses them to their
+   lowest common ancestor (`lca`, `:302`), and assigns a rank by identity: ≥97 species, ≥95 genus,
+   ≥90 family, otherwise coarser or `below_threshold`.
+5. The status is one of assigned / below_threshold / no_hit / no_consensus / unavailable.
+6. Each record carries the top hits (accession, source, marker, identity, alignment length, coverage,
+   lineage), `reference_db`, its version and manifest sha256, the method, and the timing and peak RSS
+   of the search process.
+7. On the human route, GRCh38 BLAST adds contamination evidence (`HumanGenomeEvidence`, `:222`).
+8. A missing DB, manifest, index or tool, or a failed search, returns `unavailable` with the reason,
+   never a taxon.
+
+All thresholds are `REFERENCE_*` settings (`services/worker/app/config.py:47-67`).
+
+**Q2. Rationale.**
+- **BLAST is the default instead of vsearch**, which changes what the roadmap said. On 384 fish
+  queries, vsearch took 129 s at 3.47 GB peak RSS; BLAST took 18 s at 0.21 GB and agreed on 361/384.
+  vsearch on plant reached 2.1 GB RSS and had not finished after 10 minutes. On a 14 GB machine
+  running the GPU job alongside, vsearch per batch is not viable. It stays available via
+  `reference_method=vsearch|auto`.
+- **Coverage ≥ 80% over ≥ 50 bp:** stops a conserved stretch, or half of a chimera, from naming a species.
+- **LCA over hits within 0.5 points:** about one mismatch per 200 bp. Two species that match equally
+  well give their genus, not an arbitrary pick.
+
+**Q3. Results** (measured; BLAST; about 300 test rows of the known class per route; misc has no
+known_species, so its unknown_needs_online_confirmation rows were used)
+
+| Route | Assigned % (sp/gen/fam/coarser) | Median identity | Wall time | Peak RSS | Species precision / recall | Genus precision / recall |
+|---|---|---|---|---|---|---|
+| fish | 96.3 (65/21/7/2) | 99.83 | 21 s | 207 MB | 95.9 / 63.9 | 99.2 / 86.6 |
+| plant | 91.7 (20/30/25/17) | 98.98 | 16 s | 104 MB | **51.9** / 11.2 | 95.2 / 49.5 |
+| animal | 90.7 (56/20/13/1) | 98.95 | 22 s | 333 MB | 92.2 / 52.2 | 97.4 / 75.2 |
+| bacteria | 95.3 (31/34/16/14) | 100.0 | 168 s | 155 MB | 85.2 / 30.7 | 96.3 / 64.6 |
+| human | 77.3 (all species) | 99.94 | 39 s (34 s of it GRCh38, 1.40 GB) | 129 MB | 99.6 / 96.6 | — |
+| misc | 54.7 (26/16/8/4) | 99.25 | 16 s | 183 MB | 80.5 / 32.8 | 92.7 / 54.5 |
+
+**Ground truth:** each test sequence, or the record it was chunked from, was traced back to the
+source records the reference builder reads. 1,663 rows were traced: fish/animal/bacteria 300 each,
+plant 295, human 239, misc 229. These are preliminary; the formal taxon evaluation is Day 10 (t-1023-3).
+
+**Q4. Blast radius / what this does not show.**
+- **Plant species calls at 97% are unreliable: 26 of 54 are wrong (precision 51.9%).** Plant markers
+  (rbcL/matK/ITS-like) are known to resolve species poorly. The Day 9 orchestrator should cap plant at
+  genus, or raise the plant species threshold, before any plant species name is shown.
+- **Most possible_novelty rows also get an assignment** (fish 97.6%). Either the "uncultured /
+  environmental" name labels do not mean novel sequence, or reference v2 holds near-relatives of those
+  test rows. v2 excludes only exact held-out sequences and chunks. Either way, a reference hit must
+  feed the novelty decision (B5, t-1024-1) instead of being reported beside a "novel" label.
+- **Human GRCh38:** it hit all 61 untraced human rows. Those are probably genome windows, so this is
+  a self-hit, not a test on unseen data. It hit 168/176 traced Homo rows and 0/63 domestic-animal rows.
+- Bacteria at 168 s per 300 sequences is the slowest route. An upload with thousands of bacterial
+  reads needs batching and a progress state.
+- Not measured: vsearch on routes other than fish.
+
+**Q5. Verification.**
+- `services/worker/tests/test_reference_lookup.py`: 34 new tests on a tiny synthetic reference
+  (they build a mini BLAST DB or UDB when the tools exist and skip cleanly otherwise). They cover the
+  threshold, rank, LCA, coverage, tie and unavailable paths.
+- `LATEST_USHNIK` after the merge: worker **329 passed**, API **509 passed**.
+
+**Q6. Defence: "97/95/90 are arbitrary."**
+They are the conventional provisional cut-offs, and the roadmap labels them provisional. They are
+configuration, not literals. The table shows where they fail (plant species), with the measured
+precision, so the threshold can be tuned per route on the Day 10 evaluation rather than defended as
+universal.
