@@ -1,0 +1,49 @@
+{
+  "accuracy": 0.9792122538293216,
+  "f1_macro": 0.9790476994818028,
+  "per_class": {
+    "possible_contamination": {
+      "precision": 0.9760191846522782,
+      "recall": 0.9783653846153846,
+      "f1-score": 0.9771908763505402,
+      "support": 416.0
+    },
+    "known_species": {
+      "precision": 0.9818913480885312,
+      "recall": 0.9799196787148594,
+      "f1-score": 0.9809045226130654,
+      "support": 498.0
+    },
+    "accuracy": 0.9792122538293216,
+    "macro avg": {
+      "precision": 0.9789552663704046,
+      "recall": 0.979142531665122,
+      "f1-score": 0.9790476994818028,
+      "support": 914.0
+    },
+    "weighted avg": {
+      "precision": 0.9792186785157946,
+      "recall": 0.9792122538293216,
+      "f1-score": 0.9792142853644762,
+      "support": 914.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      407,
+      9
+    ],
+    [
+      10,
+      488
+    ]
+  ],
+  "label_order": [
+    "possible_contamination",
+    "known_species"
+  ],
+  "test_samples": 914,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/human_domestic_contamination_v2",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/human_domestic_contamination/test.csv",
+  "max_length": 256
+}

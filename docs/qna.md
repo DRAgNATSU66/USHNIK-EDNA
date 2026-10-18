@@ -1567,3 +1567,76 @@ This closes the B23 commitment made in QNA-010.
 Yes, and that is what dev is for. Test was not read until the choice was made. The two front-runners
 differ by one dev row, so either choice gives the same test-level result within noise. The full sweep
 is in `eval_report.json`, so anyone can re-pick by the stated rule.
+
+## QNA-022 — 2026-10-19 — Six route heads retrained on the rebuilt splits (v2, candidates); v1 and v2 scored on the same new test set (Q1; tracker t-1021-1)
+
+**Commit:** `dcab7bf` (`evaluate_checkpoint --report-out`, torch AdamW fallback, richer `metrics.json`, new
+`tests/test_registry_entries.py`) and `d0f58b3` (six `models/registry/dnabert2_<route>_v2.json`, status
+`candidate`) on `sprint/d8-retrain-heads`, merged into `LATEST_USHNIK` as `20ad92a`.
+- Checkpoints: `synthveda-data/checkpoints/<route>_v2/`.
+- Score reports copied into the repo: `docs/ml/results/heads_v2/{v1,v2}_<route>_on_new.json`.
+- Training and scoring logs copied to `synthveda-data/logs/heads_v2/`.
+- The agent was stopped once by an API usage limit (about 19:05) and resumed at 23:20. The interrupted
+  animal run is kept aside as `animal_general_v2_interrupted_*`, and animal was retrained from scratch.
+- **Not promoted; v1 is still served on every route.**
+
+**Q1. Mechanism: what was trained, and how?**
+- Each route: DNABERT-2 117M, full fine-tune, 6 epochs, max_length 256, 4 data workers, one route at a
+  time, smallest first. 82 min of training in total.
+- Started from the base weights, not v1, because v1 trained on rows that are now in test.
+- The checkpoint is chosen by best dev loss.
+- **Label sets did not change.** Every label in the new CSVs was already in `ROUTE_LABEL_SETS` for its
+  route, in the same order, so `label_set_version` stays v1 and inference needed no change. The "new"
+  classes were always in the label set; v1 simply had 0 training rows for fish novelty and human
+  contamination, and 17 for animal novelty.
+- Each registry entry's metrics carry the v2 numbers, the confusion matrix, and a `same_test_baseline`
+  block with v1's numbers on the same rows.
+
+**Q2. Results** (measured; new test split; accuracy / macro-F1)
+
+| Route | v1 on new test | v2 on new test | Worst v2 class F1 (support) | Best dev loss (epoch) | Train time |
+|---|---|---|---|---|---|
+| fish | .858 / .641 | .899 / .865 | novelty .715 (84) | .191 (5) | 321 s |
+| plant | .956 / .689 | **.916** / .893 | novelty .786 (70) | .256 (6) | 330 s |
+| human | .545 / .353 | .979 / .979 | contamination .977 (416) | .044 (6) | 447 s |
+| animal | .500 / .257 | .876 / .741 | likely_taxonomic_group **.410** (27) | .405 (2) | 484 s |
+| misc | .868 / .877 | .936 / .941 | novelty .913 (500) | .190 (5) | 632 s |
+| bacteria | .832 / .834 | .832 / .835 | likely_taxonomic_group .646 (563) | .445 (4) | 2716 s |
+
+- v1 scored F1 0.00 on fish novelty, human contamination and plant low_quality (n=2). It predicted
+  every human row as known_species. Animal v1 novelty F1 was 0.013.
+- **Plant v2 is worse on accuracy** (.956 → .916), and worse on 3 of its 4 classes. Its macro-F1 rises
+  only because of the n=2 low_quality class.
+- **Bacteria is unchanged.**
+- **The v1 baseline flatters v1.** Some new test rows are exact copies of rows v1 trained on: misc
+  19.5%, bacteria 14.2%, plant 10.6%, human 4.7%, fish 1.2%, animal 1.0%.
+- For reference only, never as a comparison: the v1 registry numbers came from the leaky v0 test set
+  (QNA-016): .998 / .970 / 1.0 / .947 / .936 / .842.
+
+**Q3. Rationale.**
+- *Start from base weights:* fine-tuning v1 further would carry its memory of rows that are now test rows.
+- *Pick by dev loss, even where a later epoch scored better:* animal's dev loss bottomed at epoch 2. A
+  later checkpoint saved for best dev accuracy scores .941 / .854 on test, but switching to it after
+  seeing test would be choosing on test. It was not used.
+
+**Q4. Blast radius / open points.**
+- **Animal overfits** (best dev loss at epoch 2 of 6). Two runs picked different best epochs, so
+  training is not deterministic.
+- animal likely_taxonomic_group (27 test rows, F1 .410) is too thin to report as a reliable class.
+- **Inference tokenises at max_length 512, but training uses 256.** This mismatch predates this work.
+  It affects every head and should be aligned before promotion is final.
+- The DNABERT-2 remote-code cache had to be primed by hand on this machine; that step is not in code.
+- **Promotion is a per-route decision.** human, animal, fish and misc v2 beat v1 on the same rows.
+  bacteria is a tie. plant v2 loses on accuracy. Recommended: promote router v2 (QNA-021) and the
+  human, animal, fish and misc heads; keep plant and bacteria on v1 for now.
+
+**Q5. Verification.**
+- All six registry checksums were re-computed by the orchestrator against `head.pt`: all match.
+- `/models/status` still serves v1 on every route and lists the v2 entries.
+- The human and bacteria v2 heads load and predict through the worker's real inference path.
+- `LATEST_USHNIK` after the merge: worker **362 passed**, API **512 passed**, Playwright **37 passed**.
+
+**Q6. Defence: "Your v2 numbers are lower than the v1 numbers in the registry."**
+They are measured on a different, harder test set. The v1 numbers were measured on a test set with
+479 exact cross-split duplicates and many near-duplicates (QNA-016). On the same new rows, v2 beats v1
+on four routes, ties on one, and loses on plant. All twelve reports are in `docs/ml/results/heads_v2/`.

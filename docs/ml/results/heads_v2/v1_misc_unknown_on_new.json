@@ -1,0 +1,63 @@
+{
+  "accuracy": 0.8678414096916299,
+  "f1_macro": 0.877083876948538,
+  "per_class": {
+    "unknown_needs_online_confirmation": {
+      "precision": 0.9065656565656566,
+      "recall": 0.7223340040241448,
+      "f1-score": 0.8040313549832027,
+      "support": 497.0
+    },
+    "possible_novelty": {
+      "precision": 0.7723440134907251,
+      "recall": 0.916,
+      "f1-score": 0.8380603842634949,
+      "support": 500.0
+    },
+    "low_quality_unusable": {
+      "precision": 0.9785522788203753,
+      "recall": 1.0,
+      "f1-score": 0.989159891598916,
+      "support": 365.0
+    },
+    "accuracy": 0.8678414096916299,
+    "macro avg": {
+      "precision": 0.8858206496255857,
+      "recall": 0.8794446680080483,
+      "f1-score": 0.877083876948538,
+      "support": 1362.0
+    },
+    "weighted avg": {
+      "precision": 0.8765834947341636,
+      "recall": 0.8678414096916299,
+      "f1-score": 0.8661359295095473,
+      "support": 1362.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      359,
+      135,
+      3
+    ],
+    [
+      37,
+      458,
+      5
+    ],
+    [
+      0,
+      0,
+      365
+    ]
+  ],
+  "label_order": [
+    "unknown_needs_online_confirmation",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "test_samples": 1362,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/misc_unknown",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/misc_unknown/test.csv",
+  "max_length": 256
+}

@@ -1,0 +1,79 @@
+{
+  "accuracy": 0.8321877222090542,
+  "f1_macro": 0.8340927070639106,
+  "per_class": {
+    "known_species": {
+      "precision": 0.861764705882353,
+      "recall": 0.7802929427430093,
+      "f1-score": 0.8190076869322153,
+      "support": 1502.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.5731132075471698,
+      "recall": 0.8632326820603907,
+      "f1-score": 0.6888731396172927,
+      "support": 563.0
+    },
+    "possible_novelty": {
+      "precision": 0.9170235546038544,
+      "recall": 0.8565,
+      "f1-score": 0.8857290589451913,
+      "support": 2000.0
+    },
+    "possible_contamination": {
+      "precision": 0.9790209790209791,
+      "recall": 0.9090909090909091,
+      "f1-score": 0.9427609427609428,
+      "support": 154.0
+    },
+    "accuracy": 0.8321877222090542,
+    "macro avg": {
+      "precision": 0.8327306117635891,
+      "recall": 0.8522791334735773,
+      "f1-score": 0.8340927070639106,
+      "support": 4219.0
+    },
+    "weighted avg": {
+      "precision": 0.8537211813371156,
+      "recall": 0.8321877222090542,
+      "f1-score": 0.8377882025248379,
+      "support": 4219.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      1172,
+      207,
+      121,
+      2
+    ],
+    [
+      43,
+      486,
+      34,
+      0
+    ],
+    [
+      133,
+      153,
+      1713,
+      1
+    ],
+    [
+      12,
+      2,
+      0,
+      140
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "likely_taxonomic_group",
+    "possible_novelty",
+    "possible_contamination"
+  ],
+  "test_samples": 4219,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/bacteria_pathogen",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/bacteria_pathogen/test.csv",
+  "max_length": 256
+}
