@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,9 +35,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
 
-    # Storage
-    object_storage_url: str = ""
-    object_storage_bucket: str = "synthveda-uploads"
 
     # CORS
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
@@ -56,12 +53,24 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_size_mb: int = 100
 
-    # Local disk storage for uploaded files (dev / single-node deployments).
-    # Must resolve to the same directory for both the API (writer) and the
-    # worker (reader) — in Docker Compose that's the shared uploads_data
-    # volume; for plain local `uvicorn`/`python -m app.dispatcher` runs (each
-    # with a different CWD) this needs to be an absolute path.
+    # Upload storage (B7; see app/storage.py). The worker defines the same
+    # fields in services/worker/app/config.py; tests/test_storage.py checks
+    # the two agree.
+    #   local -- files under upload_storage_dir. Default for dev and tests.
+    #   s3    -- an S3-compatible bucket (MinIO in docker-compose, or AWS).
+    storage_backend: Literal["local", "s3"] = "local"
+    # local backend: must resolve to the same directory for both the API
+    # (writer) and the worker (reader) -- in Docker Compose that's the shared
+    # uploads_data volume; for plain local `uvicorn`/`python -m app.dispatcher`
+    # runs (each with a different CWD) this needs to be an absolute path.
     upload_storage_dir: str = "uploads"
+    # s3 backend. A blank URL means AWS S3; blank keys fall back to boto3's
+    # default credential chain (env, instance role).
+    object_storage_url: str = ""
+    object_storage_bucket: str = "synthveda-uploads"
+    object_storage_access_key: str = ""
+    object_storage_secret_key: str = ""
+    object_storage_region: str = "us-east-1"
 
     # Redis / job queue
     redis_url: str = "redis://localhost:6379/0"
