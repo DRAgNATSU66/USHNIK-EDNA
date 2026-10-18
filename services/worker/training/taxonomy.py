@@ -14,6 +14,15 @@ from pathlib import Path
 # chain (no rank, subclass, etc.) is skipped.
 _WANTED_RANKS = {"superkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species"}
 
+# NCBI renamed the top rank in 2025: Bacteria/Archaea/Eukaryota are now rank
+# "domain" (was "superkingdom") and Viruses is rank "acellular root". The
+# taxdump under tools/taxdump (2026-08) uses the new names, so without this
+# alias no taxid-resolved lineage carried a superkingdom at all and
+# routing.lineage_to_route could never return bacteria_pathogen for a
+# BLAST-DB or MIDORI2 record. Both new ranks are stored under the old key
+# that routing.py and every caller already read.
+_RANK_ALIASES = {"domain": "superkingdom", "acellular root": "superkingdom"}
+
 
 class TaxonomyResolver:
     def __init__(self, taxdump_dir: Path | str):
@@ -64,6 +73,7 @@ class TaxonomyResolver:
         while current in self._parent and current not in seen and current != 1:
             seen.add(current)
             rank = self._rank.get(current)
+            rank = _RANK_ALIASES.get(rank, rank)
             if rank in _WANTED_RANKS and rank not in result:
                 name = self._name.get(current)
                 if name:
@@ -77,3 +87,43 @@ class TaxonomyResolver:
     def scientific_name(self, taxid: int) -> str | None:
         self._load()
         return self._name.get(taxid)
+
+    def ancestors(self, taxid: int) -> list[int]:
+        """[taxid, parent, ..., root] — empty if the taxid is unknown."""
+        self._load()
+        if taxid not in self._parent:
+            return []
+        chain = [taxid]
+        seen = {taxid}
+        current = taxid
+        while True:
+            parent = self._parent.get(current)
+            if parent is None or parent == current or parent in seen:
+                break
+            chain.append(parent)
+            seen.add(parent)
+            current = parent
+        return chain
+
+    def lowest_common_ancestor(self, a: int, b: int) -> int | None:
+        if a == b:
+            return a
+        chain_a = self.ancestors(a)
+        if not chain_a:
+            return None
+        set_a = set(chain_a)
+        for node in self.ancestors(b):
+            if node in set_a:
+                return node
+        return None
+
+    def taxids_for_name(self, name: str) -> list[int]:
+        """Every taxid whose scientific name is exactly `name` (homonyms such
+        as the bacterium and the stick-insect genus Bacillus give several)."""
+        self._load()
+        if not hasattr(self, "_by_name"):
+            by_name: dict[str, list[int]] = {}
+            for taxid, sci in self._name.items():
+                by_name.setdefault(sci, []).append(taxid)
+            self._by_name = by_name
+        return list(self._by_name.get(name, ()))

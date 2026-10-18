@@ -201,7 +201,9 @@ def main() -> None:
     ingest(collector, sources.iter_bold(raw / "bold" / "BOLD_Public.31-Jul-2026.parquet"), watch_routes=watch_routes)
 
     print("== MIDORI2 ==")
-    for f in (raw / "midori2").glob("*.fasta.zip"):
+    # GB273 is one MIDORI2_GB273_RAW.zip (15 genes); older releases were
+    # per-gene *.fasta.zip. iter_midori2 reads every gene member of either.
+    for f in sorted(set((raw / "midori2").glob("MIDORI2_*_RAW.zip")) | set((raw / "midori2").glob("*.fasta.zip"))):
         print(f"  {f.name}")
         ingest(collector, sources.iter_midori2(f, taxonomy), watch_routes=watch_routes)
 

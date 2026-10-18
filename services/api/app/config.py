@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     # Upload limits
     max_upload_size_mb: int = 100
+    # Field Log attachments (photos, PDFs; app/field_log/router.py). Stored
+    # through the same backend as uploads, under the field-log/ key prefix.
+    field_log_attachment_max_mb: int = 25
 
     # Upload storage (B7; see app/storage.py). The worker defines the same
     # fields in services/worker/app/config.py; tests/test_storage.py checks
