@@ -5,8 +5,8 @@ One function, used by both training (training/train_router.py) and inference
 (model_router/learned.py), so the two cannot drift into different features.
 
 A k-mer is encoded as its base-4 integer (A=0, C=1, G=2, T=3; U is read as T),
-so for k <= 8 the feature space is exact (4**k <= 65,536 columns) and needs no
-hashing. Windows containing any other character (N, IUPAC codes, gaps) are
+so the feature space is exact (4**k columns: 65,536 at k=8 for router v1,
+262,144 at k=9 for v2) and needs no hashing. Windows containing any other character (N, IUPAC codes, gaps) are
 skipped rather than guessed.
 
 With canonical=True a k-mer and its reverse complement share one index (the
