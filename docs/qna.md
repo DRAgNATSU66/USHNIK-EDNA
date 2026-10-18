@@ -994,3 +994,73 @@ The frontend change affects only the FieldLog page:
 **Q6. Defence: "Can a curator rewrite a researcher's note?"**
 Yes, they can edit it, but the edit cannot be hidden. Every change is pushed with the editor id and
 timestamp, the old value is shown struck through, and nothing in the API removes an `edits` element.
+
+## QNA-014 — 2026-10-18 — Register and promote models through the API; the worker follows promotions without a restart; Admin promote with in-page confirmation (B8; tracker t-1025-1, t-1025-2)
+
+**Commit:** `17b3293` (worker), `887ff05` (API endpoints), `8730045` (promote.py, Makefile,
+monthly_release.sh), `77621a8` (Supabase mirror, migration `20261018000001`, compose) and `6ce5fc2`
+(Admin page) on `sprint/d12-promote`. Merged into `LATEST_USHNIK` as `d7726f0`. An interrupted session
+started the work, left uncommitted in the worktree. A session-3 agent finished it.
+
+**Q1. Mechanism: what does each endpoint do, step by step?** Both require admin or company_owner
+(`require_role`, `services/api/app/models/router.py:369,518`). No token gives 401; other roles get 403.
+- `POST /models/register` (`:366`):
+  1. Validates `model_id` against `MODEL_ID_RE` (`promotion.py:55`) and checks the route.
+  2. Requires the metrics test_accuracy, test_macro_f1 and test_size.
+  3. Resolves the artifact path under the data root, refusing absolute paths and `..` (`promotion.py:89`),
+     and checks its sha256.
+  4. Writes `models/registry/<id>.json` with status `candidate`.
+  5. Writes a Mongo `audit_logs` record. If that write fails, the registry file is deleted.
+- `POST /models/{id}/promote` (`:514`):
+  1. Looks the id up by registry *content*, not by path (`_promotion_plan`, `:459`): 404 if unknown,
+     409 if duplicated or already production.
+  2. With `dry_run: true`, it returns the plan (current model, metric deltas, demotions, warnings) and
+     writes nothing.
+  3. Otherwise it re-checks the checksum, sets the route's other production entry to `staging` and this
+     entry to `production`, and writes `model_eval_metrics` and `audit_logs`. If either write fails,
+     the registry files are restored and the call returns 503.
+  4. `expected_current_model_id` gives 409 if the route changed since the dry run.
+- `GET /models/promotions` (`:651`) lists recent events.
+- Supabase `model_versions` and `model_eval_metrics` are written best-effort, like the review and
+  batch mirrors. The response field `supabase_mirror` reports written, not_configured or failed.
+
+**Q2. Mechanism: how does a promotion change what the worker serves?**
+`services/worker/app/inference/registry.py` serves, per route, the newest `production` entry, else
+`staging`, else `experimental`. `candidate` ranks below every serving tier, so it is never served.
+A long-lived `ModelRegistry` re-stats `models/registry/*.json` at most every
+`SYNTHVEDA_REGISTRY_RECHECK_S` (default 5 s) and reloads when a file has changed. The learned-router
+cache reloads when the router selection changes. In compose, the API and worker share `../../models`.
+The API container now also gets the data root read-only, because registration must verify checksums.
+
+**Q3. Rationale.**
+- *The registry JSON stays the source of truth; Mongo/Supabase hold the audit trail.* The worker
+  already reads the files, and the system has to work without Supabase.
+- *Demote to `staging`, not `retired`:* the previous model stays servable as the fallback tier, and
+  the Supabase row now matches the file.
+- *Dry run plus type-the-id confirm:* the admin sees the metric deltas before committing. The
+  project bans `window.confirm`.
+
+**Q4. Blast radius.**
+- A wrong promotion changes every subsequent result on that route within about 5 s. It is reversible
+  by promoting the previous model, and both events are in `audit_logs`.
+- The checksum check stops a registry entry pointing at a different file than the one evaluated.
+- **The migration `20261018000001` (adds `model_status 'candidate'` and the `accuracy` and
+  `sample_count` columns) has not been applied to any live database.** Until it is, the Supabase
+  mirror reports `failed` for candidates, and the files and Mongo records are unaffected.
+
+**Q5. Verification.**
+- `services/api/tests/test_models_promotion.py` (492 lines) covers auth 401/403, validation,
+  checksum mismatch, dry run writing nothing, demotion, 409 on a stale `expected_current_model_id`,
+  and rollback on a failed audit write.
+- `test_supabase_client.py` (+54) and `services/worker/tests/test_registry_promotion.py` (126 lines)
+  cover the mirror and the worker reload.
+- Measured on `LATEST_USHNIK` after the merge: API **430 passed** (contract test included), worker
+  **279 passed**, `npm run build` OK.
+- **Not done:** the Admin UI was not exercised in a browser, `make train-promote` was not run against
+  a live API (`promote.py` was tested in dry-run mode only), and there is no full-loop integration
+  test yet (t-1025-3).
+
+**Q6. Defence: "Can someone promote a model that was never evaluated?"**
+No. Registration refuses an entry without test_accuracy, test_macro_f1 and test_size. Promotion
+re-verifies the artifact's sha256 against what was registered. Both steps are admin-only and audited
+with the actor id.
