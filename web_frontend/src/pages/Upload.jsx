@@ -378,7 +378,11 @@ export default function Upload() {
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 44 }}>
+          {/* noValidate: the min/max attributes on the metadata inputs are
+              hints for the spinner only. buildMetadata reports every range
+              error inline at once; native validation would stop the submit
+              on the first one with a browser bubble and hide the rest. */}
+          <form noValidate onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 44 }}>
             {/* Upload dropzone */}
             <div>
               <div
