@@ -1136,3 +1136,138 @@ and B12 had made that visible. A copy can drift from the original; a parity test
 It is, and the parity test is the control: CI fails if the copy's output on the real artifact differs
 from the worker's. The alternative is a shared package installed into both images, which is the v2
 cleanup. For v1, the API image staying free of torch and the worker code matters more.
+
+## QNA-016 — 2026-10-18 — processed/ rebuilt on Linux from all sources with near-duplicate-aware splits; leakage check; reference DB v2 against the new splits (Q1; tracker t-1020-1)
+
+**Commit:** `afc4804` on `sprint/d7-dataset-rebuild`, merged into `LATEST_USHNIK` as `1390408`. The
+`pyarrow` pin for the BOLD reader followed in `90b73a1`.
+Data on disk (gitignored):
+- `synthveda-data/processed/` is the new build, with `build_report.json`.
+- The August build is kept as `processed_v0/`, together with its leakage report.
+- `reference/CURRENT` now points to `v2`; `v1` is kept.
+**This supersedes the open risk in QNA-012 Q4:** reference v1 excluded the old splits.
+
+**Q1. Mechanism: what changed in the build, step by step?**
+1. **BOLD:** `find_bold_parquet` (`services/worker/training/build_dataset.py:133`) picks the newest
+   `raw/bold/BOLD_Public*.parquet`. If there is none, it logs `WARNING: skipping BOLD`, and
+   `build_report.json` records the skip. That is the case today, because the folder is empty.
+2. **MIDORI2:** each of the 15 genes in the GB273 zip is ingested separately, so the per-source scan
+   cap applies to each gene. CO1 scanned 1,864,523 sequences, under the 2M cap.
+3. **Splits** (`write_splits`, `:180`, `--split-mode group` default):
+   - Exact dedup runs as before.
+   - Then near-duplicate groups are built: MinHash over 16-mers, 64 hashes, 16 LSH bands, Jaccard ≥ 0.8
+     (`training/near_dup.py:35,131`).
+   - `assign_groups_to_splits` (`:144`) places each whole group in train, dev or test, so no group
+     straddles splits.
+4. **Leakage check:** `training/check_leakage.py` runs the THEORY_README §3 exact cross-split check,
+   exiting 1 if any are found, plus near-duplicate and cross-route counts.
+
+**Q2. What did the old build look like, and what does the new one measure?** (verbatim, measured)
+- **v0 (August) leaked:**
+  - 479 exact cross-split duplicates. Only bacteria_pathogen was clean.
+  - Test rows with a near-duplicate in train: human 209/500, animal 342/1002, bacteria 986/4107.
+  - **So the head test accuracies recorded before today were measured on a leaky test set.**
+- **New build:** `python -m training.check_leakage --processed synthveda-data/processed` gives
+  `EXACT CROSS-SPLIT TOTAL: 0`, and all near-duplicate counts are 0. I re-ran this independently in
+  the orchestrating session; the output matched the agent's.
+- **Rows:** 82,219 (v0) → 86,714 (new). Per route, train/dev/test (re-run): bacteria 33,740/4,219/4,219;
+  fish 4,736/594/592; human 7,307/914/914; misc 10,888/1,362/1,362; plant 4,755/596/596.
+- **Gains:** animal possible_novelty 22 → 4,649; fish possible_novelty 0 → 840;
+  human possible_contamination 0 → 4,160.
+- **Losses / thin classes:**
+  - **animal likely_taxonomic_group 5,000 → 271** (217/27/27). The cause is unverified; possibly v0
+    got these rows from BOLD, which is absent.
+  - misc low_quality_unusable 5,000 → 3,651.
+  - plant low_quality_unusable 14, fish low_quality_unusable 83, plant possible_contamination 391.
+- 18 bacteria sequences with conflicting labels were dropped.
+- **Sources used:** MIDORI2 (15 genes), SILVA LSU+SSU, UNITE, GRCh38, UniVec_Core+UniVec,
+  supplementary, and BLAST DBs 16S, 18S_fungal, both ITS, LSU euk/prok, SSU euk, env_nt, mito,
+  nt_others, ref_viruses_rep_genomes.
+- **Skipped:** BOLD (folder empty), and nt_viruses / ref_prok_rep_genomes (still downloading).
+- **Wall time:** build 4:30, reference v2 6:20, leakage check about 50 s.
+
+**Q3. Rationale: why near-duplicate grouping when THEORY_README only requires exact?**
+QNA-011 Q4 committed to a near-duplicate check at Day 7. The v0 numbers in Q2 show why: with exact
+dedup alone, 20–40% of some test sets had a ≥ 0.8-Jaccard sibling in train. That inflates accuracy
+for any k-mer model, including the router.
+
+Rejected alternative: random split plus post-hoc removal of test rows that have a near-duplicate.
+That biases test toward rare sequences without recording why. Group assignment makes the
+constraint explicit and repeatable.
+
+**Q4. Blast radius.**
+- **All old metrics are not comparable to new ones.** v0 test sets were leaky, so "old vs new" on
+  Day 8 must be reported as two numbers on two test sets, not as an improvement.
+- **The learned router v1 was trained on v0 splits.** Of the new non-low-quality held-out rows, 267/8,300
+  test and 325/8,300 dev were in its training set (1,424 and 1,653 counting near-duplicates). Its
+  accuracy on the new splits is therefore optimistic until it is retrained (Day 8, which must also be
+  strand-invariant, B23).
+- **Split side effects:**
+  - The largest near-duplicate groups (up to 575 rows) all go to train, so test leans toward less
+    redundant sequences.
+  - Dev and test have identical per-label counts, because the split fills both to the same quota.
+- **Cross-route sequences:** 1,884 appear in more than one route, mostly the deliberate
+  human-contamination injection (bacteria+human 1,457, human+plant 319). The router retrain must keep
+  excluding them.
+- **animal likely_taxonomic_group at 271** will give a weak class-specific metric on Day 8, and this
+  must be stated, not hidden.
+
+**Q5. Verification.**
+- `check_leakage` exits 0 with `EXACT CROSS-SPLIT TOTAL: 0`, re-run independently.
+- **Reference v2:** 0 of 17,251 held-out sequences are in any v2 `ref.fasta`, and 0 chunk matches.
+  The same script on v1 finds 5,545 exact and 11,919 chunk matches, which is the leak QNA-012 Q4
+  predicted.
+- `services/worker/tests/test_build_dataset.py`: 16 tests, including a build with no BOLD.
+- **Suites on `LATEST_USHNIK` after the merges:** worker **295 passed**, API **457 passed**,
+  `npm run build` OK, Playwright **37 passed**.
+
+**Q6. Defence: "You changed the test set; aren't the new numbers just easier?"**
+They are harder, not easier. The new test set removes every exact and near-duplicate of training data,
+which v0 did not. We keep v0 and its leakage report so anyone can re-score old checkpoints on both and
+see the gap. Thin classes are listed above with their counts.
+
+## QNA-017 — 2026-10-18 — Playwright e2e suite over every routed page, with fixtures recorded from the real API, in CI (tracker t-1029-2)
+
+**Commit:** `a62dba4` on `sprint/d16-playwright`, merged into `LATEST_USHNIK` as `c1ac8d0`. Fix in
+`90b73a1`.
+
+**Q1. Mechanism.**
+- `web_frontend/e2e/pages.spec.js` runs Chromium against a Vite build, with `page.route` mocks.
+- It covers all 23 `<Route>` entries in `src/main.jsx` (18 pages, 4 `Navigate` redirects, and the
+  `/researcher-mode/*` redirect). Each page test checks the main heading, fixture data on screen, the
+  expected API calls, and no console errors, uncaught exceptions or unmocked calls.
+- Guard tests cover: signed out, researcher/curator refused at `/reviews` and `/admin`, and an expired
+  token clearing the session.
+- 3 self-tests prove that the error traps really fail a test.
+- CI job `frontend-e2e`: `npm ci`, install Chromium, `npm run test:e2e`, upload the HTML report if a
+  test fails.
+
+**Q2. Rationale: why record fixtures instead of hand-writing them?**
+`services/api/scripts/gen_e2e_fixtures.py` runs the real FastAPI app over an in-memory Mongo stand-in
+and saves each GET response. `services/api/tests/test_e2e_fixtures.py` fails API CI when the committed
+fixtures differ, so the mocks cannot drift from the API contract.
+
+**Q3. Blast radius / found while merging.**
+- **The fixture test depended on the developer's machine.** The generator built the app from
+  `get_settings()`, which reads `services/api/.env`. This machine has `MAX_UPLOAD_SIZE_MB=500`, so
+  `/health` differed and the test failed after the merge, while passing in the agent's clean worktree.
+- Fixed in `90b73a1`: the app is now built from `Settings(_env_file=None)`.
+
+**Q4. Verification (measured).**
+- Locally: **37 passed** in 10.1 s, and `--repeat-each=5` gave 185/185 (agent).
+- Re-run on `LATEST_USHNIK` after the merge: 37 passed.
+- API **457 passed** with the `.env` present.
+- **Not yet observed running on GitHub Actions.** Nothing has been pushed, so "runs in CI" is
+  configured but unconfirmed.
+
+**Q5. Coverage limits.**
+- Tests load pages and check what they show. Uploads, posting to the field log, the promotion
+  confirm flow and the Abyss license/session/sync buttons are **not** exercised.
+- Legislative and Industrial make no API calls today, so they get heading checks only.
+- The `E2E_REAL_API=1` smoke spec was written but never run.
+- `npm run lint` still reports 6 errors in `src/` that were there before this work.
+
+**Q6. Defence: "Mocked e2e tests prove nothing."**
+They prove routing, guards, rendering and the call path against recorded real responses, and a pytest
+fails if those recordings go stale. Real-backend flows are still needed. The Day 18 fresh-clone run
+covers them, and the interaction gaps are listed in Q5.
