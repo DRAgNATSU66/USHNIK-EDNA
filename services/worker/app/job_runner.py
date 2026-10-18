@@ -15,10 +15,12 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from .config import NOVELTY_THRESHOLD, get_worker_settings
 from .fastx_parser import parse_and_batch_auto
 from .model_router import route_batch, RouterInput
 from .inference import run_inference_batch
 from .novelty import score_batch, contamination_score_batch
+from .storage import local_copy_for_upload
 
 
 async def run_job(db: AsyncIOMotorDatabase, job_id: str) -> None:
@@ -74,30 +76,27 @@ async def _stage_parse(upload: dict) -> list[dict]:
     Phase 5: parse the uploaded FASTA/FASTQ file into sequence records.
 
     Uses the Rust `synthveda-parse` binary when available (fast path), or falls
-    back to the pure-Python parser.  The file path comes from the upload doc's
-    `file_path` field (set by the API when it saves the upload to disk).
+    back to the pure-Python parser. The bytes are read through app/storage.py
+    from the upload doc's `storage_uri` (local:// under UPLOAD_STORAGE_DIR, or
+    s3:// streamed to a temp file); pre-B7 docs that carry only an absolute
+    `file_path` are read from that path.
+
+    An upload with no file at all, a missing object, or bytes that fail the
+    doc's checksum raise -- run_job() marks the job failed rather than
+    analysing a made-up sequence (a stub here once produced a "completed"
+    analysis of ATCGATCGATCG that looked like a real result).
 
     Returns a flat list of sequence dicts ready for the QC stage.
     """
-    file_path: str | None = upload.get("file_path")
-    if not file_path:
-        # Fail the job rather than analysing a made-up sequence: a stub here
-        # used to produce a "completed" analysis of ATCGATCGATCG that looked
-        # like a real result. run_job() catches this and marks the job failed.
-        raise ValueError(
-            f"Upload {upload.get('upload_id', '?')} has no file_path; nothing to parse"
-        )
+    settings = get_worker_settings()
 
-    # Run the blocking parser in a thread pool so the event loop is not blocked.
+    def parse() -> tuple[list, bool]:
+        with local_copy_for_upload(upload, settings) as path:
+            return parse_and_batch_auto(str(path), batch_size=1000, min_length=10)
+
+    # Fetching and parsing block, so they run in a thread pool.
     loop = asyncio.get_event_loop()
-    batches, used_rust = await loop.run_in_executor(
-        None,
-        lambda: parse_and_batch_auto(
-            file_path,
-            batch_size=1000,
-            min_length=10,
-        ),
-    )
+    batches, used_rust = await loop.run_in_executor(None, parse)
     backend = "Rust" if used_rust else "Python"
     total = sum(len(b) for b in batches)
     print(f"[worker] parsed {total} sequences via {backend} parser ({upload.get('original_filename', '?')})")
@@ -192,6 +191,7 @@ async def _stage_infer(routed: list[dict]) -> list[dict]:
         seq["confidence"] = result.confidence
         seq["model_version_used"] = result.model_version_used
         seq["inference_mode"] = str(result.inference_mode)
+        seq["stub_reason"] = result.stub_reason   # None unless inference_mode == "stub"
         seq["label_scores"] = result.label_scores
         seq["embedding"] = result.embedding   # used by Phase 8
         mode_counts[str(result.inference_mode)] = mode_counts.get(str(result.inference_mode), 0) + 1
@@ -199,7 +199,11 @@ async def _stage_infer(routed: list[dict]) -> list[dict]:
     model_seqs = mode_counts.get("model", 0)
     stub_seqs = mode_counts.get("stub", 0)
     lq_seqs = mode_counts.get("low_quality", 0)
-    print(f"[worker] inference complete: {model_seqs} model, {stub_seqs} stub, {lq_seqs} low_quality")
+    stub_reasons = sorted({r.stub_reason for r in results if r.stub_reason})
+    print(
+        f"[worker] inference complete: {model_seqs} model, {stub_seqs} stub, {lq_seqs} low_quality"
+        + (f" (stub reasons: {', '.join(stub_reasons)})" if stub_reasons else "")
+    )
     return routed
 
 
@@ -241,7 +245,7 @@ async def _stage_novelty(predictions: list[dict]) -> list[dict]:
         seq["novelty_reason_codes"] = nr.reason_codes
         seq["abyss_recommendation"] = str(nr.abyss_recommendation)
         seq["requires_cloud_confirmation"] = nr.requires_cloud_confirmation
-        if nr.novelty_score >= 0.45:
+        if nr.novelty_score >= NOVELTY_THRESHOLD:
             flagged_novelty += 1
         if cr.is_flagged:
             flagged_contam += 1
@@ -271,7 +275,7 @@ async def _stage_report(
         rc = r.get("result_class", "")
         if rc == "known_species":
             known += 1
-        elif rc == "possible_novelty" or r.get("novelty_score", 0.0) >= 0.45:
+        elif rc == "possible_novelty" or r.get("novelty_score", 0.0) >= NOVELTY_THRESHOLD:
             possible_novelty += 1
         if r.get("contamination_flagged"):
             contamination_flags += 1
@@ -327,7 +331,7 @@ def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> l
         contamination_score: float = seq.get("contamination_score", 0.0)
         seq_id: str = seq.get("sequence_id", "unknown")
 
-        if novelty_score >= 0.45:
+        if novelty_score >= NOVELTY_THRESHOLD:
             reviews.append({
                 "review_id": f"rev_{uuid.uuid4().hex[:16]}",
                 "analysis_id": analysis_id,
@@ -364,7 +368,7 @@ def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> l
                 "contamination_type": seq.get("contamination_type"),
                 "abyss_recommendation": seq.get("abyss_recommendation"),
                 "correction_type": "auto_contamination_flag",
-                "is_novelty": novelty_score >= 0.45,
+                "is_novelty": novelty_score >= NOVELTY_THRESHOLD,
                 "is_contamination": True,
                 "evidence_notes": None,
                 "evidence_attachments": [],

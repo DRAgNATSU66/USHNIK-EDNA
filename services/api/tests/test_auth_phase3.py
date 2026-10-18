@@ -143,95 +143,51 @@ def test_expedition_session_expired_raises():
         verify_expedition_session(expired_token)
 
 
+def test_legacy_google_id_token_exchange_route_removed():
+    """POST /auth/google/exchange (client-side id_token flow) was superseded
+    by /auth/google/code-exchange and removed (roadmap U5)."""
+    from app.main import create_app
+
+    paths = {getattr(r, "path", None) for r in create_app().routes}
+    assert "/auth/google/exchange" not in paths
+    assert "/auth/google/code-exchange" in paths
+
+
 # ---------------------------------------------------------------------------
-# /auth/google/exchange endpoint tests
+# /auth/google/code-exchange: account-lookup rules (_token_response_for_google_claims)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.anyio
-async def test_google_exchange_with_valid_token(client):
-    fake_claims = GoogleClaims(
-        sub="g-sub-001", email="alice@example.com",
-        email_verified=True, name="Alice", picture=None,
-    )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
-         patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
-         patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub", AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000001"})), \
-         patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "valid-google-token"})
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    assert data["user"]["email"] == "alice@example.com"
-    assert data["user"]["role"] == "researcher"
-
-
-@pytest.mark.anyio
-async def test_google_exchange_existing_user_keeps_role(client):
+async def test_google_code_exchange_existing_user_keeps_role(client):
     fake_claims = GoogleClaims(
         sub="g-sub-002", email="curator@example.com",
         email_verified=True, name="Curator", picture=None,
     )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
          patch("app.auth.router.SupabaseClient.get_user_by_google_sub",
                AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000002", "role": "curator"})), \
          patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "curator-token"})
+        resp = await client.post("/auth/google/code-exchange", json={"code": "valid-code"})
 
     assert resp.status_code == 200
     assert resp.json()["user"]["role"] == "curator"
 
 
 @pytest.mark.anyio
-async def test_google_exchange_invalid_token_returns_401(client):
-    with patch("app.auth.router.verify_google_id_token",
-               AsyncMock(side_effect=ValueError("Token signature invalid"))):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "bad-token"})
-
-    assert resp.status_code == 401
-
-
-@pytest.mark.anyio
-async def test_google_exchange_links_existing_password_account_by_email(client):
-    """
-    Google sign-in for an email that already has a password-only account
-    (no google_sub yet) should link into that existing row rather than
-    creating a second, disconnected identity.
-    """
-    fake_claims = GoogleClaims(
-        sub="g-sub-004", email="curator@example.com",
-        email_verified=True, name="Curator Person", picture=None,
-    )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
-         patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
-         patch("app.auth.router.SupabaseClient.link_google_sub_to_existing_email",
-               AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000003", "role": "curator"})), \
-         patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub") as mock_upsert, \
-         patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "valid-token"})
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["user"]["role"] == "curator"
-    assert data["user"]["user_id"] == "00000000-0000-0000-0000-000000000003"
-    mock_upsert.assert_not_called()
-
-
-@pytest.mark.anyio
-async def test_google_exchange_creates_new_row_when_no_email_match(client):
+async def test_google_code_exchange_creates_new_row_when_no_email_match(client):
     """When neither google_sub nor email matches an existing row, fall back
     to creating a fresh Google-linked row (unchanged prior behavior)."""
     fake_claims = GoogleClaims(
         sub="g-sub-005", email="brandnew@example.com",
         email_verified=True, name="Brand New", picture=None,
     )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
          patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
          patch("app.auth.router.SupabaseClient.link_google_sub_to_existing_email", AsyncMock(return_value=None)), \
          patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub",
                AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000004"})) as mock_upsert, \
          patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "valid-token"})
+        resp = await client.post("/auth/google/code-exchange", json={"code": "valid-code"})
 
     assert resp.status_code == 200
     assert resp.json()["user"]["user_id"] == "00000000-0000-0000-0000-000000000004"
@@ -328,6 +284,7 @@ async def test_google_code_exchange_with_valid_code(client):
     assert "access_token" in data
     assert data["user"]["email"] == "codeuser@example.com"
     assert data["user"]["user_id"] == "00000000-0000-0000-0000-000000000005"
+    assert data["user"]["role"] == "researcher"
 
 
 @pytest.mark.anyio
@@ -341,7 +298,9 @@ async def test_google_code_exchange_invalid_code_returns_401(client):
 
 @pytest.mark.anyio
 async def test_google_code_exchange_links_existing_password_account_by_email(client):
-    """Same account-linking rule as the id_token flow: shared helper, must match."""
+    """Google sign-in for an email that already has a password-only account
+    (no google_sub yet) links into that existing row rather than creating a
+    second, disconnected identity."""
     fake_claims = GoogleClaims(
         sub="g-sub-code-003", email="curator2@example.com",
         email_verified=True, name="Curator Two", picture=None,
@@ -356,20 +315,21 @@ async def test_google_code_exchange_links_existing_password_account_by_email(cli
 
     assert resp.status_code == 200
     assert resp.json()["user"]["role"] == "curator"
+    assert resp.json()["user"]["user_id"] == "00000000-0000-0000-0000-000000000006"
     mock_upsert.assert_not_called()
 
 
 @pytest.mark.anyio
-async def test_google_exchange_supabase_unavailable_still_works(client):
+async def test_google_code_exchange_supabase_unavailable_still_works(client):
     """If Supabase is down, the exchange should succeed with default researcher role."""
     fake_claims = GoogleClaims(
         sub="g-sub-003", email="new@example.com",
         email_verified=True, name="New User", picture=None,
     )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
          patch("app.auth.router.SupabaseClient.get_user_by_google_sub",
                AsyncMock(side_effect=RuntimeError("Supabase not configured"))):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "valid-token"})
+        resp = await client.post("/auth/google/code-exchange", json={"code": "valid-code"})
 
     assert resp.status_code == 200
     assert resp.json()["user"]["role"] == "researcher"

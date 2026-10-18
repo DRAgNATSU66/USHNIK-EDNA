@@ -40,6 +40,10 @@ class SequenceResult(BaseModel):
     contamination_score: Optional[float] = None
     reason_codes: list[str] = Field(default_factory=list)
     model_version_used: Optional[str] = None
+    # "model" | "stub" | "low_quality"; stub_reason says why a stub was used
+    # (e.g. head_missing). Written by the worker's _stage_infer; None on old docs.
+    inference_mode: Optional[str] = None
+    stub_reason: Optional[str] = None
 
 
 class AnalysisSummary(BaseModel):

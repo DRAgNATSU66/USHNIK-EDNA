@@ -22,25 +22,38 @@ function pillStyle(color, bg, border) {
   };
 }
 
-/**
- * Negative Control flag -- shared component 0.5. Shown on Upload Analysis /
- * Analysis Report and Researcher Mode header: "Negative control:
- * [Included / Not included]". Optional-but-flagged default (locked
- * 2026-08-15): absence renders a visible warning, not a block.
- *
- * @param {boolean|null} included - null = not yet known (e.g. job still processing)
- */
-export default function NegativeControlFlag({ included = null }) {
-  if (included === null) {
-    return (
-      <span style={pillStyle(tokens.pending, tokens.pendingBg, tokens.pendingBorder)}>
-        <span style={dotStyle(tokens.pending)} />
-        Negative control: pending
-      </span>
-    );
-  }
+// Fallback wording, identical to the API's (services/api/app/uploads/
+// context.py), used only if a result arrives without its flag message.
+const FALLBACK_MESSAGE = {
+  not_included: "No negative control, contamination not ruled out.",
+  not_recorded: "Negative control not recorded, contamination not ruled out.",
+};
 
-  if (included) {
+// The raw `negative_control_included` value (true / false / null) mapped to
+// the same three states the API's context block uses.
+const FROM_BOOLEAN = new Map([
+  [true, "included"],
+  [false, "not_included"],
+  [null, "not_recorded"],
+]);
+
+/**
+ * Negative Control flag -- shared component 0.5. Renders the three states
+ * of `context.negative_control` from the result API. Optional-but-flagged
+ * (decisions.md 2026-10-14 Q4): both "not included" and "not recorded"
+ * show a visible warning carrying the API's `no_negative_control` flag
+ * message; the upload is never blocked on it.
+ *
+ * @param {"included"|"not_included"|"not_recorded"|boolean|null|undefined} state -
+ *   the API's context state, or the raw metadata boolean (true = included,
+ *   false = not included, null = not recorded). undefined = not yet known
+ *   (still loading).
+ * @param {string} [message] - the API flag message for the warning states
+ */
+export default function NegativeControlFlag({ state, message }) {
+  const resolved = FROM_BOOLEAN.has(state) ? FROM_BOOLEAN.get(state) : state;
+
+  if (resolved === "included") {
     return (
       <span style={pillStyle(tokens.success, tokens.successBg, tokens.successBorder)}>
         <span style={dotStyle(tokens.success)} />
@@ -49,13 +62,19 @@ export default function NegativeControlFlag({ included = null }) {
     );
   }
 
+  if (resolved === "not_included" || resolved === "not_recorded") {
+    return (
+      <span style={pillStyle(tokens.warningAlt, tokens.warningBg, tokens.warningBorder)}>
+        <span style={dotStyle(tokens.warningAlt)} />
+        {message || FALLBACK_MESSAGE[resolved]}
+      </span>
+    );
+  }
+
   return (
-    <span
-      style={pillStyle(tokens.warningAlt, tokens.warningBg, tokens.warningBorder)}
-      title="Contamination cross-check is unavailable for this run"
-    >
-      <span style={dotStyle(tokens.warningAlt)} />
-      Negative control: Not included — contamination cross-check unavailable
+    <span style={pillStyle(tokens.pending, tokens.pendingBg, tokens.pendingBorder)}>
+      <span style={dotStyle(tokens.pending)} />
+      Negative control: pending
     </span>
   );
 }

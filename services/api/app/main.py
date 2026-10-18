@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import get_settings
+from .config import NOVELTY_THRESHOLD, get_settings
 from .db import connect_mongo, close_mongo, ensure_indexes
 from .db.supabase_client import init_supabase, close_supabase
 from .queue import connect_queue, close_queue
@@ -83,6 +83,9 @@ def create_app() -> FastAPI:
             # Read by the upload page so its client-side size check can never
             # drift from the limit uploads/router.py actually enforces.
             "max_upload_size_mb": settings.max_upload_size_mb,
+            # Read by the NoveltyDNA slider so its default cutoff is the one
+            # the API and worker actually apply (app/config.py, B14).
+            "novelty_threshold": NOVELTY_THRESHOLD,
         }
 
     @app.get("/version", tags=["meta"])

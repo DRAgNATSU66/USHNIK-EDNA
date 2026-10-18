@@ -8,16 +8,16 @@ from app.auth.google import GoogleClaims
 
 
 @pytest.mark.anyio
-async def test_google_exchange_returns_token(client):
+async def test_google_code_exchange_returns_token(client):
     fake_claims = GoogleClaims(
         sub="g-sub-smoke", email="smoke@example.com",
         email_verified=True, name="Smoke User", picture=None,
     )
-    with patch("app.auth.router.verify_google_id_token", AsyncMock(return_value=fake_claims)), \
+    with patch("app.auth.router.exchange_code_for_claims", AsyncMock(return_value=fake_claims)), \
          patch("app.auth.router.SupabaseClient.get_user_by_google_sub", AsyncMock(return_value=None)), \
          patch("app.auth.router.SupabaseClient.upsert_user_by_google_sub", AsyncMock(return_value={"id": "00000000-0000-0000-0000-000000000001"})), \
          patch("app.auth.router.SupabaseClient.update_last_login", AsyncMock()):
-        resp = await client.post("/auth/google/exchange", json={"id_token": "fake-google-token"})
+        resp = await client.post("/auth/google/code-exchange", json={"code": "fake-auth-code"})
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data

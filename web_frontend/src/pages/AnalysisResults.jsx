@@ -3,10 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import SidebarMenu from "../components/sidebar/SidebarMenu";
 import ProvenanceTag from "../components/shared/ProvenanceTag";
 import NegativeControlFlag from "../components/shared/NegativeControlFlag";
-import { tokens } from "../components/shared/tokens";
+import DisclaimerBanner from "../components/shared/DisclaimerBanner";
+import { tokens, pillStyle } from "../components/shared/tokens";
+import { formatMetadataField } from "../lib/sampleMetadata";
 import { ArrowRightIcon } from "../components/shared/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { getReport, exportReportJson, exportReportCsv } from "../lib/api";
+import { useNoveltyThreshold, formatThresholdPct } from "../lib/noveltyThreshold";
 import { revealStyle } from "../styles/reveal";
 
 // Single scale factor applied to every size value on this page (container
@@ -146,6 +149,93 @@ function KpiCard({ label, value, valueColor, sub, highlight = false }) {
   );
 }
 
+// Short labels for the API's context flag codes; the full message stays on
+// hover and in the accuracy note below the pills.
+const FLAG_LABELS = {
+  partner_report_unavailable: "Partner report unavailable",
+  no_negative_control: "Contamination not ruled out",
+  upload_not_found: "Upload record not found",
+};
+
+function ContextFieldPill({ tone, label, value, title }) {
+  return (
+    <span style={{ ...pillStyle(tone), fontSize: s(11.5), whiteSpace: "normal" }} title={title}>
+      {label}
+      {value && <span style={{ color: tokens.textPrimary, fontWeight: 500 }}>{value}</span>}
+    </span>
+  );
+}
+
+// "Every result must state which optional fields were provided and which
+// were missing" (decisions.md 2026-10-14 Q2). Renders report.context
+// (services/api/app/uploads/context.py) as-is: provided/missing come from
+// the API, values from report.metadata.
+function SampleContextPanel({ context, metadata, style }) {
+  const label = (f) => context.labels?.[f] ?? f;
+  const partner = context.partner_report ?? {};
+  const total = context.provided.length + context.missing.length;
+  return (
+    <div id="sample-context" style={{ ...panelStyle, ...style }}>
+      <span style={panelLabelStyle}>SAMPLE CONTEXT</span>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: s(18) }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: s(9) }}>
+          <span style={{ fontSize: s(11), fontWeight: 600, letterSpacing: "0.09em", color: tokens.labelText }}>
+            PROVIDED · {context.provided.length} of {total}
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: s(7) }}>
+            {context.provided.length > 0 ? (
+              context.provided.map((f) => (
+                <ContextFieldPill key={f} tone="success" label={label(f)} value={formatMetadataField(f, metadata)} />
+              ))
+            ) : (
+              <span style={{ fontSize: s(12), color: tokens.pending }}>None of the optional fields were provided.</span>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: s(9) }}>
+          <span style={{ fontSize: s(11), fontWeight: 600, letterSpacing: "0.09em", color: tokens.labelText }}>
+            MISSING · {context.missing.length} of {total}
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: s(7) }}>
+            {context.missing.length > 0 ? (
+              context.missing.map((f) => <ContextFieldPill key={f} tone="pending" label={label(f)} />)
+            ) : (
+              <span style={{ fontSize: s(12), color: tokens.success }}>Nothing missing.</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: s(10), flexWrap: "wrap", paddingTop: s(12), borderTop: `1px solid ${tokens.sectionBorder}` }}>
+        <span style={{ fontSize: s(11), fontWeight: 600, letterSpacing: "0.09em", color: tokens.labelText }}>PARTNER REPORT</span>
+        {partner.available ? (
+          <span style={{ ...pillStyle("success"), fontSize: s(11.5) }}>Available</span>
+        ) : (
+          <>
+            <span style={{ ...pillStyle("warning"), fontSize: s(11.5) }}>Not available</span>
+            <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>
+              {partner.missing_required?.length > 0
+                ? `Needs ${partner.missing_required.map((f) => label(f).toLowerCase()).join(", ")}`
+                : partner.reason}
+            </span>
+          </>
+        )}
+        {context.flags?.length > 0 && (
+          <div style={{ display: "flex", gap: s(7), flexWrap: "wrap", marginLeft: "auto" }}>
+            {context.flags.map((fl) => (
+              <span key={fl.code} style={{ ...pillStyle("warning"), fontSize: s(11) }} title={fl.message}>
+                {FLAG_LABELS[fl.code] ?? fl.code}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <p style={{ margin: 0, fontSize: s(12), lineHeight: 1.6, color: tokens.sectionSubtext }}>{context.accuracy_note}</p>
+    </div>
+  );
+}
+
 export default function AnalysisResults() {
   const { user } = useAuth();
   const { analysis_id } = useParams();
@@ -154,6 +244,7 @@ export default function AnalysisResults() {
   const [downloadingFormat, setDownloadingFormat] = useState(null);
   const [hoveredRoute, setHoveredRoute] = useState(null);
   const [hoveredQcRow, setHoveredQcRow] = useState(null);
+  const { threshold: noveltyThreshold } = useNoveltyThreshold();
 
   useEffect(() => {
     getReport(analysis_id)
@@ -205,7 +296,11 @@ export default function AnalysisResults() {
     );
   }
 
-  const { metadata, qc_summary, biodiversity, route_distribution, possible_novelty } = report;
+  const { metadata, context, qc_summary, biodiversity, route_distribution, possible_novelty } = report;
+  // The API's three-state value; the raw boolean (true/false/null) only if a
+  // result is ever served without its context block.
+  const ncState = context ? context.negative_control : (metadata?.negative_control_included ?? null);
+  const ncMessage = context?.flags?.find((f) => f.code === "no_negative_control")?.message;
   const passedQcPct = qc_summary ? ((qc_summary.passed_qc / qc_summary.total_sequences) * 100).toFixed(1) : null;
   const attritionCount = qc_summary ? qc_summary.total_sequences - qc_summary.passed_qc : 0;
   const previewNovelty = possible_novelty?.slice(0, 3) ?? [];
@@ -307,9 +402,24 @@ export default function AnalysisResults() {
           </div>
         </div>
 
-        {/* Negative control */}
-        <div style={{ display: "flex", alignItems: "center", gap: s(10) }}>
-          <NegativeControlFlag included={metadata?.negative_control_included ?? null} />
+        {/* eDNA limitations disclaimer -- component 0.1, plain variant,
+            between the header and the negative-control flag per
+            SYNTHVEDA_BUILD_SPEC.md §1.2 and the reference mockup. */}
+        <DisclaimerBanner variant="plain" />
+
+        {/* Negative control (context.negative_control, three states) plus a
+            one-line pointer to the full Sample Context panel below. */}
+        <div style={{ display: "flex", alignItems: "center", gap: s(10), flexWrap: "wrap" }}>
+          <NegativeControlFlag state={ncState} message={ncMessage} />
+          {context && (
+            <a href="#sample-context" style={{ display: "inline-flex", alignItems: "center", gap: s(8), fontSize: s(12), color: tokens.sectionSubtext, textDecoration: "none" }}>
+              <span>Sample context: {context.provided.length} of {context.provided.length + context.missing.length} optional fields provided</span>
+              <span style={{ color: tokens.headerDot }}>·</span>
+              <span style={{ color: context.partner_report?.available ? tokens.success : tokens.warning }}>
+                Partner report {context.partner_report?.available ? "available" : "not available"}
+              </span>
+            </a>
+          )}
         </div>
 
         {/* KPI row -- matches the reference mockup's 6 cards exactly */}
@@ -359,7 +469,9 @@ export default function AnalysisResults() {
                 />
               </div>
               <span style={{ fontSize: s(11), color: tokens.pending }}>
-                of total sequences at ≥45% novelty confidence (this deployment's flagging cutoff)
+                {noveltyThreshold == null
+                  ? "of total sequences at or above this deployment's novelty flagging cutoff (threshold value unavailable)"
+                  : `of total sequences at ≥${formatThresholdPct(noveltyThreshold)} novelty confidence (this deployment's flagging cutoff)`}
               </span>
             </div>
           </div>
@@ -493,6 +605,8 @@ export default function AnalysisResults() {
             )}
           </div>
         )}
+
+        {context && <SampleContextPanel context={context} metadata={metadata} style={revealStyle(2)} />}
 
         {/* Provenance footer -- component 0.2, plain variant per reference mockup */}
         <div style={{ display: "flex", justifyContent: "center", padding: `${s(6)}px 0 ${s(4)}px`, borderTop: `1px solid ${tokens.sectionBorder}` }}>

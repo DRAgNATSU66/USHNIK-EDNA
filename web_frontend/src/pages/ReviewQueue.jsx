@@ -184,10 +184,11 @@ function ReviewCard({ review, onRefresh }) {
           {review.state !== "submitted" && !isClosed && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span style={{ color: "#7eb3ff", fontSize: "0.8rem", alignSelf: "center" }}>Decision:</span>
+              {/* d must be a ReviewDecision value (services/api/app/models/review.py) */}
               {[
-                { d: "accepted", color: "#00ff88" },
-                { d: "rejected", color: "#ff6b6b" },
-                { d: "duplicate", color: "#7eb3ff" },
+                { d: "accept", color: "#00ff88" },
+                { d: "reject", color: "#ff6b6b" },
+                { d: "mark_duplicate", color: "#7eb3ff" },
                 { d: "needs_evidence", color: "#ffd700" },
               ].map(({ d, color }) => (
                 <button key={d} onClick={() => handleDecision(d)} disabled={deciding} style={BTN(color)}>

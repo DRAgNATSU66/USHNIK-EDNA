@@ -76,13 +76,18 @@ def validate_offline_license(token: str) -> dict[str, Any] | None:
     Does NOT check if the expedition still exists — offline devices cannot do
     network calls. Caller is responsible for checking expedition validity.
     """
+    import jwt as pyjwt
+
     from ..auth.jwt import decode_access_token
     try:
         payload = decode_access_token(token)
         if payload.get("type") != "offline_license":
             return None
         return payload
-    except Exception:
+    except pyjwt.PyJWTError:
+        # Expired / malformed / wrongly signed token: the caller returns 401.
+        # Anything else (e.g. a config error) propagates instead of looking
+        # like a bad license.
         return None
 
 

@@ -35,8 +35,12 @@ async def _process_loop(db, semaphore: asyncio.Semaphore, shutdown: asyncio.Even
         async def _run(jid: str) -> None:
             try:
                 await run_job(db, jid)
-            except Exception:
-                pass  # run_job already logs and marks the job failed
+            except Exception as exc:
+                # run_job already marks the job failed for pipeline errors; this
+                # line also surfaces the ones it can't (Mongo down before the
+                # try, _fail_job itself failing). Never re-raise: one bad job
+                # must not kill the poll loop.
+                print(f"[dispatcher] job {jid} raised {type(exc).__name__}: {exc}")
             finally:
                 semaphore.release()
 

@@ -19,10 +19,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 
 from ..auth.deps import get_current_user
+from ..config import NOVELTY_THRESHOLD
 from ..models.user import UserProfile, UserRole
 from ..db import get_db
 from .builder import build_report, build_report_csv
 from .models import AnalysisReport, REPORT_DISCLAIMER
+from ..uploads.context import build_metadata_context
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -34,11 +36,12 @@ async def _fetch_analysis_and_reviews(
     current_user: UserProfile,
 ):
     """
-    Shared fetch logic: load analysis doc + its reviews + its upload's
-    metadata. Enforces access control: owner or curator/admin can view.
+    Shared fetch logic: load analysis doc + its reviews + its upload doc.
+    Enforces access control: owner or curator/admin can view.
     Raises 404/403 as appropriate.
 
-    Returns (doc, reviews, source_file, location_label, depth_meters).
+    Returns (doc, reviews, upload). `upload` is None if the upload record no
+    longer exists; build_report then states that no metadata is available.
     """
     db = get_db()
 
@@ -49,15 +52,9 @@ async def _fetch_analysis_and_reviews(
     if doc.get("user_id") != current_user.user_id and current_user.role not in _CURATOR_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    # Fetch upload doc for filename + sample site/depth (best-effort).
-    source_file: str | None = None
-    location_label: str | None = None
-    depth_meters: float | None = None
     upload = await db["uploads"].find_one({"upload_id": doc.get("upload_id", "")})
     if upload:
-        source_file = upload.get("original_filename")
-        location_label = upload.get("location_label")
-        depth_meters = upload.get("depth_meters")
+        upload.pop("_id", None)
 
     # Fetch all reviews for this analysis
     reviews: list[dict] = []
@@ -66,7 +63,12 @@ async def _fetch_analysis_and_reviews(
         reviews.append(rev)
 
     doc.pop("_id", None)
-    return doc, reviews, source_file, location_label, depth_meters
+    return doc, reviews, upload
+
+
+async def _load_report(analysis_id: str, current_user: UserProfile) -> AnalysisReport:
+    doc, reviews, upload = await _fetch_analysis_and_reviews(analysis_id, current_user)
+    return build_report(doc, reviews, upload=upload)
 
 
 def _report_summary(doc: dict, upload: dict | None) -> dict:
@@ -78,13 +80,15 @@ def _report_summary(doc: dict, upload: dict | None) -> dict:
     sort/filter behavior can't be exercised through the endpoint itself.
     """
     results = doc.get("results", [])
-    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= 0.45)
+    novelty_count = sum(1 for r in results if float(r.get("novelty_score", 0.0)) >= NOVELTY_THRESHOLD)
     return {
         "analysis_id": doc.get("analysis_id"),
         "source_file": upload.get("original_filename") if upload else None,
         "created_at": doc.get("created_at"),
         "total_sequences": len(results),
         "possible_novelty_count": novelty_count,
+        # Q2: a partner report needs collection date + coordinates.
+        "partner_report_available": build_metadata_context(upload).partner_report.available,
     }
 
 
@@ -127,8 +131,7 @@ async def get_report(
     possible novelty table, contamination warnings, biodiversity metrics,
     model versions used, review status, and disclaimer.
     """
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    return build_report(doc, reviews, source_file, location_label, depth_meters)
+    return await _load_report(analysis_id, current_user)
 
 
 @router.get("/{analysis_id}/summary")
@@ -137,14 +140,14 @@ async def get_report_summary(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
 ):
     """Return the metadata + QC summary + biodiversity section only."""
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    report = build_report(doc, reviews, source_file, location_label, depth_meters)
+    report = await _load_report(analysis_id, current_user)
     return {
         "analysis_id": analysis_id,
         "metadata": report.metadata.model_dump(),
         "qc_summary": report.qc_summary.model_dump(),
         "biodiversity": report.biodiversity.model_dump(),
         "review_status": report.review_status.model_dump(),
+        "context": report.context.model_dump() if report.context else None,
         "disclaimer": REPORT_DISCLAIMER,
         "generated_at": report.generated_at,
     }
@@ -154,14 +157,13 @@ async def get_report_summary(
 async def get_novelty_table(
     analysis_id: str,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
-    min_score: float = 0.45,
+    min_score: float = NOVELTY_THRESHOLD,
 ):
     """
     Return the possible novelty table, optionally filtered by minimum score.
     Results are sorted highest novelty first.
     """
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    report = build_report(doc, reviews, source_file, location_label, depth_meters)
+    report = await _load_report(analysis_id, current_user)
     entries = [e for e in report.possible_novelty if e.novelty_score >= min_score]
     return {
         "analysis_id": analysis_id,
@@ -177,8 +179,7 @@ async def get_contamination_warnings(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
 ):
     """Return all contamination warnings for the analysis, sorted by score."""
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    report = build_report(doc, reviews, source_file, location_label, depth_meters)
+    report = await _load_report(analysis_id, current_user)
     return {
         "analysis_id": analysis_id,
         "total_warnings": len(report.contamination_warnings),
@@ -197,8 +198,7 @@ async def export_report_json(
     Returns a JSON response with Content-Disposition: attachment so browsers
     prompt a file download. The filename includes the analysis_id and timestamp.
     """
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    report = build_report(doc, reviews, source_file, location_label, depth_meters)
+    report = await _load_report(analysis_id, current_user)
 
     # Serialize with datetime support
     payload = report.model_dump()
@@ -223,8 +223,7 @@ async def export_report_csv(
     Download the per-sequence results (known species + possible novelty +
     contamination warnings, merged one row per sequence) as a CSV file.
     """
-    doc, reviews, source_file, location_label, depth_meters = await _fetch_analysis_and_reviews(analysis_id, current_user)
-    report = build_report(doc, reviews, source_file, location_label, depth_meters)
+    report = await _load_report(analysis_id, current_user)
     csv_text = build_report_csv(report)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

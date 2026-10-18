@@ -71,6 +71,16 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Bare /researcher-mode or an unknown section: ResearcherMode
+          redirects to its default section. */}
+      <Route
+        path="/researcher-mode/*"
+        element={
+          <ProtectedRoute>
+            <ResearcherMode />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/partner-report/academia"
         element={

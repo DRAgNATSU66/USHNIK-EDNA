@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -8,6 +9,9 @@ from ..models.job import AnalysisJobDoc, JobState
 from ..models.analysis import AnalysisResultDoc
 from ..db import get_db
 from ..queue import enqueue_job
+from ..uploads.context import MetadataContext, build_metadata_context
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -55,8 +59,14 @@ async def create_analysis_job(
     try:
         await enqueue_job(job_id=job.job_id, upload_id=job.upload_id, mode=job.mode)
     except Exception:
-        # Redis not available in dev without Docker — job stays queued in Mongo
-        pass
+        # Redis not available in dev without Docker. The job doc stays
+        # "queued" in Mongo, but the worker only dequeues from Redis, so it
+        # will not run until re-enqueued. Say so loudly.
+        logger.warning(
+            "Could not enqueue job %s on Redis; it stays queued in MongoDB and "
+            "the worker will not pick it up until it is re-enqueued",
+            job.job_id, exc_info=True,
+        )
 
     return CreateJobResponse(job_id=job.job_id, upload_id=job.upload_id, state=job.state)
 
@@ -81,7 +91,13 @@ async def get_job(
     return job
 
 
-@router.get("/{analysis_id}", response_model=AnalysisResultDoc)
+class AnalysisResultWithContext(AnalysisResultDoc):
+    # Q2/Q4: which optional upload metadata was provided vs missing. Built at
+    # read time from the upload doc (app/uploads/context.py), never stored.
+    context: MetadataContext
+
+
+@router.get("/{analysis_id}", response_model=AnalysisResultWithContext)
 async def get_analysis(
     analysis_id: str,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
@@ -98,37 +114,8 @@ async def get_analysis(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    return result
+    upload = await db["uploads"].find_one({"upload_id": result.upload_id})
+    return AnalysisResultWithContext(
+        **result.model_dump(), context=build_metadata_context(upload),
+    )
 
-
-@router.get("/{analysis_id}/report")
-async def get_analysis_report(
-    analysis_id: str,
-    current_user: Annotated[UserProfile, Depends(get_current_user)],
-):
-    """
-    Return the full structured report for the analysis.
-    Delegates to the Phase 11 report builder at GET /reports/{analysis_id}.
-    """
-    from ..reports.builder import build_report
-
-    db = get_db()
-    doc = await db["analysis_results"].find_one({"analysis_id": analysis_id})
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
-
-    if doc.get("user_id") != current_user.user_id and current_user.role not in (
-        UserRole.admin, UserRole.company_owner, UserRole.curator
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    upload = await db["uploads"].find_one({"upload_id": doc.get("upload_id", "")})
-    source_file = upload.get("original_filename") if upload else None
-
-    reviews: list[dict] = []
-    async for rev in db["reviews"].find({"analysis_id": analysis_id}):
-        rev.pop("_id", None)
-        reviews.append(rev)
-
-    doc.pop("_id", None)
-    return build_report(doc, reviews, source_file).model_dump()

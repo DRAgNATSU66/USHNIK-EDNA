@@ -23,15 +23,25 @@ responses on field hardware.
 """
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any
 
+from ..config import NOVELTY_THRESHOLD
 from .models import (
     AbyssSequenceInput,
     AbyssSequenceResult,
     AbyssAnalysisResult,
     ABYSS_DISCLAIMER,
 )
+
+logger = logging.getLogger(__name__)
+
+# Fallbacks (router errors, missing novelty scorer) already logged, keyed by
+# (kind, message), so a batch of 500 sequences hitting the same import error
+# logs one traceback, not 500.  Every affected result is still marked
+# (router_error_fallback / reason code "abyss_stub").
+_LOGGED_FALLBACKS: set[tuple[str, str]] = set()
 
 # Max sequences per abyss analysis call (field triage — not bulk pipeline)
 _MAX_SEQUENCES = 500
@@ -54,7 +64,7 @@ def run_abyss_analysis(
         _analyze_one(seq) for seq in truncated
     ]
 
-    possible_novelty = sum(1 for r in results if r.novelty_score >= 0.45)
+    possible_novelty = sum(1 for r in results if r.novelty_score >= NOVELTY_THRESHOLD)
     contamination_flags = sum(1 for r in results if r.contamination_flagged)
     low_quality = sum(1 for r in results if r.route == "low_quality")
     requires_cloud = any(r.requires_cloud_confirmation for r in results)
@@ -103,10 +113,6 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
         )
 
     # Route via heuristic router (no torch required)
-    try:
-        from ..app.model_router import route_sequence, RouterInput  # type: ignore
-    except ImportError:
-        pass
     route_result = _heuristic_route(raw, qc, seq)
 
     # Build a sequence dict that the novelty scorer understands
@@ -139,8 +145,13 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
         seq_dict["contamination_flagged"] = cont.is_flagged
 
         nov = score_sequence(seq_dict)
-    except ImportError:
+    except ImportError as exc:
         # Worker novelty module not available in this env — produce stub scores
+        # (marked with reason code "abyss_stub"). Log once per process.
+        key = ("novelty_import", str(exc))
+        if key not in _LOGGED_FALLBACKS:
+            _LOGGED_FALLBACKS.add(key)
+            logger.warning("Abyss novelty scorer unavailable (%s); using stub scores", exc)
         nov = _stub_novelty(seq_dict)
         cont = _stub_contamination(seq_dict)
 
@@ -167,6 +178,8 @@ def _analyze_one(seq: AbyssSequenceInput) -> AbyssSequenceResult:
         requires_cloud_confirmation=True,  # always True in Abyss Mode
         reason_codes=reason_codes,
         field_action=field_action,
+        router_error_fallback=route_result.get("router_error_fallback", False),
+        router_error=route_result.get("router_error"),
     )
 
 
@@ -240,9 +253,24 @@ def _heuristic_route(
             "fallback_routes": result.fallback_routes,
             "reason_codes": result.reason_codes,
         }
-    except Exception:
-        # Inline fallback — simplified GC-based routing
-        return _simple_gc_route(qc, seq_input.habitat)
+    except Exception as exc:
+        # Inline fallback — simplified GC-based routing.  Never silent: log it
+        # and mark the result so the fallback is visible to the caller (B12).
+        error = f"{type(exc).__name__}: {exc}"
+        key = (type(exc).__name__, str(exc))
+        if key not in _LOGGED_FALLBACKS:
+            _LOGGED_FALLBACKS.add(key)
+            logger.warning(
+                "Abyss heuristic router failed (%s); falling back to GC-only routing",
+                error, exc_info=True,
+            )
+        else:
+            logger.debug("Abyss heuristic router failed again (%s); GC-only fallback", error)
+        fallback = _simple_gc_route(qc, seq_input.habitat)
+        fallback["router_error_fallback"] = True
+        fallback["router_error"] = error
+        fallback["reason_codes"] = ["router_error_fallback", *fallback["reason_codes"]]
+        return fallback
 
 
 def _simple_gc_route(qc: dict, habitat: str | None) -> dict[str, Any]:
@@ -360,7 +388,7 @@ def _batch_recommendation(results: list[AbyssSequenceResult]) -> tuple[str, str]
 
     actions = [r.field_action for r in results]
     total = len(results)
-    novelty_frac = sum(1 for r in results if r.novelty_score >= 0.45) / total
+    novelty_frac = sum(1 for r in results if r.novelty_score >= NOVELTY_THRESHOLD) / total
     cont_frac = sum(1 for r in results if r.contamination_flagged) / total
 
     if "preserve_sample" in actions:

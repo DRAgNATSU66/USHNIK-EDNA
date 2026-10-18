@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from .deps import get_current_user
-from .google import GoogleClaims, exchange_code_for_claims, verify_google_id_token
+from .google import GoogleClaims, exchange_code_for_claims
 from .supabase_auth import verify_supabase_access_token
 from ..db import get_db
 from .jwt import create_access_token
@@ -15,16 +16,14 @@ from .session import create_expedition_session, verify_expedition_session, OFFLI
 from ..db.supabase_client import SupabaseClient, SupabaseUnavailableError
 from ..models.user import UserProfile, UserRole
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # ---------------------------------------------------------------------------
 # Request / response schemas
 # ---------------------------------------------------------------------------
-
-class GoogleExchangeRequest(BaseModel):
-    id_token: str
-
 
 class GoogleCodeExchangeRequest(BaseModel):
     code: str
@@ -76,11 +75,10 @@ class VerifyExpeditionRequest(BaseModel):
 async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenResponse:
     """
     Look up or create the user_profiles row for a verified set of Google
-    claims, mint a Synth Veda JWT, and return the TokenResponse. Shared by
-    both /auth/google/exchange (id_token, from the old widget flow) and
+    claims, mint a Synth Veda JWT, and return the TokenResponse. Used by
     /auth/google/code-exchange (authorization code, from our own custom
-    liquid-glass button) — the account-linking rules must stay identical
-    regardless of which flow produced the claims.
+    liquid-glass button). Kept as a separate helper so any future Google
+    flow reuses the same account-linking rules.
 
     user_profiles.id is a Postgres-generated uuid — NOT Google's sub (which
     is a numeric string, not a uuid, and this app never creates Supabase
@@ -114,9 +112,9 @@ async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenRespon
                 )
                 user_id = created["id"]
         await SupabaseClient.update_last_login(user_id)
-    except RuntimeError:
+    except RuntimeError as exc:
         # Supabase not configured (local dev without .env) — continue with defaults
-        pass
+        logger.info("Supabase unavailable during Google login, using default profile: %s", exc)
     except SupabaseUnavailableError:
         # Supabase configured but transiently unreachable even after
         # _with_retry's attempts -- surface as a clean, retryable 503
@@ -146,25 +144,6 @@ async def _token_response_for_google_claims(claims: GoogleClaims) -> TokenRespon
 
 
 # ---------------------------------------------------------------------------
-# POST /auth/google/exchange
-# ---------------------------------------------------------------------------
-
-@router.post("/google/exchange", response_model=TokenResponse)
-async def google_exchange(body: GoogleExchangeRequest):
-    """
-    Exchange a Google ID token (from client-side OAuth) for a Synth Veda JWT.
-    Verifies the ID token's signature + audience (google-auth library), then
-    delegates to _token_response_for_google_claims for the account lookup.
-    """
-    try:
-        claims = await verify_google_id_token(body.id_token)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
-
-    return await _token_response_for_google_claims(claims)
-
-
-# ---------------------------------------------------------------------------
 # POST /auth/google/code-exchange
 # ---------------------------------------------------------------------------
 
@@ -175,11 +154,11 @@ async def google_code_exchange(body: GoogleCodeExchangeRequest):
     custom-styled Google button, using useGoogleLogin's popup auth-code
     flow) for a Synth Veda JWT.
 
-    Unlike /auth/google/exchange, the client here never sees a Google
-    credential directly — it only gets a one-time code, which this endpoint
-    exchanges server-side (using GOOGLE_CLIENT_SECRET) for an ID token that
-    is then verified exactly as the widget-flow token is. Same account
-    lookup rules apply via _token_response_for_google_claims.
+    The client never sees a Google credential directly — it only gets a
+    one-time code, which this endpoint exchanges server-side (using
+    GOOGLE_CLIENT_SECRET) for an ID token that is then signature- and
+    audience-verified by verify_google_id_token. Account lookup rules live
+    in _token_response_for_google_claims.
     """
     try:
         claims = await exchange_code_for_claims(body.code)
@@ -204,8 +183,8 @@ async def supabase_exchange(body: SupabaseExchangeRequest):
     time this runs the profile usually already exists. If it hasn't landed
     yet (trigger race on the very first request right after signup), retry
     once after a short delay before falling back to default researcher
-    values — mirroring how /auth/google/exchange tolerates Supabase being
-    unavailable.
+    values — mirroring how /auth/google/code-exchange tolerates Supabase
+    being unavailable.
     """
     try:
         claims = await verify_supabase_access_token(body.access_token)
@@ -228,8 +207,9 @@ async def supabase_exchange(body: SupabaseExchangeRequest):
             role = UserRole(profile.get("role", UserRole.researcher))
             display_name = profile.get("display_name")
         await SupabaseClient.update_last_login(claims.user_id)
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        # Supabase not configured (local dev) — continue with the default role.
+        logger.info("Supabase unavailable during Supabase login, using default profile: %s", exc)
 
     user = UserProfile(
         user_id=claims.user_id,
@@ -386,8 +366,13 @@ async def create_offline_session(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Expedition not found"
             )
-    except RuntimeError:
-        pass  # MongoDB not connected in dev — skip the check
+    except RuntimeError as exc:
+        # MongoDB not connected in dev — skip the check, but say so: the
+        # session below is issued without verifying the expedition exists.
+        logger.warning(
+            "Expedition %s existence not verified (MongoDB unavailable: %s)",
+            body.expedition_id, exc,
+        )
 
     offline_token = create_expedition_session(
         expedition_id=body.expedition_id,
@@ -405,8 +390,11 @@ async def create_offline_session(
             actor_role=current_user.role,
             payload={"device_fingerprint": body.device_fingerprint},
         )
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        logger.warning(
+            "Audit log for expedition session %s not written (MongoDB unavailable: %s)",
+            body.expedition_id, exc,
+        )
 
     return ExpeditionSessionResponse(
         expedition_session_token=offline_token,
