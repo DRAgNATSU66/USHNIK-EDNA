@@ -179,9 +179,66 @@ QUERIES: tuple[SupplementaryQuery, ...] = (
         label_basis="taxonomy", taxon="Actinopterygii environmental samples",
         marker="any (marker not restricted)",
         base_query=f"{_ACTINOPTERYGII} AND {_ENV}",
-        min_len=150, max_len=_AMPLICON_MAX, max_records=2000,
+        # 3500 * OVERSAMPLE exceeds the 3453 hits (2026-10-18), so every hit is
+        # fetched: ~74% of them are "Actinopterygii environmental sample", whose
+        # lineage has no class rank and so routes to animal_general and is rejected.
+        min_len=150, max_len=_AMPLICON_MAX, max_records=3500,
         rationale="fish/possible_novelty has 0 rows in processed/ although the fish head "
                   "allows the label; same mechanism as the animal queries.",
+    ),
+    SupplementaryQuery(
+        query_id="ena_fish_env", source="ena",
+        target_route="fish", target_label=SequenceResultClass.possible_novelty,
+        label_basis="taxonomy", taxon="Actinopterygii with environmental_sample=true",
+        marker="any (marker not restricted)",
+        base_query="tax_tree(7898) AND environmental_sample=true",
+        min_len=150, max_len=_AMPLICON_MAX, max_records=2000,
+        rationale="ENA's environmental_sample flag also covers fish eDNA records whose organism "
+                  "is not under NCBI's 'environmental samples' node. Accessions already "
+                  "gathered by ncbi_fish_env are excluded.",
+    ),
+    # Human DNA as a contaminant. Taxonomy-labelled: Homo sapiens routes to
+    # human_domestic_contamination and assign_label gives known_species, the same
+    # path the GRCh38 windows and the mito BLAST DB records take. processed/
+    # holds ~35% 400 bp nuclear windows (chr1 only: iter_grch38 hits its 20k
+    # window cap inside chr1) and the rest gene-length mito records; neither covers
+    # the mtDNA control region, the most-sequenced human locus, nor nuclear rRNA,
+    # which universal eukaryote 18S primers amplify from human handlers.
+    # [Organism:noexp] keeps out archaic Homo subspecies.
+    SupplementaryQuery(
+        query_id="ncbi_human_mito_control_region", source="ncbi",
+        target_route="human_domestic_contamination", target_label=SequenceResultClass.known_species,
+        label_basis="taxonomy", taxon="Homo sapiens (txid9606, not expanded)",
+        marker="mtDNA control region (D-loop / HVR)",
+        base_query='txid9606[Organism:noexp] AND ("D-loop"[Title] OR "control region"[Title] '
+                   'OR "hypervariable region"[Title]) AND mitochondrion[Filter]',
+        min_len=150, max_len=_AMPLICON_MAX, max_records=800,
+        rationale="Control-region amplicons are the classic human contaminant in eDNA/aDNA work "
+                  "and are absent from the current human route pool.",
+    ),
+    SupplementaryQuery(
+        query_id="ncbi_human_mito_rrna", source="ncbi",
+        target_route="human_domestic_contamination", target_label=SequenceResultClass.known_species,
+        label_basis="taxonomy", taxon="Homo sapiens (txid9606, not expanded)",
+        marker="mitochondrial 12S/16S rRNA",
+        base_query='txid9606[Organism:noexp] AND ("12S ribosomal RNA"[Title] OR '
+                   '"16S ribosomal RNA"[Title]) AND mitochondrion[Filter]',
+        min_len=150, max_len=_AMPLICON_MAX, max_records=400,
+        rationale="Vertebrate 12S/16S metabarcoding primers (MiFish, Riaz 12S, 16Smam) co-amplify "
+                  "human mtDNA; this is the human read a fish/animal eDNA run actually sees.",
+    ),
+    SupplementaryQuery(
+        query_id="ncbi_human_nuclear_rrna", source="ncbi",
+        target_route="human_domestic_contamination", target_label=SequenceResultClass.known_species,
+        label_basis="taxonomy", taxon="Homo sapiens (txid9606, not expanded)",
+        marker="nuclear rRNA (18S/28S/5.8S/45S)",
+        base_query='txid9606[Organism:noexp] AND ("18S ribosomal RNA"[Title] OR "28S ribosomal RNA"[Title] '
+                   'OR "5.8S ribosomal RNA"[Title] OR "45S"[Title] OR "ribosomal DNA"[Title]) '
+                   # PDB-derived chains (cryo-EM ribosomes) are not INSDC records and
+                   # carry no taxid in esummary; 78 of 436 hits on 2026-10-18.
+                   'NOT srcdb_pdb[PROP]',
+        min_len=150, max_len=_AMPLICON_MAX, max_records=500,
+        rationale="Universal eukaryote 18S primers amplify handler DNA; small pool, take all.",
     ),
     SupplementaryQuery(
         query_id="ncbi_cloning_vectors", source="ncbi",

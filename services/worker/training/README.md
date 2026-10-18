@@ -28,8 +28,31 @@ exact search terms). In summary:
 | `ncbi_animal_env_16s` | NCBI E-utilities | same | mito 16S rRNA | 150–2000 | same |
 | `ena_animal_env_any` | ENA Portal API | Metazoa, `environmental_sample=true`, not Actinopterygii | any | 150–2000 | same |
 | `ncbi_fish_env` | NCBI E-utilities | Actinopterygii "environmental samples" | any | 150–2000 | fish / possible_novelty |
+| `ena_fish_env` | ENA Portal API | Actinopterygii, `environmental_sample=true` | any | 150–2000 | same |
+| `ncbi_human_mito_control_region` | NCBI E-utilities | Homo sapiens (not expanded), mitochondrion | D-loop / control region / HVR | 150–2000 | human_domestic_contamination / known_species |
+| `ncbi_human_mito_rrna` | NCBI E-utilities | same | mito 12S/16S rRNA | 150–2000 | same |
+| `ncbi_human_nuclear_rrna` | NCBI E-utilities | Homo sapiens (not expanded), PDB chains excluded | 18S/28S/5.8S/45S rRNA | 150–2000 | same |
 | `ncbi_cloning_vectors` | NCBI E-utilities | taxon 29278 "vectors", complete sequences | vector | 1000–20000 | human_domestic_contamination / possible_contamination |
 | `ncbi_phix174` | NCBI E-utilities | Escherichia phage phiX174, complete genomes | genome | 4000–6000 | same |
+
+Kept per query on the 2026-10-15 / 2026-10-18 runs (records, then unique sequences): animal COI
+2000/1945, animal 18S 1500/1291, animal 16S 225/146, ENA animal 1500/1492, NCBI fish 872/836,
+ENA fish 4/4, human control region 800/779, human mito rRNA 400/346, human nuclear rRNA 358/138,
+vectors 1500/1500, PhiX174 157/145. `run.json` has the rejection reasons for each.
+
+The human queries do not fill an empty class (`human_domestic_contamination/known_species` is
+already at the 5000 cap). They change what is in it. In the current `processed/`, about 35% of
+that class is 400 bp GRCh38 windows, all from chr1 (`iter_grch38` reaches its 20k-window cap
+inside the first chromosome). The rest are gene-length mitochondrial records. Neither group
+covers the mtDNA control region or nuclear rRNA, and those are the human reads an eDNA or
+metabarcoding run actually picks up. These records are labelled through taxonomy (Homo sapiens
+gives this route, and `assign_label` gives known_species), so they follow the same path as GRCh38.
+
+Fish yield is low by construction. 2581 of the 3453 NCBI fish hits are "Actinopterygii
+environmental sample". In the NCBI taxonomy, Actinopterygii is a superclass, so that lineage has
+no class rank, `lineage_to_route` sends it to animal_general, and it is rejected. The ENA query
+adds only 4 records after accession dedup. Mapping superclass Actinopterygii to fish would be a
+change to `routing.py` and is out of scope here.
 
 Candidates are sampled with a fixed seed from the full hit list, so a rerun on the same database
 state picks the same records. ENA and NCBI mirror the same INSDC data, so accessions already
@@ -51,10 +74,18 @@ gathered by another query for the same class are excluded.
   `lab_reagent` type in `app/novelty/contamination.py`. UniVec, which is also vectors and
   adapters, used to fall through to `known_species`. It is now labelled the same way, so the
   head is not told the same kind of sequence is two different things.
-- *Not gathered:* reagent "kitome" bacteria (Ralstonia, Bradyrhizobium, ...), because those
-  genera are also real environmental organisms and nothing in a single record shows it is a
-  contaminant. Also MGnify contigs and OTUs, whose taxonomy is MGnify's own pipeline prediction,
-  not a curated identification.
+- *Not gathered:*
+  - Reagent "kitome" bacteria (Ralstonia, Bradyrhizobium, ...). These genera are also real
+    environmental organisms, and nothing in a single record shows that it is a contaminant.
+  - Lambda phage, the Nanopore DNA CS control. There are only 7 complete genomes, each 48.5 kb.
+    `chunk_long_sequence` keeps the first five 400 bp windows of each, so they would add a few
+    near-identical windows.
+  - MGnify. The API (`/metagenomics/api/v1/`, checked 2026-10-18) exposes studies, runs,
+    analyses, assemblies and prokaryotic MAG catalogues. It has no endpoint that returns
+    individual sequences with a curated organism identification. Its taxonomy for OTUs and
+    contigs is its own pipeline's prediction from SILVA/PR2 matches, so labelling with it would
+    train the heads on another classifier's output. The underlying reads are in ENA, and the ENA
+    queries above already reach the curated INSDC records.
 
 **Output.** Written to `synthveda-data/raw/supplementary/<source>/` (gitignored):
 `<query_id>.fasta`, `<query_id>.manifest.csv` (accession, taxid, organism, marker, source,

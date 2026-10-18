@@ -29,6 +29,11 @@ METAZOA_NAMED = {"kingdom": "Metazoa", "phylum": "Annelida", "class": "Polychaet
                  "genus": "Palola", "species": "Palola viridis"}
 FISH_ENV = {"kingdom": "Metazoa", "phylum": "Chordata", "class": "Actinopteri",
             "species": "Actinopteri environmental sample"}
+HUMAN = {"kingdom": "Metazoa", "phylum": "Chordata", "class": "Mammalia", "order": "Primates",
+         "family": "Hominidae", "genus": "Homo", "species": "Homo sapiens"}
+# Actinopterygii is a superclass in NCBI, so "Actinopterygii environmental sample" has no class rank
+FISH_SUPERCLASS_ENV = {"kingdom": "Metazoa", "phylum": "Chordata",
+                       "species": "Actinopterygii environmental sample"}
 
 
 class FakeTaxonomy:
@@ -36,6 +41,8 @@ class FakeTaxonomy:
         1: (METAZOA_ENV, "Eunicidae environmental sample"),
         2: (METAZOA_NAMED, "Palola viridis"),
         3: (FISH_ENV, "Actinopteri environmental sample"),
+        4: (HUMAN, "Homo sapiens"),
+        5: (FISH_SUPERCLASS_ENV, "Actinopterygii environmental sample"),
     }
 
     def lineage(self, taxid):
@@ -189,6 +196,28 @@ class TestLabelCandidate:
         q = fs.QUERIES_BY_ID["ncbi_fish_env"]
         out, reason = fs.label_candidate(q, SEQ_300, "3", "", FakeTaxonomy())
         assert reason == "ok" and (out["route"], out["label"]) == ("fish", "possible_novelty")
+
+    def test_superclass_only_fish_routes_to_animal_and_is_rejected(self):
+        # documents the measured fish yield loss (README): no class rank -> animal_general
+        q = fs.QUERIES_BY_ID["ncbi_fish_env"]
+        out, reason = fs.label_candidate(q, SEQ_300, "5", "", FakeTaxonomy())
+        assert out is None and reason == "routed_to:animal_general"
+
+    @pytest.mark.parametrize("qid", ["ncbi_human_mito_control_region", "ncbi_human_mito_rrna",
+                                     "ncbi_human_nuclear_rrna"])
+    def test_human_queries_label_through_taxonomy(self, qid):
+        q = fs.QUERIES_BY_ID[qid]
+        assert q.label_basis == "taxonomy"
+        out, reason = fs.label_candidate(q, SEQ_300, "4", "", FakeTaxonomy())
+        assert reason == "ok"
+        assert (out["route"], out["label"]) == ("human_domestic_contamination", "known_species")
+        # a non-human record matching the query text is rejected, not relabelled
+        assert fs.label_candidate(q, SEQ_300, "2", "", FakeTaxonomy())[1] == "routed_to:animal_general"
+
+    def test_human_queries_exclude_archaic_subspecies_and_pdb(self):
+        for qid in ("ncbi_human_mito_control_region", "ncbi_human_mito_rrna", "ncbi_human_nuclear_rrna"):
+            assert "txid9606[Organism:noexp]" in fs.QUERIES_BY_ID[qid].base_query
+        assert "NOT srcdb_pdb[PROP]" in fs.QUERIES_BY_ID["ncbi_human_nuclear_rrna"].base_query
 
     def test_unknown_or_missing_taxid(self):
         assert fs.label_candidate(ANIMAL_Q, SEQ_300, "999", "", FakeTaxonomy())[1] == "taxid_not_in_local_taxdump"
