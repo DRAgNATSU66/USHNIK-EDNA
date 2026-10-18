@@ -18,6 +18,11 @@ Interface (what the Day 9 orchestrator calls):
     evidence = provider.lookup([(seq_id, seq), ...], route)
     # -> list[ReferenceEvidence], one per input, same order; .to_dict() is JSON-safe
 
+Method: BLAST+ (megablast) by default; vsearch via reference_method=vsearch
+or auto (vsearch when the UDB fits the budget). On held-out fish queries
+BLAST matched vsearch's answers 361/384 at 1/7 of the search time and a
+fraction of the memory; see app/config.py for the measurements.
+
 One search process per call, all sequences batched into it (vsearch loads
 the whole UDB on every call, so one call per sequence would reload GBs per
 read); identical sequences are searched once. Calls are serialised across
@@ -442,32 +447,47 @@ class _ToolRun:
     timed_out: bool
 
 
-def _run_tool(cmd: list[str], timeout: float) -> _ToolRun:
-    """Runs cmd and reports its own peak RSS (os.wait4 rusage of that child)."""
+def _vm_hwm_bytes(pid: int, exe: str) -> int | None:
+    """Peak RSS of `exe` running as pid (Linux /proc VmHWM). Read only once
+    the child has exec'd: before that /proc shows the forked Python's memory."""
+    try:
+        if os.readlink(f"/proc/{pid}/exe") != exe:
+            return None
+        with open(f"/proc/{pid}/status", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("VmHWM:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _run_tool(cmd: list[str], timeout: float, poll_seconds: float = 0.2) -> _ToolRun:
+    """Runs cmd and reports the tool's own peak RSS.
+
+    Not rusage: on Linux a child's ru_maxrss starts from the parent's RSS at
+    fork, so a 700 MB Python parent would make every tool look >= 700 MB.
+    VmHWM is polled instead; it is monotonic, so the last read before exit
+    misses at most the growth of the final poll interval."""
     t0 = time.monotonic()
+    peak: int | None = None
+    timed_out = False
     with tempfile.TemporaryFile() as err:
+        exe = os.path.realpath(cmd[0])
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err)
-        killed = threading.Event()
-
-        def _kill() -> None:
-            killed.set()
-            proc.kill()
-
-        timer = threading.Timer(timeout, _kill)
-        timer.start()
-        rss = None
-        try:
-            if hasattr(os, "wait4"):
-                _, status, usage = os.wait4(proc.pid, 0)
-                proc.returncode = os.waitstatus_to_exitcode(status)
-                rss = int(usage.ru_maxrss) * 1024  # Linux reports KiB
-            else:  # pragma: no cover
+        while proc.poll() is None:
+            hwm = _vm_hwm_bytes(proc.pid, exe)
+            if hwm is not None and (peak is None or hwm > peak):
+                peak = hwm
+            if time.monotonic() - t0 > timeout:
+                timed_out = True
+                proc.kill()
                 proc.wait()
-        finally:
-            timer.cancel()
+                break
+            time.sleep(poll_seconds)
         err.seek(0)
         tail = err.read()[-1500:].decode("utf-8", errors="replace").strip()
-    return _ToolRun(proc.returncode, round(time.monotonic() - t0, 2), rss, tail, killed.is_set())
+    return _ToolRun(proc.returncode, round(time.monotonic() - t0, 2), peak, tail, timed_out)
 
 
 def _write_queries(path: Path, queries: dict[str, str]) -> None:
@@ -730,7 +750,7 @@ class ReferenceLookupProvider:
             if route == HUMAN_ROUTE:
                 hg = human.get(qid) if qid else None
                 if hg is None:
-                    hg = HumanGenomeEvidence(available=bool(qid) and False, reason=(
+                    hg = HumanGenomeEvidence(available=False, reason=(
                         "query not searched" if not qid else "GRCh38 search not run"))
                 if hg.hit:
                     non_human_better = (assignment.status == ASSIGNED and assignment.lineage.get("genus") != "Homo"

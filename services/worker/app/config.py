@@ -66,12 +66,18 @@ class WorkerSettings(BaseSettings):
     reference_search_min_identity: float = Field(default=80.0, ge=50.0, le=100.0)
     reference_max_accepts: int = Field(default=32, ge=1)   # candidates kept per query (tie detection)
     reference_report_hits: int = Field(default=5, ge=1)     # top hits returned per query
-    # auto: vsearch when the route's UDB fits the memory budget, else BLAST.
-    reference_method: Literal["auto", "vsearch", "blast"] = "auto"
-    # vsearch loads the whole UDB per call (v1 animal_general: 3.45 GB UDB,
-    # 4.1 GB RSS). Routes whose UDB is larger are searched with BLAST, which
-    # memory-maps its DB. Default admits fish 1.87 GB, misc 1.72 GB,
-    # bacteria 1.43 GB, plant 0.52 GB, human 0.42 GB; not animal_general.
+    # blast (default): BLAST+ against <route>/blast/ref for every route.
+    # auto: vsearch when the route's UDB fits reference_vsearch_max_udb_gb,
+    # else BLAST. vsearch: always vsearch. Measured on 384 held-out fish
+    # queries (t-1021-2): vsearch 129 s search, 3.47 GB peak RSS; BLAST 18 s,
+    # same assignment on 361/384, species precision 96.3 vs 95.9 %. vsearch
+    # on plant (0.52 GB UDB) reached 2.1 GB RSS and had not finished 370
+    # queries after 10 min. vsearch loads the whole UDB per call and its RSS
+    # runs well above the UDB size; BLAST memory-maps its DB.
+    reference_method: Literal["auto", "vsearch", "blast"] = "blast"
+    # UDB size admitted to vsearch under "auto". Admits fish 1.87 GB, misc
+    # 1.72 GB, bacteria 1.43 GB, plant 0.52 GB, human 0.42 GB; not
+    # animal_general 3.45 GB.
     reference_vsearch_max_udb_gb: float = Field(default=2.5, gt=0.0)
     # megablast (word 28) is fast and sound for the >=90% band that drives
     # assignment; dc-megablast finds more of the 80-90% "nearest" hits, slower.

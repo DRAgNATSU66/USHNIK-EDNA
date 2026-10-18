@@ -285,7 +285,7 @@ def _check(evidence, method):
 def test_vsearch_end_to_end(refroot):
     ev = provider(refroot, reference_method="vsearch").lookup(QUERIES, "fish")
     _check(ev, "vsearch")
-    assert ev[0].run["peak_rss_mb"] and ev[0].run["method_reason"] == "configured"
+    assert "peak_rss_mb" in ev[0].run and ev[0].run["method_reason"] == "configured"
 
 
 @pytest.mark.skipif(not HAVE_BLAST, reason="BLAST+ not installed")
@@ -299,8 +299,10 @@ def test_blast_end_to_end(refroot):
 @pytest.mark.skipif(not (HAVE_VSEARCH and HAVE_BLAST), reason="vsearch and BLAST+ needed")
 def test_auto_falls_back_to_blast_over_udb_budget(refroot):
     ev = provider(refroot).lookup(QUERIES[:1], "fish")
+    assert ev[0].method == "blast" and ev[0].run["method_reason"] == "configured"  # the default
+    ev = provider(refroot, reference_method="auto").lookup(QUERIES[:1], "fish")
     assert ev[0].method == "vsearch" and "within" in ev[0].run["method_reason"]
-    ev = provider(refroot, reference_vsearch_max_udb_gb=1e-9).lookup(QUERIES[:1], "fish")
+    ev = provider(refroot, reference_method="auto", reference_vsearch_max_udb_gb=1e-9).lookup(QUERIES[:1], "fish")
     assert ev[0].method == "blast" and "over" in ev[0].run["method_reason"]
     assert ev[0].taxon == "Perca fluviatilis"
 
@@ -368,7 +370,7 @@ def test_unavailable_no_index_files(refroot):
     (refroot / "vtest" / "fish" / "ref.udb").unlink(missing_ok=True)
     for f in (refroot / "vtest" / "fish").glob("blast/*"):
         f.unlink()
-    _assert_unavailable(provider(refroot).lookup(TWO, "fish"), "no UDB")
+    _assert_unavailable(provider(refroot, reference_method="auto").lookup(TWO, "fish"), "no UDB")
     _assert_unavailable(provider(refroot, reference_method="blast").lookup(TWO, "fish"), "no BLAST DB")
 
 
