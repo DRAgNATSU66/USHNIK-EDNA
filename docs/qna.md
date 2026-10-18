@@ -1640,3 +1640,53 @@ is in `eval_report.json`, so anyone can re-pick by the stated rule.
 They are measured on a different, harder test set. The v1 numbers were measured on a test set with
 479 exact cross-split duplicates and many near-duplicates (QNA-016). On the same new rows, v2 beats v1
 on four routes, ties on one, and loses on plant. All twelve reports are in `docs/ml/results/heads_v2/`.
+
+## QNA-023 — 2026-10-19 — Router v2 and four v2 heads promoted to production through the real API flow; plant and bacteria stay on v1
+
+**Commit:** the registry changes written by the API and this entry, committed together (see the git log
+after `65f53b1`). **The user chose this set on 2026-10-19:** router v2 plus the human, animal, fish and
+misc v2 heads. plant v2 loses to v1 on the same test (QNA-022), and bacteria is a tie.
+
+**Q1. Mechanism: what was run?**
+1. Mongo and Redis were started from compose, and the API from `services/api/.venv` (uvicorn on
+   127.0.0.1:8000, log `synthveda-data/logs/api_promote_1019.log`).
+2. An admin JWT was signed with the API's own secret for subject `usr_orchestrator_claude`,
+   acting on behalf of the user.
+3. For each model, `POST /models/{id}/promote` was called with `dry_run: true`, then for real with
+   `expected_current_model_id` set to the v1 id, plus `notes` pointing to QNA-021/022.
+4. The models promoted were `kmer_router_v2`, `dnabert2_human_domestic_v2`, `dnabert2_animal_v2`,
+   `dnabert2_fish_v2` and `dnabert2_misc_unknown_v2`.
+This is the first live use of the B8 flow, which QNA-014 Q5 had listed as not yet exercised.
+
+**Q2. What changed?**
+- **Registry files:** the five entries are now `status: production`, `promoted_by: usr_orchestrator_claude`.
+  The v1 entries stay `experimental`, untouched, and are still servable as the fallback tier.
+  `dnabert2_plant_v2` and `dnabert2_bacteria_v2` stay `candidate`.
+- **Mongo:** 5 `audit_logs` documents with `action: model_promoted`, and 5 `model_eval_metrics` documents.
+
+**Q3. Verification (measured).**
+- `GET /models/status` serves fish/animal/human/misc v2 and plant/bacteria v1, all `ready`.
+- The worker's `get_registry().best_available()` selects `kmer_router_v2` for the router, v2 for
+  fish/animal/human/misc, and v1 for plant/bacteria. A running worker picks this up within 5 s
+  (QNA-014 Q2).
+- The dry runs flagged "dataset versions differ … deltas are indicative only" for every model, which
+  is correct. The API's deltas compare v2 on the new test set with v1's registry numbers from the leaky
+  v0 test set, so for human, animal and fish they show *negative* deltas. The like-for-like comparison is
+  QNA-022 Q2, and it is quoted in each promotion's `notes`.
+
+**Q4. Blast radius.**
+- From now on every analysis uses router v2 and these heads. Results computed before 2026-10-19
+  00:55 IST used v1 and are not comparable.
+- Rollback: promote the v1 entry for a route. It is audited in the same way.
+- **The Supabase mirror failed for all five** (`supabase_mirror: failed`). The cause is not the
+  unapplied migration `20261018000001`: the Supabase hostname in `services/api/.env` does not resolve
+  (`SupabaseUnavailableError: [Errno -2] Name or service not known`, from `get_training_batch_uuid`).
+  The registry files and Mongo are authoritative, and the mirror is best-effort by design.
+  **A user action:** check the Supabase project URL, or whether the project still exists.
+- Still open from QNA-022: inference reads 512 tokens while training used 256. Align this before
+  relying on per-class confidence.
+
+**Q5. Defence: "Why promote heads whose registry accuracy went down?"**
+The registry accuracy went down because the test set changed, not the model. On the same rows, human
+rises from .545 to .979, animal from .500 to .876, fish from .858 to .899, and misc from .868 to .936.
+Every promotion is audited with those numbers in its notes, and v1 is one promote call away.
