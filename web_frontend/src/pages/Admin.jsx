@@ -7,6 +7,9 @@ import {
   createTrainingBatch,
   freezeTrainingBatch,
   authRedeemKey,
+  getModels,
+  promoteModel,
+  getModelPromotions,
 } from "../lib/api";
 
 const PAGE = {
@@ -167,7 +170,7 @@ export default function Admin() {
           Admin Panel
         </h1>
         <p style={{ color: "#b3d9ff", fontSize: "0.9rem", marginBottom: "2rem" }}>
-          Training batch management, review stats, and role administration.
+          Training batch management, model promotion, review stats, and role administration.
         </p>
 
         {/* Review stats */}
@@ -290,6 +293,8 @@ export default function Admin() {
           {freezeResult && <div style={{ marginTop: 8, color: "#00ff88", fontSize: "0.85rem" }}>{freezeResult}</div>}
         </div>
 
+        <ModelPromotionCard />
+
         {/* Role key redemption */}
         <div style={CARD("#a78bfa")}>
           <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#a78bfa", marginBottom: "0.5rem" }}>
@@ -330,6 +335,322 @@ export default function Admin() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Model promotion (B8)
+//
+// Lists registry entries per route with the one the worker serves now. Promote
+// asks the API for a dry-run plan and shows it in place: what serves the route
+// now, metric deltas, what gets demoted, comparability warnings. The admin
+// types the model_id to confirm; only then is the real promotion sent, with
+// the current model_id the plan showed (the API refuses with 409 if the route
+// changed in between). No window.confirm.
+// ---------------------------------------------------------------------------
+
+const PROMOTABLE = new Set(["candidate", "experimental", "staging"]);
+
+const STATUS_COLOR = {
+  production: "#00ff88",
+  staging: "#00d4ff",
+  experimental: "#7eb3ff",
+  candidate: "#ffd700",
+  retired: "#888",
+};
+
+function fmtMetric(v) {
+  if (v === null || v === undefined) return "—";
+  return Number.isInteger(v) ? String(v) : v.toFixed(4);
+}
+
+function fmtDelta(v) {
+  if (v === null || v === undefined) return "—";
+  const s = Number.isInteger(v) ? String(Math.abs(v)) : Math.abs(v).toFixed(4);
+  return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${s}`;
+}
+
+function ModelPromotionCard() {
+  const [registry, setRegistry] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [events, setEvents] = useState([]);
+
+  // In-page confirmation state for one model at a time.
+  const [plan, setPlan] = useState(null);       // dry-run response
+  const [planFor, setPlanFor] = useState("");   // model_id being reviewed
+  const [planning, setPlanning] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [notes, setNotes] = useState("");
+  const [promoting, setPromoting] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [done, setDone] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoadError("");
+    try {
+      setRegistry(await getModels());
+    } catch (e) {
+      setLoadError(e.message || "Failed to load the model registry.");
+    }
+    try {
+      setEvents((await getModelPromotions(10)).events || []);
+    } catch {
+      setEvents([]); // the history list is secondary; the registry error above is what matters
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cancel = () => {
+    setPlan(null);
+    setPlanFor("");
+    setTyped("");
+    setNotes("");
+    setActionError("");
+  };
+
+  const review = async (modelId) => {
+    cancel();
+    setDone(null);
+    setPlanFor(modelId);
+    setPlanning(true);
+    try {
+      setPlan(await promoteModel(modelId, { dry_run: true }));
+    } catch (e) {
+      setActionError(e.message || "The API refused the promotion plan.");
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const confirm = async () => {
+    if (!plan || typed !== plan.model_id) return;
+    setPromoting(true);
+    setActionError("");
+    try {
+      const result = await promoteModel(plan.model_id, {
+        expected_current_model_id: plan.current_model_id,
+        notes: notes.trim() || null,
+      });
+      setDone(result);
+      cancel();
+      load();
+    } catch (e) {
+      setActionError(
+        e.status === 409
+          ? `${e.message} Review the comparison again before promoting.`
+          : e.message || "Promotion failed."
+      );
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const byRoute = {};
+  for (const m of registry?.models || []) (byRoute[m.route] ||= []).push(m);
+  const routes = Object.keys(byRoute).sort();
+  const selected = registry?.selected_by_route || {};
+
+  return (
+    <div style={CARD("#00d4ff")}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#00d4ff" }}>Model Promotion</h2>
+        <button onClick={load} style={BTN("#7eb3ff")}>↻ Refresh</button>
+      </div>
+      <p style={{ color: "#7eb3ff", fontSize: "0.8rem", marginBottom: "1rem", lineHeight: 1.6 }}>
+        The worker serves, per route, the newest <code style={{ color: "#00ff88" }}>production</code> entry,
+        else staging, else experimental. Registered <code style={{ color: "#ffd700" }}>candidate</code>s are
+        never served until promoted. Promoting re-verifies the artifact checksum, demotes the route's
+        previous production model to staging, and records the change in the audit log and model_eval_metrics.
+      </p>
+
+      {done && (
+        <div style={{
+          padding: "10px 14px", borderRadius: 10, marginBottom: "1rem",
+          background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.2)",
+          color: "#00ff88", fontSize: "0.85rem",
+        }}>
+          <strong>{done.model_id}</strong> now serves route <strong>{done.route}</strong>
+          {done.current_model_id ? ` (was ${done.current_model_id})` : ""}.
+          {done.supabase_mirror === "failed" && (
+            <span style={{ color: "#ffd700", marginLeft: 10 }}>⚠ Supabase mirror failed; registry and audit log are written.</span>
+          )}
+          <div style={{ color: "#7eb3ff", marginTop: 4 }}>Commit the changed models/registry/*.json files.</div>
+        </div>
+      )}
+
+      {loadError ? (
+        <div style={{ color: "#ff9b9b", fontSize: "0.85rem" }}>{loadError}</div>
+      ) : !registry ? (
+        <div style={{ color: "#7eb3ff", fontSize: "0.85rem" }}>Loading registry...</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+            <thead>
+              <tr style={{ color: "#7eb3ff", textAlign: "left" }}>
+                {["Route", "Model", "Status", "Trained", "Test acc.", "Test macro-F1", ""].map((h) => (
+                  <th key={h} style={{ padding: "6px 8px", borderBottom: "1px solid rgba(255,255,255,0.1)", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {routes.flatMap((route) =>
+                byRoute[route]
+                  .slice()
+                  .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
+                  .map((m) => {
+                    const serving = selected[route] === m.model_id;
+                    const status = m.status || "experimental";
+                    const canPromote = PROMOTABLE.has(status) && m.artifact_uri;
+                    return (
+                      <tr key={m.model_id} style={{ background: planFor === m.model_id ? "rgba(0,212,255,0.06)" : "transparent" }}>
+                        <td style={{ padding: "6px 8px", color: "#b3d9ff" }}>{route}</td>
+                        <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>
+                          {m.model_id}
+                          {serving && <span style={{ marginLeft: 8, color: "#00ff88", fontFamily: "Inter, sans-serif" }}>● serving</span>}
+                        </td>
+                        <td style={{ padding: "6px 8px", color: STATUS_COLOR[status] || "#ccc" }}>{status}</td>
+                        <td style={{ padding: "6px 8px", color: "#b3d9ff" }}>{m.created_at || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>{fmtMetric(m.metrics?.test_accuracy)}</td>
+                        <td style={{ padding: "6px 8px" }}>{fmtMetric(m.metrics?.test_macro_f1)}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                          {canPromote && (
+                            <button
+                              onClick={() => review(m.model_id)}
+                              disabled={planning || promoting}
+                              style={{ ...BTN("#00d4ff"), padding: "0.3rem 0.9rem" }}
+                            >
+                              {planning && planFor === m.model_id ? "Checking..." : "Promote…"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {planFor && !plan && actionError && (
+        <div style={{ marginTop: 12, color: "#ff9b9b", fontSize: "0.85rem" }}>
+          Cannot promote {planFor}: {actionError}
+          <button onClick={cancel} style={{ ...BTN("#7eb3ff"), marginLeft: 12, padding: "0.25rem 0.8rem" }}>Dismiss</button>
+        </div>
+      )}
+
+      {plan && (
+        <div
+          role="region"
+          aria-label={`Confirm promotion of ${plan.model_id}`}
+          style={{
+            marginTop: "1rem", padding: "1rem 1.25rem", borderRadius: 12,
+            border: "1px solid rgba(255,215,0,0.35)", background: "rgba(255,215,0,0.05)",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#ffd700", marginBottom: 8 }}>
+            Confirm: promote {plan.model_id} to production on route {plan.route}
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#b3d9ff", lineHeight: 1.7 }}>
+            <div>Currently serving: <strong style={{ color: "#fff" }}>{plan.current_model_id || "nothing"}</strong>
+              {plan.current_status ? ` (${plan.current_status})` : ""}</div>
+            <div>{plan.model_id} is now: {plan.from_status}</div>
+            {plan.demoted_model_ids?.length > 0 && (
+              <div>Demoted to staging: {plan.demoted_model_ids.join(", ")}</div>
+            )}
+          </div>
+
+          <table style={{ marginTop: 10, borderCollapse: "collapse", fontSize: "0.82rem" }}>
+            <thead>
+              <tr style={{ color: "#7eb3ff", textAlign: "left" }}>
+                {["Metric", plan.model_id, plan.current_model_id || "current", "Δ"].map((h) => (
+                  <th key={h} style={{ padding: "4px 12px 4px 0", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {plan.metric_deltas.map((d) => (
+                <tr key={d.metric}>
+                  <td style={{ padding: "3px 12px 3px 0", color: "#b3d9ff" }}>{d.metric}</td>
+                  <td style={{ padding: "3px 12px 3px 0" }}>{fmtMetric(d.candidate)}</td>
+                  <td style={{ padding: "3px 12px 3px 0" }}>{fmtMetric(d.current)}</td>
+                  <td style={{
+                    padding: "3px 12px 3px 0",
+                    color: d.delta > 0 ? "#00ff88" : d.delta < 0 ? "#ff9b9b" : "#ccc",
+                  }}>{fmtDelta(d.delta)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {plan.warnings?.length > 0 && (
+            <ul style={{ margin: "10px 0 0", paddingLeft: 18, color: "#ffd700", fontSize: "0.8rem" }}>
+              {plan.warnings.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          )}
+
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: 14 }}>
+            <div style={{ flex: 2, minWidth: 240 }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: "0.75rem", color: "#7eb3ff", fontWeight: 600, textTransform: "uppercase" }}>
+                Notes (kept in the audit log)
+              </label>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={2000}
+                placeholder="Why this model, what was checked"
+                style={{ ...INPUT, width: "100%" }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: "0.75rem", color: "#7eb3ff", fontWeight: 600, textTransform: "uppercase" }}>
+                Type {plan.model_id} to confirm
+              </label>
+              <input
+                type="text"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value.trim())}
+                autoComplete="off"
+                spellCheck={false}
+                style={{ ...INPUT, fontFamily: "monospace", width: "100%" }}
+              />
+            </div>
+          </div>
+
+          {actionError && <div style={{ marginTop: 10, color: "#ff9b9b", fontSize: "0.85rem" }}>{actionError}</div>}
+
+          <div style={{ display: "flex", gap: "0.75rem", marginTop: 14 }}>
+            <button
+              onClick={confirm}
+              disabled={promoting || typed !== plan.model_id}
+              style={{ ...BTN("#ffd700", true), opacity: typed === plan.model_id ? 1 : 0.5 }}
+            >
+              {promoting ? "Promoting..." : "Promote to production"}
+            </button>
+            <button onClick={cancel} disabled={promoting} style={BTN("#7eb3ff")}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div style={{ marginTop: "1.25rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#7eb3ff", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
+            Recent registrations and promotions
+          </div>
+          {events.map((ev, i) => (
+            <div key={`${ev.model_id}-${ev.timestamp}-${i}`} style={{ fontSize: "0.8rem", color: "#b3d9ff", padding: "2px 0" }}>
+              <span style={{ color: "#7eb3ff" }}>{ev.timestamp ? new Date(ev.timestamp).toLocaleString() : "—"}</span>{" · "}
+              {ev.action === "model_promoted" ? "promoted" : "registered"}{" "}
+              <code style={{ color: "#fff" }}>{ev.model_id}</code> on {ev.route}
+              {ev.action === "model_promoted" && ev.previous_model_id ? ` (replacing ${ev.previous_model_id})` : ""}
+              {ev.actor_email ? ` by ${ev.actor_email}` : ""}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -227,6 +227,19 @@ export const downloadFieldAttachment = (attachment_id) =>
 
 export const getModels = () => request("GET", "/models/registry");
 
+/**
+ * Promote a registered model to production for its route (admin only, B8).
+ * { dry_run: true } returns the plan (current model, metric deltas, demotions,
+ * warnings) and writes nothing. The real call should pass
+ * expected_current_model_id from that plan; 409 means the route changed since.
+ */
+export const promoteModel = (model_id, body) =>
+  request("POST", `/models/${encodeURIComponent(model_id)}/promote`, { body });
+
+/** Recent model_registered / model_promoted audit events, newest first (admin only). */
+export const getModelPromotions = (limit = 10) =>
+  request("GET", "/models/promotions", { params: { limit } });
+
 // ---------------------------------------------------------------------------
 // Abyss Mode
 // ---------------------------------------------------------------------------
