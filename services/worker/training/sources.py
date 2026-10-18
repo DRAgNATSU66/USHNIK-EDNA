@@ -31,6 +31,11 @@ class Record:
     organism_name: str
     lineage: dict[str, str]
     source: str
+    # Set only for records whose route/label comes from provenance rather than
+    # taxonomy (lab vectors, sequencing controls). None = build_dataset routes
+    # via lineage_to_route and labels via assign_label as usual.
+    route: str | None = None
+    label: str | None = None
 
 
 def _clean_sequence(seq: str) -> str | None:
@@ -254,6 +259,12 @@ def iter_grch38(fna_gz_path: Path, window: int = 400, stride: int = 2000, max_wi
 
 
 def iter_univec(univec_path: Path) -> Iterator[Record]:
+    # Vectors/adapters/primers are contamination by provenance (the
+    # "lab_reagent" type in app/novelty/contamination.py), not a known
+    # species. Before 2026-10-19 they fell through assign_label to
+    # known_species; they are now labelled possible_contamination so they
+    # agree with the vectors gathered by fetch_supplementary.py instead of
+    # giving the human route head contradictory supervision.
     with open(univec_path, encoding="utf-8", errors="replace") as fh:
         for header, raw_seq in _iter_fasta(fh):
             seq = _clean_sequence(raw_seq)
@@ -262,4 +273,39 @@ def iter_univec(univec_path: Path) -> Iterator[Record]:
             yield Record(
                 sequence=seq, organism_name=f"vector/adapter: {header[:60]}",
                 lineage={}, source="univec",
+                route="human_domestic_contamination", label="possible_contamination",
             )
+
+
+# ---------------------------------------------------------------------------
+# Supplementary API-fetched data (training/fetch_supplementary.py output)
+# ---------------------------------------------------------------------------
+
+def iter_supplementary(supp_dir: Path) -> Iterator[Record]:
+    """Reads raw/supplementary/<source>/<query_id>.{manifest.csv,fasta}.
+    Taxonomy-labelled rows carry their lineage, so build_dataset routes and
+    labels them with the same code as every other source; provenance-labelled
+    rows (vectors, PhiX) carry their fixed route/label."""
+    import csv
+    import json
+
+    for manifest in sorted(supp_dir.glob("*/*.manifest.csv")):
+        fasta = manifest.with_name(manifest.name.removesuffix(".manifest.csv") + ".fasta")
+        if not fasta.exists():
+            continue
+        with open(fasta, encoding="utf-8", errors="replace") as fh:
+            seqs = {header.split()[0]: seq for header, seq in _iter_fasta(fh) if header}
+        with open(manifest, newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                raw_seq = seqs.get(row["accession"])
+                seq = _clean_sequence(raw_seq) if raw_seq else None
+                if not seq:
+                    continue
+                provenance = row["label_basis"] == "provenance"
+                yield Record(
+                    sequence=seq, organism_name=row["organism_name"],
+                    lineage=json.loads(row["lineage"]) if row["lineage"] else {},
+                    source=f"supplementary:{row['source']}:{row['query_id']}",
+                    route=row["route"] if provenance else None,
+                    label=row["label"] if provenance else None,
+                )
