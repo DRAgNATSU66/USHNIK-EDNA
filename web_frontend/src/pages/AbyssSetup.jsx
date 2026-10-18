@@ -3,7 +3,7 @@ import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { tokens } from "../components/shared/tokens";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  getExpeditions, createExpedition, activateExpedition,
+  getExpeditions, getExpedition, createExpedition, activateExpedition,
   getPackManifest, issueLicense,
 } from "../lib/api";
 import whaleArt from "../assets/abyss-whale.png";
@@ -126,7 +126,7 @@ const STATUS_TONE = {
   archived: "pending",
 };
 
-function ExpeditionCard({ exp, onRefresh }) {
+function ExpeditionCard({ exp, onUpdated }) {
   const [manifest, setManifest] = useState(null);
   const [license, setLicense] = useState(null);
   const [duration, setDuration] = useState(14);
@@ -136,12 +136,18 @@ function ExpeditionCard({ exp, onRefresh }) {
   const [loadingManifest, setLoadingManifest] = useState(false);
   const [err, setErr] = useState("");
 
+  // After an action changes this one expedition, re-read just it
+  // (GET /abyss/expeditions/{id}) instead of reloading the whole list.
+  const refreshThis = async () => {
+    onUpdated(await getExpedition(exp.expedition_id));
+  };
+
   const handleActivate = async () => {
     setActivating(true);
     setErr("");
     try {
       await activateExpedition(exp.expedition_id);
-      onRefresh();
+      await refreshThis();
     } catch (e) { setErr(e.message); }
     finally { setActivating(false); }
   };
@@ -162,6 +168,9 @@ function ExpeditionCard({ exp, onRefresh }) {
     try {
       const l = await issueLicense(exp.expedition_id, duration);
       setLicense(l);
+      // Issuing sets offline_license_issued / offline_license_expires_at
+      // on the expedition record.
+      await refreshThis();
     } catch (e) { setErr(e.message); }
     finally { setIssuingLicense(false); }
   };
@@ -323,6 +332,10 @@ export default function AbyssSetup() {
 
   useEffect(() => { load(); }, [load]);
 
+  const replaceExpedition = useCallback((updated) => {
+    setExpeditions((list) => list.map((e) => (e.expedition_id === updated.expedition_id ? updated : e)));
+  }, []);
+
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.expedition_name.trim()) { setCreateError("Name is required."); return; }
@@ -454,7 +467,7 @@ export default function AbyssSetup() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {expeditions.map((exp) => (
-              <ExpeditionCard key={exp.expedition_id} exp={exp} onRefresh={load} />
+              <ExpeditionCard key={exp.expedition_id} exp={exp} onUpdated={replaceExpedition} />
             ))}
           </div>
         )}

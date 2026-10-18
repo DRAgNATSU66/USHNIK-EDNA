@@ -269,3 +269,96 @@ used as a model input, re-word it from a measurement.
 The frontend half (t-1018-3): Upload sends the fields, FieldLog drops its hardcoded
 "Metabarcoding / Included / M. Fernandes / 12 Aug 2026", and results render the context.
 `docs/flow.md` has not been updated since 2026-09-03 (Day 17 docs pass).
+
+---
+
+## QNA-006 — 2026-10-15 — One named novelty threshold per service, exposed on `/health` (B14; tracker t-1017-2)
+
+**Commit:** `a388fff` on `sprint/d4-novelty-threshold`, merged into `LATEST_USHNIK` as `fcc879f`.
+
+**Q1. Mechanism: what changed?**
+`DEFAULT_NOVELTY_THRESHOLD = 0.45` and a `novelty_threshold` settings field (bounded 0 < x < 1,
+overridable with the `NOVELTY_THRESHOLD` env var) now live in `services/api/app/config.py` and
+`services/worker/app/config.py`. Each module exports `NOVELTY_THRESHOLD`. Every former literal
+imports it: `worker/app/job_runner.py` (4 sites), `api/app/reports/router.py` (2),
+`api/app/abyss/analysis.py` (2), `api/app/reviews/curation.py` (2) and `api/app/reports/builder.py`
+(its private `_NOVELTY_THRESHOLD` was removed). One site beyond the audited 10 was also changed:
+the low/medium level boundary in `worker/app/novelty/scorer.py:53-54`. `GET /health` now returns
+`novelty_threshold` (`api/app/main.py:88`).
+
+**Q2. Rationale: why one constant per service and not a shared module?**
+The API and worker are separate images with no common package. A test pins the two defaults
+together instead: `api/tests/test_novelty_threshold.py` reads the worker's `config.py` source and
+compares the values. Both read the same root `.env` under compose, so one override moves both.
+Changing the scorer boundary keeps "flagged as possible novelty" and "level ≥ medium" identical
+even when the value is overridden.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+A mismatch between the services would make the worker create review items at a different score
+than the reports flag. The equality test guards that. The value is read at import, so an override
+needs a restart. Four other 0.45s are deliberately untouched because they are not the novelty
+cutoff: the GC band in `worker/app/model_router/router.py:219`, `gc_mean` in `reference.py:55`, a
+signal value in `novelty/signals.py:52`, and `route_confidence` in the Abyss fallback.
+
+**Q4. Verification: what proves it?**
+16 new tests: equality, env override, out-of-range rejection, `/health` field, a boundary test
+(a review is created at exactly the threshold and not just below it), and a source scan in each
+service that fails on a bare 0.45 next to novelty/score logic. The scan includes a self-check
+that it still catches the old literals. Merged tree: API **324 passed**, worker **148 passed**.
+
+**Q5. Defence: "is 0.45 a calibrated threshold?"**
+No. It is the value the code already used, now named in one place. Calibration is the Day 11 task
+(B5: centroid distance replaces the `typical_norm` proxy, then recalibrate). Nothing in the paper
+should present 0.45 as tuned.
+
+**Q6. What is still open?**
+The frontend still has to read `/health.novelty_threshold` (t-1017-4, in progress).
+
+---
+
+## QNA-007 — 2026-10-15 — Frontend reads the threshold from the API; targeted report calls; placeholder removed (U1, U2, U3, M5; tracker t-1017-4)
+
+**Commit:** `902a029` on `sprint/d4-frontend-novelty`, merged into `LATEST_USHNIK` as `1efe046`;
+follow-up `3a54623` (ReviewQueue decision values, found during this task).
+
+**Q1. Mechanism: what changed?**
+The new `web_frontend/src/lib/noveltyThreshold.js` hook reads `novelty_threshold` from `/health`
+(QNA-006) and returns `null` when it is absent. NoveltyDNA, AnalysisResults and Academia use it,
+so no novelty 0.45 is left in `src/`. NoveltyDNA now loads `/reports/{id}/summary`, `/novelty` and
+`/contamination` in parallel instead of the full report. Its contamination colouring comes from
+the server's contamination list instead of a browser-side `>= 0.5`. AbyssSetup re-reads one
+expedition through `getExpedition`. ResearcherMode redirects unknown sections to `novelty-dna`,
+and `PlaceholderScreen.jsx` was deleted. The `getAnalysis` and `getReview` helpers were deleted,
+because no page needs them.
+
+**Q2. Rationale: why delete `getAnalysis`/`getReview` instead of using them (U1, U3)?**
+`GET /analysis/{id}` returns the raw stored result. Every page that shows an analysis needs the
+assembled report. The review queue already returns full reviews, and triage/decision change state
+so the queue reloads anyway. An unused helper is a false signal that something calls the
+endpoint. The endpoints stay on the API.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+If `/health` lacks the field, the pages say "threshold unavailable" and the slider starts at 0.
+That was checked by stripping the field in the browser. While verifying, the agent found that
+**ReviewQueue sent review state names (`accepted`/`rejected`/`duplicate`) as decisions**, which
+the `ReviewDecision` enum (`services/api/app/models/review.py:19`: `accept`/`reject`/
+`mark_duplicate`) rejects with 422. Every curator decision from the UI was failing. It is fixed in
+`3a54623`. Not exercised in the browser: there is no review in a decidable state in dev data.
+
+**Q4. Verification: what proves it?**
+`npm run build` is green. Contract test: 36 passed (38 − 2 deleted helpers). API suite on the
+merged tree: 322 passed. Browser check on `ana_464b4220a9774415` as a researcher: NoveltyDNA made
+no full-report call and showed "45%" with 4/4 candidates; AnalysisResults showed "≥45%"; Academia
+showed "≥ 0.45". With the field stripped, all three said "unavailable". `/researcher-mode/bogus`
+and `/researcher-mode` landed on `novelty-dna` with `analysis_id` kept.
+
+**Q5. Defence: "why does the slider minimum equal the threshold?"**
+The server only returns rows at or above `min_score`, which defaults to the threshold. A lower
+slider minimum would imply rows the API never sent.
+
+**Q6. What is still open?**
+- **Abyss activation deadlock:** the backend refuses activation until a licence is issued, but the
+  UI shows the licence button only for an already-active expedition. This goes to Day 16
+  (t-1029-1, AbyssSetup).
+- ESLint reports a pre-existing fast-refresh error at `main.jsx:31`.
+- The AbyssSetup refresh path was not exercised: the dev user has no expeditions.

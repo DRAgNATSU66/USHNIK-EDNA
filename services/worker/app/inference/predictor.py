@@ -21,7 +21,7 @@ import logging
 import math
 from typing import Any
 
-from .heads import get_cls_embedding, get_head, tokenize_dna
+from .heads import HeadUnavailableError, get_cls_embedding, get_head, tokenize_dna
 from .loader import get_or_load, torch_available
 from .models import (
     ROUTE_LABEL_SETS,
@@ -56,7 +56,9 @@ def run_inference(
       - route is "low_quality"
       - torch is not installed
       - no runnable model exists for the route
-      - model fails to load
+      - backbone fails to load
+      - trained head weights are missing or fail to load (never a random head)
+    Every stub carries stub_reason saying which of these happened.
     """
     # Low-quality sequences are not sent to inference.
     if route == "low_quality":
@@ -72,12 +74,14 @@ def run_inference(
     registry = get_registry()
     entry = registry.best_available(route)
 
-    if entry is None or not torch_available():
-        return _stub_prediction(sequence_id, route, entry)
+    if entry is None:
+        return _stub_prediction(sequence_id, route, entry, "no_model")
+    if not torch_available():
+        return _stub_prediction(sequence_id, route, entry, "torch_unavailable")
 
     pair = get_or_load(entry)
     if pair is None:
-        return _stub_prediction(sequence_id, route, entry)
+        return _stub_prediction(sequence_id, route, entry, "backbone_unavailable")
 
     model, tokenizer = pair
     return _run_model(sequence_id, sequence, route, entry, model, tokenizer)
@@ -109,15 +113,20 @@ def _stub_prediction(
     sequence_id: str,
     route: str,
     entry: ModelRegistryEntry | None,
+    reason: str | None = None,
 ) -> PredictionResult:
     """
     Return a stub prediction when no model is available.
 
     The result_class is always unknown_needs_online_confirmation so the
     human-in-the-loop review queue (Phase 9) can handle it.
+
+    reason becomes stub_reason on the result.  When omitted it defaults to the
+    legacy pair: "no_model" (no registry entry) / "no_weights" (entry present).
     """
     model_id = entry.model_id if entry else "none"
-    reason = "stub_no_model" if entry is None else "stub_no_weights"
+    if reason is None:
+        reason = "no_model" if entry is None else "no_weights"
     logger.debug(
         "Stub inference for %s (route=%s, model=%s, reason=%s)",
         sequence_id, route, model_id, reason,
@@ -127,10 +136,11 @@ def _stub_prediction(
         result_class=SequenceResultClass.unknown_needs_online_confirmation,
         predicted_taxon=None,
         confidence=0.0,
-        model_version_used=f"{model_id}:{reason}",
+        model_version_used=f"{model_id}:stub_{reason}",
         inference_mode=InferenceMode.stub,
         label_scores={},
         embedding=None,
+        stub_reason=reason,
     )
 
 
@@ -144,24 +154,29 @@ def _run_model(
 ) -> PredictionResult:
     """Run the actual model + classifier head pipeline."""
     try:
+        # Classifier head first: without trained head weights there is no
+        # model prediction to make, so don't spend a backbone forward pass.
+        try:
+            head = get_head(
+                route=route,
+                model_id=entry.model_id,
+                embedding_dim=entry.embedding_dim,
+                head_weights_path=entry.artifact_uri if entry.artifact_uri and
+                                  entry.artifact_uri.endswith((".pt", ".bin")) else None,
+            )
+        except HeadUnavailableError as exc:
+            # Already logged (once per route) by get_head.
+            return _stub_prediction(sequence_id, route, entry, exc.reason)
+        if head is None:
+            return _stub_prediction(sequence_id, route, entry, "no_label_set")
+
         # Tokenise.
         inputs = tokenize_dna(sequence, tokenizer, max_length=512)
 
         # Get [CLS] embedding.
         cls_emb = get_cls_embedding(model, inputs)
         if cls_emb is None:
-            return _stub_prediction(sequence_id, route, entry)
-
-        # Run classifier head.
-        head = get_head(
-            route=route,
-            model_id=entry.model_id,
-            embedding_dim=entry.embedding_dim,
-            head_weights_path=entry.artifact_uri if entry.artifact_uri and
-                              entry.artifact_uri.endswith((".pt", ".bin")) else None,
-        )
-        if head is None:
-            return _stub_prediction(sequence_id, route, entry)
+            return _stub_prediction(sequence_id, route, entry, "no_embedding")
 
         import torch
         with torch.no_grad():
@@ -173,7 +188,7 @@ def _run_model(
 
         # Determine result_class and confidence from probabilities.
         if not label_scores:
-            return _stub_prediction(sequence_id, route, entry)
+            return _stub_prediction(sequence_id, route, entry, "no_label_set")
 
         best_label = max(label_scores, key=label_scores.__getitem__)
         best_prob = label_scores[best_label]
@@ -212,6 +227,6 @@ def _run_model(
     except Exception as exc:
         logger.error(
             "Inference failed for %s (route=%s, model=%s): %s",
-            sequence_id, route, entry.model_id, exc,
+            sequence_id, route, entry.model_id, exc, exc_info=True,
         )
-        return _stub_prediction(sequence_id, route, entry)
+        return _stub_prediction(sequence_id, route, entry, "inference_error")

@@ -9,6 +9,7 @@ import { formatMetadataField } from "../lib/sampleMetadata";
 import { ArrowRightIcon } from "../components/shared/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { getReport, exportReportJson, exportReportCsv } from "../lib/api";
+import { useNoveltyThreshold, formatThresholdPct } from "../lib/noveltyThreshold";
 import { revealStyle } from "../styles/reveal";
 
 // Single scale factor applied to every size value on this page (container
@@ -243,6 +244,7 @@ export default function AnalysisResults() {
   const [downloadingFormat, setDownloadingFormat] = useState(null);
   const [hoveredRoute, setHoveredRoute] = useState(null);
   const [hoveredQcRow, setHoveredQcRow] = useState(null);
+  const { threshold: noveltyThreshold } = useNoveltyThreshold();
 
   useEffect(() => {
     getReport(analysis_id)
@@ -467,7 +469,9 @@ export default function AnalysisResults() {
                 />
               </div>
               <span style={{ fontSize: s(11), color: tokens.pending }}>
-                of total sequences at ≥45% novelty confidence (this deployment's flagging cutoff)
+                {noveltyThreshold == null
+                  ? "of total sequences at or above this deployment's novelty flagging cutoff (threshold value unavailable)"
+                  : `of total sequences at ≥${formatThresholdPct(noveltyThreshold)} novelty confidence (this deployment's flagging cutoff)`}
               </span>
             </div>
           </div>

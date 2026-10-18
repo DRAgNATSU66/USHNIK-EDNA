@@ -1,6 +1,6 @@
 // Hand-drawn icon set for the shared cross-cutting components, matching the
 // stroke weight (1.5-2px, round caps) already established in
-// PlaceholderScreen's DNA-strand mark and Upload's hero icons -- kept here
+// the page headers' DNA-strand mark and Upload's hero icons -- kept here
 // rather than pulling in lucide-react/react-icons (both installed, both
 // unused by any live page) so new components don't introduce a second icon
 // language.
