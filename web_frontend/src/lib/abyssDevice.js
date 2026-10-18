@@ -73,8 +73,13 @@ export function updateExpedition(expeditionId, fn) {
   return next;
 }
 
+/** One device event for local_logs; log_id lets sync drop exactly what it sent. */
 export function deviceLog(event, extra = {}) {
-  return { event, at: new Date().toISOString(), device_id: getDeviceId(), ...extra };
+  const rnd =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  return { log_id: rnd, event, at: new Date().toISOString(), device_id: getDeviceId(), ...extra };
 }
 
 /**
