@@ -430,3 +430,112 @@ None of these fields feeds inference (QNA-005 Q5), so that claim was never measu
 - FieldLog still shows two labelled mock previews with no backend: Edit history (`MOCK_NOTE`) and Attachments (`MOCK_FILES`, which still contains "M. Fernandes"). They are tagged MOCK and are out of scope for t-1018-3.
 - FieldLog does not show the provided/missing summary. It shows values only, and Results is where the context block lives.
 - Day 13's `/partner/summary` must still refuse on `context.partner_report.available` (QNA-005 Q2).
+
+---
+
+## QNA-009 — 2026-10-18 — Upload storage abstraction (local + S3-compatible), MinIO in compose, worker reads through it (B7; tracker t-1019-2)
+
+**Commit:** `10dca60` (storage module, route, worker, compose, tests) and `12eb69b` (s3 temp copy keeps
+the stored name; docs) on `sprint/d6-object-storage`, with `LATEST_USHNIK` merged in as `9782f59` and
+`45222bc`. Merged into `LATEST_USHNIK` as `05d0fb1`.
+
+**Q1. Mechanism: what happens to an uploaded file now, step by step?**
+`POST /uploads` builds the backend from settings (`services/api/app/uploads/router.py:119`,
+`storage_from_settings`, `services/api/app/storage.py:297`). It makes a key `<upload_id>_<filename>`
+with directories and unsafe characters stripped and the extension kept (`storage.py:80`). It writes the
+bytes in the threadpool, because boto3 blocks (`router.py:122`). `put()` hashes and counts the bytes as
+they stream. `LocalStorage` writes a temp file and `os.replace`s it into place, so a reader never sees
+half a file (`storage.py:157`). `S3Storage` calls `upload_fileobj`, which goes multipart above 8 MiB
+(`storage.py:182`). The doc then records `storage_uri` (`local://<key>` or `s3://<bucket>/<key>`),
+`storage_key` and `checksum_sha256` (`router.py:129`, `models/upload.py:49-51`). New docs leave
+`file_path` as `None`. If the write fails, the route returns 503 and no doc is inserted (`router.py:126`).
+On the worker side, `_stage_parse` (`services/worker/app/job_runner.py:74`) calls
+`local_copy_for_upload(upload, settings)` (`storage.py:342`) in an executor and parses the path it
+yields (`job_runner.py:94`). A `local://` key is read in place under `UPLOAD_STORAGE_DIR`. An `s3://`
+object is streamed into a temp directory under the key's basename and removed afterwards
+(`storage.py:383-396`). A pre-B7 doc with only `file_path` is read from that path (`storage.py:360`).
+When the doc has a sha256, the bytes are checked against it before parsing (`storage.py:332`).
+
+**Q2. Rationale: why a duplicated module instead of a shared package, and why URIs instead of paths?**
+The API and the worker are separate images. Each Dockerfile copies only its own `app/`, and neither
+installs a shared package. The B14 threshold faced the same constraint and solved it the same way
+(QNA-006). Sharing the module would mean changing both build contexts, both Dockerfiles and both venv
+install paths for one ~400-line module. Instead the worker holds a byte-identical copy.
+`services/api/tests/test_storage.py:101` fails the suite if the two copies differ, and `:124` fails it if
+`WorkerSettings` and the API `Settings` disagree on any storage field or default. The cost is that
+someone has to remember to copy the file after editing it, and that test is the reminder.
+URIs: the old `file_path` was an absolute path on the API's disk. It only worked because compose
+mounted `uploads_data` at the same `/app/uploads` path in both containers, and `GET /uploads/{id}`
+returned it to clients. A URI names the backend, so the worker reads from wherever the API wrote,
+whatever the worker's own `STORAGE_BACKEND` is (`storage_for_uri`, `storage.py:307`; test
+`services/worker/tests/test_upload_storage.py:86`). `local://` keys are relative, so the two services'
+mount points no longer have to match. Rejected alternative: keep `file_path` and add an `s3_key` field
+next to it. The worker would then have to guess which field wins, and a third backend would mean a
+third field.
+
+**Q3. Blast radius: what breaks if this is wrong (legacy uploads, a misconfigured worker)?**
+- *Legacy uploads.* Docs written before B7 have no `storage_uri`. They are read through `file_path`
+  exactly as before (`storage.py:360`; test `test_upload_storage.py:94`). If that path is gone, the job
+  fails with `legacy file_path ... not found` and is never stubbed. These docs have no checksum, so
+  nothing is verified for them.
+- *Worker with the wrong `UPLOAD_STORAGE_DIR`.* `local://` reads fail with a `StorageError` naming the
+  URI, the resolved directory and the setting (`LocalStorage.missing`, `storage.py:163`; test
+  `test_upload_storage.py:106`). Compose now sets `UPLOAD_STORAGE_DIR=/app/uploads` on the worker too.
+  The default `uploads` resolves to the same path in the image, because the WORKDIR is `/app`.
+- *Worker with the wrong or missing S3 settings.* The URI fixes the bucket but not the endpoint or the
+  credentials, which come from the worker's own `OBJECT_STORAGE_*`. A worker with a blank
+  `OBJECT_STORAGE_URL` would send the request to AWS for a bucket that exists only in MinIO. The job
+  then fails with botocore's error (`NoCredentialsError`, AccessDenied or NoSuchBucket), passed through
+  as raised. Only 404s are turned into `StorageError("... not found")` (`S3Storage.open`, `storage.py:241-250`). So the
+  job fails loudly but the message is less specific than the local case. Not fixed in this change.
+- *A bad `STORAGE_BACKEND` value* (for example `gcs`) fails when settings load (`Literal["local","s3"]`,
+  `services/api/app/config.py:60`, `services/worker/app/config.py:35`), not on the first upload.
+- *Behaviour change for clients.* New upload responses carry `storage_uri`/`storage_key`/
+  `checksum_sha256`, and `file_path` is `null`. Nothing in `web_frontend/src` reads any of these
+  fields (grep found no hits).
+- *Per-sequence `source_file`.* The first end-to-end run showed it holding the worker's temp name
+  (`synthveda-upload-dagclyhd.fasta`). `12eb69b` fixed that, and it is now `<upload_id>_<filename>` for
+  both backends (test `test_upload_storage.py:75`).
+
+**Q4. Verification: what was actually run and what was seen?**
+- Suites at `45222bc`: API `362 passed, 1 warning` (37 of them in `tests/test_storage.py`), worker
+  `168 passed` (8 in `tests/test_upload_storage.py`). Commands: `.venv/bin/python -m pytest -q` in each
+  service, using the main checkout's venvs. S3 is faked with moto 5.0.28 (`mock_aws`). That covers
+  multipart above 8 MiB (`test_storage.py:243`), checksum mismatch on both backends (`:323`), the route
+  writing to the bucket (`:392`) and the 503 path (`:407`). `bandit -ll` on the changed modules was clean.
+- `docker compose -f infra/docker/docker-compose.yml config` exits 0 (run with a temporary empty `.env`
+  because the file is gitignored). api and worker resolve `STORAGE_BACKEND: s3`,
+  `OBJECT_STORAGE_URL: http://minio:9000` and `depends_on minio-init: service_completed_successfully`.
+- Bucket step: the `minio-init` command (`mc alias set ... && mc mb --ignore-existing
+  synthveda/synthveda-uploads`) was run twice against the already-running `synthveda-minio`, with
+  `--network container:synthveda-minio` and `localhost` in place of the `minio` hostname. Both runs
+  exited 0, which shows the step is idempotent. Before that, the server had no buckets at all
+  (`list_buckets` → `[]`).
+- End to end with `STORAGE_BACKEND=s3` against `http://localhost:9000`: the worktree API ran on
+  `127.0.0.1:8017` and the worktree worker ran alongside it. Both used Mongo DB `synthveda_e2e_b7` and
+  Redis db 7, so the main stack was not touched. A 124-byte, 2-record FASTA with sha256 `84a1f90d...0968`
+  was uploaded → `upl_d762e62e26894ce3`, `storage_uri
+  s3://synthveda-uploads/upl_d762e62e26894ce3_b7-e2e.fasta`, `file_path null`, same checksum.
+  `mc ls` showed `124B STANDARD upl_d762e62e26894ce3_b7-e2e.fasta`, and `mc cat | sha256sum` printed
+  `84a1f90d...0968`. A boto3 `list_objects_v2` showed the same key with size 124. Nothing was written
+  to the local upload dir. `POST /analysis/jobs` → `job_c814242e10944211 completed` →
+  `ana_3009896ee1744e13`, and the worker logged `parsed 2 sequences via Python parser (b7-e2e.fasta)`.
+  After `12eb69b` a second run gave `job_6230d4d848034bbc completed`, with `source_file` equal to
+  `upl_1e780729547140c0_b7-e2e.fasta` for both sequences and no `/tmp/synthveda-upload-*` left behind.
+  Negative case: one object was deleted from MinIO after its upload, and the job then failed with
+  `s3://synthveda-uploads/upl_230c923661e8462d_b7-e2e.fasta not found`.
+- Not verified: `docker compose up` of the full stack, because the main checkout's containers already
+  hold the names and ports. The compose wiring is therefore checked only by `config` and by the init
+  command run on its own.
+
+**Q5. Defence: "Two copies of the same file is a maintenance smell. Why not one package?"**
+It is a smell, and the test exists to contain it. The copies cannot drift without the API suite failing
+(`test_storage.py:101`), and CI already runs that suite (`docs/rules.md`, ci.yml). A shared package is
+the better end state once there is more than one shared module: B14's threshold and this module are
+both candidates. At that point the build-context change pays for itself, and it should go into
+decisions.md as its own decision. Follow-up: "Then why not just mount one volume and keep paths?"
+Because that ties the worker to the API's filesystem layout and to a single host. That rules out the
+Cloud Run deployment in `infra/deployment/`, where the API has no shared disk. It also means a
+client-visible absolute path. The URI separates "where the bytes are" from "how this process reaches
+them". The checksum then proves the worker parsed exactly the bytes the user uploaded, which is the
+claim a report makes.
