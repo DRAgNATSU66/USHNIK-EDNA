@@ -38,6 +38,9 @@ services:
       ALLOWED_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
       UPLOAD_STORAGE_DIR: /app/uploads
       MODELS_REGISTRY_PATH: /app/models/registry
+      # POST /models/register and /promote verify artifact checksums under the
+      # data root and write models/registry (shared with the worker) (B8).
+      SYNTHVEDA_DATA_ROOT: /data
       <<: *object-storage-env
     depends_on:
       mongo:
@@ -50,6 +53,7 @@ services:
       - ../../services/api/app:/app/app    # hot-reload in dev
       - uploads_data:/app/uploads
       - ../../models:/app/models
+      - ${SYNTHVEDA_DATA_HOST_DIR:-../../synthveda-data}:/data:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

@@ -105,10 +105,28 @@ train-eval:
 		--run-id    $(RUN_ID) \
 		--batch-dir $(BATCH_DIR)
 
+# Register $(RUN_ID) through POST /models/register (checksum verified, status
+# "candidate": stored, not served), print the metric deltas against the model
+# serving $(ROUTE), and after a typed confirmation promote it through
+# POST /models/{id}/promote (B8). Needs SYNTHVEDA_ADMIN_TOKEN (admin JWT).
+# PROMOTE_FLAGS= registers only; PROMOTE_FLAGS="--promote --yes" skips the prompt.
+API_URL        ?= http://127.0.0.1:8000
+DATA_ROOT      ?= $(or $(SYNTHVEDA_DATA_ROOT),synthveda-data)
+ARTIFACT_URI   ?= data:checkpoints/$(ROUTE)/$(RUN_ID)/head.pt
+MODEL_BACKBONE ?= data:checkpoints/$(ROUTE)/backbone
+METRICS        ?= $(DATA_ROOT)/checkpoints/$(ROUTE)/$(RUN_ID)/metrics.json
+PROMOTE_FLAGS  ?= --promote
+
 train-promote:
 	$(PYTHON) scripts/training/promote.py \
-		--run-id $(RUN_ID) \
-		--approve
+		--api-url                  $(API_URL) \
+		--model-id                 $(RUN_ID) \
+		--route                    $(ROUTE) \
+		--artifact-uri             $(ARTIFACT_URI) \
+		--base-model               $(MODEL_BACKBONE) \
+		--metrics                  $(METRICS) \
+		--training-dataset-version $(BATCH_ID) \
+		--approve $(PROMOTE_FLAGS)
 
 # Runs the full pipeline interactively (asks for human sign-off before promote)
 train-pipeline:

@@ -238,3 +238,57 @@ async def test_log_action_uses_audit_logs_table():
             payload={"decision": "accept"},
         )
     mock_client.table.assert_called_with("audit_logs")
+
+
+@pytest.mark.anyio
+async def test_promote_model_demotes_other_production_rows_to_staging():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chains = []
+
+    def table_chain(name):
+        chain = MagicMock()
+        for m in ("select", "eq", "neq", "update", "maybe_single"):
+            setattr(chain, m, MagicMock(return_value=chain))
+        chain.execute = AsyncMock(return_value=MagicMock(data={"route": "fish"}))
+        chains.append(chain)
+        return chain
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(side_effect=table_chain)
+    with patch.object(sc_module, "_client", mock_client):
+        await SupabaseClient.promote_model("fish_v2", "user-uuid")
+
+    _lookup, demote, promote = chains
+    demote.update.assert_called_once_with({"status": "staging"})
+    demote.neq.assert_called_once_with("model_id", "fish_v2")
+    assert promote.update.call_args[0][0]["status"] == "production"
+    assert promote.update.call_args[0][0]["promoted_by"] == "user-uuid"
+
+
+@pytest.mark.anyio
+async def test_promote_model_without_a_row_raises():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    chain = MagicMock()
+    for m in ("select", "eq", "maybe_single"):
+        setattr(chain, m, MagicMock(return_value=chain))
+    chain.execute = AsyncMock(return_value=MagicMock(data=None))
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(return_value=chain)
+    with patch.object(sc_module, "_client", mock_client):
+        with pytest.raises(LookupError):
+            await SupabaseClient.promote_model("nope", "user-uuid")
+
+
+@pytest.mark.anyio
+async def test_upsert_eval_metrics_keys_on_version_and_eval_set():
+    from app.db.supabase_client import SupabaseClient
+    import app.db.supabase_client as sc_module
+
+    mock_client = _mock_supabase_client()
+    with patch.object(sc_module, "_client", mock_client):
+        await SupabaseClient.upsert_eval_metrics("v-uuid", "test", {"f1": 0.8})
+    mock_client.table.assert_called_with("model_eval_metrics")
