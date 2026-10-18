@@ -9,10 +9,13 @@ The service-role key is NEVER exposed to frontend. It is only used server-side.
 """
 from __future__ import annotations
 import asyncio
+import logging
 from typing import Awaitable, Callable, TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from supabase import AsyncClient
+
+logger = logging.getLogger(__name__)
 
 _client: "AsyncClient | None" = None
 
@@ -222,14 +225,20 @@ class SupabaseClient:
         as opposed to AuthApiError/other AuthError subclasses for a token
         that was actually rejected. See gotrue.helpers.handle_exception.
         """
-        from gotrue.errors import AuthRetryableError
+        from gotrue.errors import AuthError, AuthRetryableError
 
         client = SupabaseClient._get()
         try:
             res = await client.auth.get_user(access_token)
         except AuthRetryableError as exc:
             raise SupabaseUnavailableError(str(exc)) from exc
+        except AuthError:
+            # Supabase rejected the token (invalid / expired): expected.
+            return None
         except Exception:
+            # Anything else is unexpected (client bug, bad config, ...). The
+            # caller still answers 401, but the cause must be visible.
+            logger.warning("Supabase get_user failed unexpectedly", exc_info=True)
             return None
         return res.user if res else None
 

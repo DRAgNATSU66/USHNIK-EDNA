@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     # App
     app_name: str = "Synth Veda API"
     app_version: str = "0.1.0"
-    debug: bool = False
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"

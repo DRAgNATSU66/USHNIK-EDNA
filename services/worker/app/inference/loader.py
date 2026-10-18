@@ -181,7 +181,7 @@ def _load(entry: ModelRegistryEntry) -> tuple[Any, Any] | None:
         return model, tokenizer
 
     except Exception as exc:
-        logger.error("Failed to load model %s: %s", entry.model_id, exc)
+        logger.error("Failed to load model %s: %s", entry.model_id, exc, exc_info=True)
         return None
 
 

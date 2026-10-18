@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from ..models.analysis import AnalysisResultDoc
 from ..db import get_db
 from ..queue import enqueue_job
 from ..uploads.context import MetadataContext, build_metadata_context
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -56,8 +59,14 @@ async def create_analysis_job(
     try:
         await enqueue_job(job_id=job.job_id, upload_id=job.upload_id, mode=job.mode)
     except Exception:
-        # Redis not available in dev without Docker — job stays queued in Mongo
-        pass
+        # Redis not available in dev without Docker. The job doc stays
+        # "queued" in Mongo, but the worker only dequeues from Redis, so it
+        # will not run until re-enqueued. Say so loudly.
+        logger.warning(
+            "Could not enqueue job %s on Redis; it stays queued in MongoDB and "
+            "the worker will not pick it up until it is re-enqueued",
+            job.job_id, exc_info=True,
+        )
 
     return CreateJobResponse(job_id=job.job_id, upload_id=job.upload_id, state=job.state)
 
