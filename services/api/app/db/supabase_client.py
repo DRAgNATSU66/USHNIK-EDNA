@@ -407,25 +407,71 @@ class SupabaseClient:
 
     @staticmethod
     async def register_model_version(model_data: dict) -> dict:
+        """
+        Insert or update the model_versions row keyed by model_id. Idempotent,
+        so promoting a model registered before this mirror existed (or whose
+        registration mirror failed) still creates its row.
+        """
         client = SupabaseClient._get()
-        res = await client.table("model_versions").insert(model_data).execute()
+        res = await _with_retry(lambda: (
+            client.table("model_versions")
+            .upsert(model_data, on_conflict="model_id")
+            .execute()
+        ))
         return res.data[0] if res.data else {}
 
     @staticmethod
-    async def promote_model(model_id: str, promoted_by: str) -> None:
+    async def get_training_batch_uuid(batch_id: str) -> str | None:
+        """training_batches.id for a batch_id (e.g. tbatch_202610_fish_...), or None."""
+        client = SupabaseClient._get()
+        res = await _with_retry(lambda: (
+            client.table("training_batches").select("id").eq("batch_id", batch_id).execute()
+        ))
+        return res.data[0]["id"] if res.data else None
+
+    @staticmethod
+    async def upsert_eval_metrics(model_version_id: str, eval_set: str, row: dict) -> dict:
+        """One model_eval_metrics row per (model version, eval set); re-writing replaces it."""
         from datetime import datetime, timezone
         client = SupabaseClient._get()
-        # Retire previous production model for same route first
-        model_res = await client.table("model_versions").select("route").eq("model_id", model_id).single().execute()
-        if model_res.data:
-            await (
-                client.table("model_versions")
-                .update({"status": "retired"})
-                .eq("route", model_res.data["route"])
-                .eq("status", "production")
-                .execute()
-            )
-        await (
+        payload = {
+            **row,
+            "model_version_id": model_version_id,
+            "eval_set": eval_set,
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        res = await _with_retry(lambda: (
+            client.table("model_eval_metrics")
+            .upsert(payload, on_conflict="model_version_id,eval_set")
+            .execute()
+        ))
+        return res.data[0] if res.data else {}
+
+    @staticmethod
+    async def promote_model(model_id: str, promoted_by: str | None, demote_to: str = "staging") -> None:
+        """
+        Make model_id the production row for its route. Any other production
+        row on that route becomes `demote_to` ("staging", matching what the
+        API writes to models/registry). Raises LookupError if model_id has no
+        row; call register_model_version first.
+        """
+        from datetime import datetime, timezone
+        client = SupabaseClient._get()
+        model_res = await _with_retry(lambda: _maybe_single(lambda: (
+            client.table("model_versions").select("route").eq("model_id", model_id).maybe_single().execute()
+        )))
+        if not model_res or not model_res.data:
+            raise LookupError(f"model_versions has no row for {model_id}")
+        route = model_res.data["route"]
+        await _with_retry(lambda: (
+            client.table("model_versions")
+            .update({"status": demote_to})
+            .eq("route", route)
+            .eq("status", "production")
+            .neq("model_id", model_id)
+            .execute()
+        ))
+        await _with_retry(lambda: (
             client.table("model_versions")
             .update({
                 "status": "production",
@@ -434,7 +480,7 @@ class SupabaseClient:
             })
             .eq("model_id", model_id)
             .execute()
-        )
+        ))
 
     # ------------------------------------------------------------------
     # audit_logs

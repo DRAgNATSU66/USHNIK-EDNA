@@ -401,3 +401,92 @@ async def test_router_entry_registers_and_promotes(client, env, admin_token):
 async def test_registry_lists_selection_for_real_registry(client):
     data = (await client.get("/models/registry")).json()
     assert set(data["selected_by_route"]) == set(models_router.MODEL_ROUTES) | {"router"}
+
+
+# ---------------------------------------------------------------------------
+# Supabase mirror (model_versions + model_eval_metrics, best-effort)
+# ---------------------------------------------------------------------------
+
+class _FakeSupabase:
+    """Records SupabaseClient calls; `fail` makes promote_model raise."""
+
+    def __init__(self, fail=False):
+        self.calls = []
+        self.fail = fail
+
+    def install(self, monkeypatch):
+        for name in ("_get", "get_training_batch_uuid", "register_model_version",
+                     "upsert_eval_metrics", "promote_model"):
+            monkeypatch.setattr(models_router.SupabaseClient, name, getattr(self, name))
+
+    def _get(self):
+        return object()
+
+    async def get_training_batch_uuid(self, batch_id):
+        self.calls.append(("batch", batch_id))
+        return "batch-uuid"
+
+    async def register_model_version(self, data):
+        self.calls.append(("model_versions", data))
+        return {"id": f"uuid-{data['model_id']}", **data}
+
+    async def upsert_eval_metrics(self, version_id, eval_set, row):
+        self.calls.append(("model_eval_metrics", version_id, eval_set, row))
+        return row
+
+    async def promote_model(self, model_id, promoted_by):
+        if self.fail:
+            raise ConnectionError("supabase down")
+        self.calls.append(("promote", model_id, promoted_by))
+
+
+@pytest.mark.anyio
+async def test_supabase_not_configured_is_reported_not_fatal(client, env, admin_token):
+    r = await _register(client, env, admin_token)
+    assert r.json()["supabase_mirror"] == "not_configured"
+    r = await client.post("/models/fish_v2/promote", json={}, headers=_auth(admin_token))
+    assert r.status_code == 200
+    assert r.json()["supabase_mirror"] == "not_configured"
+
+
+@pytest.mark.anyio
+async def test_register_and_promote_mirror_model_versions_and_eval_metrics(client, env, admin_token, monkeypatch):
+    fake = _FakeSupabase()
+    fake.install(monkeypatch)
+    r = await _register(client, env, admin_token)
+    assert r.json()["supabase_mirror"] == "written"
+    [batch, version, metrics] = fake.calls
+    assert batch == ("batch", "tbatch_202610_fish")
+    assert version[1]["status"] == "candidate"
+    assert version[1]["training_batch_id"] == "batch-uuid"
+    assert version[1]["checksum"] == env.v2_sha
+    assert metrics == ("model_eval_metrics", "uuid-fish_v2", "test",
+                       {"f1": 0.86, "accuracy": 0.97, "sample_count": 520})
+
+    fake.calls.clear()
+    r = await client.post("/models/fish_v2/promote", json={}, headers=_auth(admin_token))
+    assert r.json()["supabase_mirror"] == "written"
+    assert fake.calls[-1] == ("promote", "fish_v2", "usr_admin_001")
+    # The row is upserted with its pre-promotion status; promote_model flips it.
+    assert [c[1]["status"] for c in fake.calls if c[0] == "model_versions"] == ["candidate"]
+
+
+@pytest.mark.anyio
+async def test_supabase_failure_does_not_undo_a_promotion(client, env, admin_token, monkeypatch):
+    await _register(client, env, admin_token)
+    _FakeSupabase(fail=True).install(monkeypatch)
+    r = await client.post("/models/fish_v2/promote", json={}, headers=_auth(admin_token))
+    assert r.status_code == 200, r.text
+    assert r.json()["supabase_mirror"] == "failed"
+    assert _file(env, "fish_v2.json")["status"] == "production"
+    assert len(env.db["model_eval_metrics"].docs) == 1
+
+
+def test_eval_metric_rows_maps_test_and_dev_metrics():
+    from app.models.promotion import eval_metric_rows
+    rows = dict(eval_metric_rows({"test_accuracy": 0.99, "test_macro_f1": 0.8, "test_size": 505,
+                                  "dev_accuracy": 0.98, "dev_size": 500, "dev_loss_best": 0.04}))
+    assert rows == {"test": {"f1": 0.8, "accuracy": 0.99, "sample_count": 505},
+                    "val": {"accuracy": 0.98, "sample_count": 500}}
+    # dev_size alone is not an evaluation.
+    assert [s for s, _ in eval_metric_rows({"test_accuracy": 0.9, "dev_size": 10})] == ["test"]

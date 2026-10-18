@@ -19,13 +19,14 @@ import logging
 import os
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth.deps import require_role
 from ..db import get_db
+from ..db.supabase_client import SupabaseClient
 from . import promotion as promo
 from .analysis import TaxonomicRoute
 from .user import UserProfile, UserRole
@@ -319,6 +320,49 @@ def _registry_dir_writable() -> Path:
     return REGISTRY_DIR
 
 
+async def _mirror_to_supabase(entry: dict, status: str, promoted_by: str | None = None) -> str:
+    """
+    Mirror a registry entry into Supabase model_versions + model_eval_metrics
+    (migration 20260526000001) and, for a promotion (promoted_by set), make it
+    the route's production row there too.
+
+    Best-effort, like the review and training-batch mirrors: the registry file
+    is what the worker serves from and MongoDB audit_logs/model_eval_metrics is
+    the required record, so a Supabase outage does not undo or block a
+    promotion. The outcome is returned to the caller ("written",
+    "not_configured", "failed") and a failure is logged with its traceback.
+    Called under the registry lock so mirrors land in promotion order.
+    """
+    try:
+        SupabaseClient._get()
+    except RuntimeError:
+        return "not_configured"
+    try:
+        batch_uuid = None
+        if entry.get("training_dataset_version"):
+            batch_uuid = await SupabaseClient.get_training_batch_uuid(entry["training_dataset_version"])
+        row = await SupabaseClient.register_model_version({
+            "model_id": entry["model_id"],
+            "route": entry["route"],
+            "base_model": entry["base_model"],
+            "training_batch_id": batch_uuid,
+            "artifact_uri": entry.get("artifact_uri"),
+            "checksum": entry.get("checksum"),
+            "metrics": entry.get("metrics") or {},
+            "thresholds": entry.get("thresholds") or {},
+            "status": status,
+        })
+        for eval_set, eval_row in promo.eval_metric_rows(entry.get("metrics")):
+            await SupabaseClient.upsert_eval_metrics(row["id"], eval_set, eval_row)
+        if promoted_by is not None:
+            await SupabaseClient.promote_model(entry["model_id"], promoted_by)
+    except Exception:
+        logger.warning("Supabase mirror of model %s failed; registry and MongoDB records are written",
+                       entry.get("model_id"), exc_info=True)
+        return "failed"
+    return "written"
+
+
 @router.post("/register", status_code=201)
 async def register_model(
     body: RegisterModelRequest,
@@ -398,6 +442,7 @@ async def register_model(
                 logger.exception("audit write for registration of %s failed; registry file removed", body.model_id)
                 raise promo.RegistryError(503, "audit log unavailable; registration not recorded")
             selected = _select_entry(body.route, [d for _, d in _load_registry(registry_dir)[0]])
+            mirror = await _mirror_to_supabase(entry, promo.CANDIDATE_STATUS)
     except promo.RegistryError as exc:
         _raise(exc)
 
@@ -407,6 +452,7 @@ async def register_model(
         "model": entry,
         "registry_file": target.name,
         "serving_model_id": selected["model_id"] if selected else None,
+        "supabase_mirror": mirror,
     }
 
 
@@ -578,12 +624,16 @@ async def promote_model(
                 if isinstance(exc, _PostCheckFailed):
                     raise promo.RegistryError(500, str(exc))
                 raise promo.RegistryError(503, "audit/metrics store unavailable; promotion rolled back")
+            mirror = await _mirror_to_supabase(
+                {**plan["entry"], "checksum": checksum}, summary["from_status"], promoted_by=current_user.user_id,
+            )
     except promo.RegistryError as exc:
         _raise(exc)
 
     logger.info("Model %s promoted to production on route %s by %s (was %s)",
                 model_id, plan["route"], current_user.user_id, summary["current_model_id"])
-    return {"ok": True, "dry_run": False, "promoted_at": now, "serving_model_id": model_id, **summary}
+    return {"ok": True, "dry_run": False, "promoted_at": now, "serving_model_id": model_id,
+            "supabase_mirror": mirror, **summary}
 
 
 class _PostCheckFailed(Exception):

@@ -17,8 +17,14 @@ promotion does.
 
 Who/when/metrics go to MongoDB: one model_eval_metrics document and one
 audit_logs document per promotion (the same audit_logs collection the review
-and curation endpoints write). The registry file also carries promoted_by /
+and curation endpoints write). These are required: if either write fails the
+registry files are restored. The registry file also carries promoted_by /
 promoted_at, so a reviewer reading the git diff sees who promoted it.
+
+Supabase (Postgres) gets a best-effort mirror, as reviews and training batches
+already do: model_versions (upsert by model_id, then SupabaseClient.promote_model)
+and one model_eval_metrics row per eval set (eval_metric_rows below), keyed to
+the model_versions row as migration 20260526000001 defines it.
 
 Everything in this module is plain file and dict logic; the endpoints, auth
 and Mongo writes are in router.py.
@@ -156,6 +162,29 @@ def metric_problems(metrics) -> list[str]:
     if _is_number(n) and (n <= 0 or int(n) != n):
         problems.append(f"metric test_size must be a positive integer, got {n}")
     return problems
+
+
+def eval_metric_rows(metrics) -> list[tuple[str, dict]]:
+    """
+    Registry metrics as Supabase model_eval_metrics rows: ("test", {...}) from
+    test_*, and ("val", {...}) from dev_* when the entry reports any. Only
+    finite numbers are copied; absent metrics stay NULL.
+    """
+    metrics = metrics if isinstance(metrics, dict) else {}
+    out = []
+    for eval_set, prefix in (("test", "test_"), ("val", "dev_")):
+        row = {}
+        for column, key in (("f1", "macro_f1"), ("accuracy", "accuracy"),
+                            ("precision", "macro_precision"), ("recall", "macro_recall")):
+            v = metrics.get(prefix + key)
+            if _is_number(v):
+                row[column] = float(v)
+        n = metrics.get(prefix + "size")
+        if _is_number(n) and int(n) == n:
+            row["sample_count"] = int(n)
+        if eval_set == "test" or any(k in row for k in ("f1", "accuracy")):
+            out.append((eval_set, row))
+    return out
 
 
 def metric_deltas(candidate: dict, current: dict | None) -> list[dict]:
