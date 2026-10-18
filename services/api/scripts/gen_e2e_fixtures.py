@@ -37,7 +37,9 @@ sys.path.insert(0, str(API_DIR))
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
 import app.db.mongo as mongo_module  # noqa: E402
+import app.main as main_module  # noqa: E402
 from app.auth.jwt import create_access_token  # noqa: E402
+from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 FIXED_TS = "2026-10-16T09:00:00"
@@ -352,7 +354,12 @@ async def generate() -> dict[str, Any]:
         for role, u in USERS.items()
     }
     out: dict[str, Any] = {}
-    with patch.object(mongo_module, "_db", _Db(_seed())):
+    # /health echoes settings (max_upload_size_mb); build the app from code
+    # defaults so a developer's services/api/.env cannot make fixtures differ
+    # between machines.
+    defaults = Settings(_env_file=None)
+    with patch.object(mongo_module, "_db", _Db(_seed())), \
+            patch.object(main_module, "get_settings", lambda: defaults):
         transport = ASGITransport(app=create_app())
         async with AsyncClient(transport=transport, base_url="http://api.test") as client:
             for name, role, path in CAPTURES:
