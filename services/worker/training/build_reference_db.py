@@ -780,9 +780,8 @@ def _source_plan(raw: Path, taxonomy: TaxonomyResolver, names: NameResolver, bla
     def want(key: str) -> bool:
         return only is None or key in only
 
-    for z in sorted((raw / "midori2").glob("*.zip")):
-        if "_AA" in z.name:
-            continue
+    midori = set((raw / "midori2").glob("MIDORI2_*_RAW.zip")) | set((raw / "midori2").glob("*.fasta.zip"))
+    for z in sorted(midori):
         if want("midori2"):
             plan.append(("midori2", lambda z=z: iter_midori2_ref(z, taxonomy), [z]))
     for p in sorted((raw / "bold").glob("*.parquet")) if (raw / "bold").exists() else []:
