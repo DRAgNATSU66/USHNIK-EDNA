@@ -864,3 +864,133 @@ manifest. The honest limits:
   the project already uses, not proof of a new species.
 - The near-duplicate rates in Q4 mean test scores on these classes after Day 7 are not trustworthy
   until the split is cluster-aware.
+
+## QNA-012 — 2026-10-18 — Versioned per-route reference DB (vsearch + BLAST) for species-name lookup; MIDORI2 reads every gene (B4; tracker t-1020-2)
+
+**Commit:** `f1dfbba` (builder, MIDORI2 multi-gene, NCBI `domain` rank, 406-line test file), `6939c46`
+(MIDORI2 `MIDORI2_*_RAW.zip` glob in build_dataset and the builder) and `e65a7f8` (the per-group cap
+applies only to a route over budget) on `sprint/d7-reference-db`. Merged into `LATEST_USHNIK` as
+`21e1d3c`. The interrupted session built the data, `synthveda-data/reference/v1` (13 GB, gitignored, `CURRENT` → `v1`).
+It finished at 13:15 IST, before a reboot. The branch was recovered, re-tested and merged in session 3.
+
+**Q1. Mechanism: what does `build_reference_db.py` produce, step by step?**
+1. `_source_plan` (`training/build_reference_db.py:785`) streams records from: MIDORI2 (every
+   gene member of the GB273 RAW zip, `UNIQ` selection, `:235`), SILVA (`:285`), UNITE (`:331`), the
+   extracted NCBI BLAST DBs through `blastdbcmd` (`:352`), the t-1019-1 supplementary sequences
+   (`:398`) and UniVec (`:437`). BOLD is supported (`:474`) but `raw/bold/` is empty, so it was not used.
+2. `_passes_filters` (`:825`) drops records shorter than 50 bp, longer than 50 kb or more than 5% N.
+   `_usable_name` (`:218`) drops uncultured, metagenome and synthetic names.
+3. `RouteAccumulator` (`:560`) keeps one entry per exact sequence per route. When two sources disagree
+   on the taxon, the entry is coarsened to their lowest common ancestor (`lca_lineage`, `:181`).
+4. Held-out exclusion: `load_heldout` (`:501`) hashes every `processed/*/{dev,test}.csv` sequence
+   (16,187 unique). `is_heldout` (`:523`) also checks the 400 bp chunks build_dataset would cut from a
+   long record, so a held-out window cannot reach the DB inside a longer parent.
+5. Each route is written as `ref.fasta` with SINTAX-style headers
+   (`<ID>;tax=d:..,k:..,..,s:..;src=..;marker=..;acc=..;taxid=..;n=..;`). Each route also gets a
+   vsearch UDB (`build_udb`, `:695`) and a BLAST+ v5 DB with taxids (`:703`). The human route also
+   gets a BLAST-only GRCh38 index (`:729`). `manifest.json` records per-source counts, sha256, the
+   cap, the held-out files and their hashes, and timings.
+
+**Q2. What was built, per route?** (measured, `reference/v1/manifest.json`, build 346.3 s)
+
+| Route | Unique before cap | Kept | Removed by cap | Cap (per taxon×marker) | Held-out excluded | Bases | UDB size |
+|---|---:|---:|---:|---|---:|---:|---:|
+| fish | 584,140 | 375,144 | 208,996 | 10 | 1,361 | 378.0 M | 1.87 GB |
+| plant | 96,003 | 96,003 | 0 | none | 1,602 | 104.1 M | 0.52 GB |
+| bacteria_pathogen | 170,985 | 170,985 | 0 | none | 13,401 | 307.1 M | 1.54 GB |
+| animal_general | 3,085,943 | 731,469 | 2,354,474 | 1, **over budget** | 1,068 | 775.8 M | 3.45 GB |
+| human_domestic_contamination | 78,406 | 78,406 | 0 | none | 965 | 89.9 M | 0.45 GB |
+| misc_unknown | 278,692 | 239,585 | 39,107 | 50 | 166 | 397.4 M | 1.72 GB |
+
+These are the unflattering parts:
+- `animal_general` does not fit the 400 Mb budget even at one sequence per (taxon, marker). It is kept
+  at 1 and flagged `over_budget`, so its UDB is 3.45 GB, and a vsearch query against it was measured
+  at 4.1 GB RSS (commit `e65a7f8`).
+- bacteria_pathogen resolves 49,632 records only to genus.
+- misc_unknown has 23k at genus and 6.6k at family.
+So species-rank answers will be thinner there.
+
+**Q3. Rationale: why a separate lookup layer instead of species heads, and why these caps?**
+The trained heads are 3-class result-class classifiers (B4). `processed/*/train.csv` has only
+`sequence,label`, so no model can name a species. A reference lookup gives a name, a rank and a
+percent identity that a reviewer can check against a public accession.
+
+Why the cap applies only to an over-budget route: the earlier fixed k=10 cut
+human_domestic_contamination from 78,406 unique sequences to 7,706 for no memory benefit.
+
+Why a 400 Mb budget: vsearch loads the whole UDB on every call. BLAST is the slower fallback that
+does not need the UDB in memory.
+
+**Q4. Blast radius: what breaks if this is wrong?**
+- If the held-out exclusion misses something, the Day 10 taxon evaluation scores self-hits and the
+  taxon accuracy we publish is inflated.
+- **Known open risk:** v1 excluded the *current* (August) dev/test splits. t-1020-1 rebuilds
+  `processed/` and therefore changes the splits, so v1 becomes leaky against them. The rebuild task
+  is instructed to build `v2` against the new splits, point `CURRENT` at it, and prove zero overlap.
+- An LCA bug would show as over-coarse names, i.e. too many genus/family answers.
+- If NCBI's 2025 `domain` rank were not read as superkingdom, no BLAST-DB record would route to
+  bacteria_pathogen. Before `f1dfbba`, none had a superkingdom with the 2026-08 taxdump.
+
+**Q5. Verification: what proves it?**
+- `services/worker/tests/test_reference_db.py`: header round trip, taxonomy parsing, MIDORI2
+  multi-gene zip, held-out exclusion including chunks, cap behaviour, BLAST taxid and vsearch UDB.
+- Worker suite on the branch: **273 passed**. On `LATEST_USHNIK` after the merge: worker
+  **273 passed**, API **394 passed**, `npm run build` OK.
+- The overlap proof against the rebuilt splits is pending t-1020-1 (see Q4).
+
+**Q6. Defence: "Isn't a 1-per-taxon animal DB too thin to name species?"**
+It keeps one sequence for every (taxon, marker) pair, which is 731,469 groups, so every taxon present
+in the sources is still represented once per marker. What is lost is intraspecific variation. Identity
+to the nearest conspecific will read lower than it would with all 3.09 M sequences, which biases the
+answer toward "lower identity / coarser rank", not toward a wrong species. That bias is the
+conservative direction for a novelty tool.
+
+## QNA-013 — 2026-10-18 — FieldLog edits with append-only history and real attachments on the storage layer (B10, M4; tracker t-1024-3, t-1024-4)
+
+**Commit:** `bbe342a` (API) and `3b13524` (page) on `sprint/d11-fieldlog`, merged into `LATEST_USHNIK`
+as `f2bb868`. Done ahead of schedule: Day 11 has no dependency on the orchestrator for these two tasks.
+The work came from the interrupted session and was re-tested and merged in session 3.
+
+**Q1. Mechanism: how does an edit get recorded?**
+`PATCH /field-log/entries/{id}` (`services/api/app/field_log/router.py:187`) runs one `update_one`. It
+`$set`s the new body or anchor and `$push`es `{editor, edited_at, changes:[{field, old, new}]}` onto
+`edits`. The filter matches on the **old** values, so if two edits race, the loser matches nothing and
+gets 409 (`:245`). The history therefore never records an "old" value the entry did not have. A no-op
+PATCH records nothing. Allowed editors: the author, or curator/admin/company_owner, on top of the
+existing analysis-access check. Pre-B10 entries load with `edits=[]`.
+
+**Q2. Mechanism: attachments?**
+`POST /field-log/attachments` (`:266`) writes through `app/storage.py` (local or S3, B7) under
+`field-log/`:
+- Size cap: `FIELD_LOG_ATTACHMENT_MAX_MB=25`.
+- Type: sniffed from the leading bytes, PDF/JPEG/PNG only. Anything else gets 415 (`:299`).
+- sha256 is stored and re-verified on download (`:362`). A mismatch or missing object gets 502 (`:383`).
+- If the storage write fails, the request gets 503 and no document is written (`:313`).
+- The storage URI/key is never returned to the client.
+There is no delete: attachments are permanent, like entries.
+
+**Q3. Rationale: why compare-and-set on old values rather than a version counter?**
+It gives the same lost-update protection without a schema migration of existing entries. It also
+makes the stored `old` value provably what was there, which is the property an audit trail needs.
+
+**Q4. Blast radius.**
+If the filter were wrong, concurrent edits could silently overwrite each other, or the history could
+show a fabricated "old" value. If the type sniff were bypassed, arbitrary files would be served from
+our storage.
+
+The frontend change affects only the FieldLog page:
+- `MOCK_NOTE`, `MOCK_FILES` and the MockTag import were removed.
+- Timestamps are now read as UTC; the API returns naive UTC.
+
+**Q5. Verification.**
+- `services/api/tests/test_field_log_b10.py` (486 lines): in-memory Mongo, local backend and moto S3.
+  Covers edit history, 409 on a race, no-op PATCH, permissions, 415, cap, sha256 mismatch → 502, and
+  storage failure → 503 with no document.
+- API suite on the branch: **394 passed**.
+- The lib/api.js ↔ FastAPI contract test covers the new routes.
+- `npm run build` OK on `LATEST_USHNIK`.
+- Not done: a live browser walk-through of the page. Day 16 Playwright covers it.
+
+**Q6. Defence: "Can a curator rewrite a researcher's note?"**
+Yes, they can edit it, but the edit cannot be hidden. Every change is pushed with the editor id and
+timestamp, the old value is shown struck through, and nothing in the API removes an `edits` element.
