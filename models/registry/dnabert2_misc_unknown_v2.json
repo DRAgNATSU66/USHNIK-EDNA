@@ -1,0 +1,94 @@
+{
+  "model_id": "dnabert2_misc_unknown_v2",
+  "route": "misc_unknown",
+  "base_model": "data:checkpoints/misc_unknown_v2/backbone",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "unknown_needs_online_confirmation",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "training_dataset_version": "processed-2026-10-18T18:17:55+0530",
+  "metrics": {
+    "test_accuracy": 0.9361,
+    "test_macro_f1": 0.9411,
+    "test_size": 1362,
+    "dev_loss_best": 0.1895,
+    "train_size": 10888,
+    "dev_size": 1362,
+    "epochs": 6,
+    "epoch_saved": 5,
+    "train_seconds": 632.0,
+    "max_length": 256,
+    "per_class": {
+      "unknown_needs_online_confirmation": {
+        "f1": 0.9174,
+        "support": 497
+      },
+      "possible_novelty": {
+        "f1": 0.9126,
+        "support": 500
+      },
+      "low_quality_unusable": {
+        "f1": 0.9932,
+        "support": 365
+      }
+    },
+    "confusion_matrix": [
+      [
+        461,
+        35,
+        1
+      ],
+      [
+        47,
+        449,
+        4
+      ],
+      [
+        0,
+        0,
+        365
+      ]
+    ],
+    "confusion_label_order": [
+      "unknown_needs_online_confirmation",
+      "possible_novelty",
+      "low_quality_unusable"
+    ],
+    "same_test_baseline": {
+      "model_id": "dnabert2_misc_unknown_v1",
+      "test_accuracy": 0.8678,
+      "test_macro_f1": 0.8771,
+      "per_class": {
+        "unknown_needs_online_confirmation": {
+          "f1": 0.804,
+          "support": 497
+        },
+        "possible_novelty": {
+          "f1": 0.8381,
+          "support": 500
+        },
+        "low_quality_unusable": {
+          "f1": 0.9892,
+          "support": 365
+        }
+      },
+      "test_rows_in_v1_training_data_exact": 266,
+      "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 266/1362 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1."
+    }
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.35
+  },
+  "artifact_uri": "data:checkpoints/misc_unknown_v2/head.pt",
+  "checksum": "6a2cd6a2980c630e3a57850831b76642844960b7c37730ef070595aeaacbf4a6",
+  "created_at": "2026-10-18",
+  "promoted_by": null,
+  "status": "candidate",
+  "notes": "DNABERT-2 117M fully fine-tuned from the base Hub weights (not from v1) on the rebuilt leak-free processed/ (processed-2026-10-18T18:17:55+0530; near-duplicate-grouped splits, QNA-016). 6 epochs, max_length 256, torch.AdamW, best dev loss at epoch 5. Metrics: training/evaluate_checkpoint.py on the new test split. Registered as candidate (Q1, t-1021-1); serving is decided by the B8 promote flow.",
+  "trusted_remote_code": true
+}

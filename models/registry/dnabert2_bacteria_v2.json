@@ -1,0 +1,113 @@
+{
+  "model_id": "dnabert2_bacteria_v2",
+  "route": "bacteria_pathogen",
+  "base_model": "data:checkpoints/bacteria_pathogen_v2/backbone",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "known_species",
+    "likely_taxonomic_group",
+    "possible_novelty",
+    "possible_contamination"
+  ],
+  "training_dataset_version": "processed-2026-10-18T18:17:55+0530",
+  "metrics": {
+    "test_accuracy": 0.832,
+    "test_macro_f1": 0.8347,
+    "test_size": 4219,
+    "dev_loss_best": 0.4452,
+    "train_size": 33740,
+    "dev_size": 4219,
+    "epochs": 6,
+    "epoch_saved": 4,
+    "train_seconds": 2715.8,
+    "max_length": 256,
+    "per_class": {
+      "known_species": {
+        "f1": 0.8257,
+        "support": 1502
+      },
+      "likely_taxonomic_group": {
+        "f1": 0.6464,
+        "support": 563
+      },
+      "possible_novelty": {
+        "f1": 0.8862,
+        "support": 2000
+      },
+      "possible_contamination": {
+        "f1": 0.9806,
+        "support": 154
+      }
+    },
+    "confusion_matrix": [
+      [
+        1170,
+        189,
+        140,
+        3
+      ],
+      [
+        63,
+        425,
+        75,
+        0
+      ],
+      [
+        98,
+        138,
+        1763,
+        1
+      ],
+      [
+        1,
+        0,
+        1,
+        152
+      ]
+    ],
+    "confusion_label_order": [
+      "known_species",
+      "likely_taxonomic_group",
+      "possible_novelty",
+      "possible_contamination"
+    ],
+    "same_test_baseline": {
+      "model_id": "dnabert2_bacteria_v1",
+      "test_accuracy": 0.8322,
+      "test_macro_f1": 0.8341,
+      "per_class": {
+        "known_species": {
+          "f1": 0.819,
+          "support": 1502
+        },
+        "likely_taxonomic_group": {
+          "f1": 0.6889,
+          "support": 563
+        },
+        "possible_novelty": {
+          "f1": 0.8857,
+          "support": 2000
+        },
+        "possible_contamination": {
+          "f1": 0.9428,
+          "support": 154
+        }
+      },
+      "test_rows_in_v1_training_data_exact": 597,
+      "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 597/4219 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1."
+    }
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.4
+  },
+  "artifact_uri": "data:checkpoints/bacteria_pathogen_v2/head.pt",
+  "checksum": "0637109407c4436bef671ab3db6cc273f4beff03a6c2f0c1562fc4504c69a4b7",
+  "created_at": "2026-10-18",
+  "promoted_by": null,
+  "status": "candidate",
+  "notes": "DNABERT-2 117M fully fine-tuned from the base Hub weights (not from v1) on the rebuilt leak-free processed/ (processed-2026-10-18T18:17:55+0530; near-duplicate-grouped splits, QNA-016). 6 epochs, max_length 256, torch.AdamW, best dev loss at epoch 4. Metrics: training/evaluate_checkpoint.py on the new test split. Registered as candidate (Q1, t-1021-1); serving is decided by the B8 promote flow.",
+  "trusted_remote_code": true
+}

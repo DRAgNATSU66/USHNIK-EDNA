@@ -245,7 +245,18 @@ def main() -> None:
     # (SequenceDataset.__getitem__) in parallel instead of serially blocking
     # the GPU between steps, which is why CPU sat at ~9% with num_workers=0.
     parser.add_argument("--num-workers", type=int, default=10)
+    # "auto" keeps the original behaviour (bitsandbytes AdamW8bit on CUDA) when
+    # bitsandbytes is importable, and otherwise falls back to torch AdamW
+    # instead of crashing on the import -- requirements-ml.txt leaves
+    # bitsandbytes commented out, so a fresh Linux venv does not have it. For
+    # a 117M backbone the full fp32 AdamW state (~0.9 GB) fits an 8 GB GPU.
+    # The optimizer actually used is recorded in metrics.json.
+    parser.add_argument("--optimizer", choices=["auto", "adamw8bit", "adamw"], default="auto")
+    # Free-text dataset build id (e.g. processed/build_report.json built_at),
+    # recorded in metrics.json so a checkpoint names the data it was fit on.
+    parser.add_argument("--dataset-version", default=None)
     args = parser.parse_args()
+    run_start = time.time()
 
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -318,7 +329,17 @@ def main() -> None:
     test_loader = DataLoader(test_ds, batch_size=args.batch_size * 2, shuffle=False, **loader_kwargs)
 
     params = list(head.parameters()) if args.freeze_backbone else list(head.parameters()) + list(backbone.parameters())
-    if device == "cuda":
+    use_8bit = False
+    if device == "cuda" and args.optimizer in ("auto", "adamw8bit"):
+        try:
+            import bitsandbytes  # noqa: F401
+            use_8bit = True
+        except ImportError:
+            if args.optimizer == "adamw8bit":
+                raise
+            print("bitsandbytes not installed -- using torch AdamW (fp32 moments)")
+    optimizer_name = "bnb.AdamW8bit" if use_8bit else "torch.AdamW"
+    if use_8bit:
         # Full fine-tuning of larger backbones (e.g. NT-500M) has enough
         # params that standard AdamW's two fp32 moment buffers alone exceed
         # what an 8GB GPU has left after the model itself — OOMs inside
@@ -360,6 +381,8 @@ def main() -> None:
     best_dev_acc = 0.0
     best_state_by_acc: dict | None = None
     total_steps_per_epoch = len(train_loader)
+    history: list[dict] = []
+    train_start = time.time()
 
     for epoch in range(args.epochs):
         head.train()
@@ -413,6 +436,14 @@ def main() -> None:
             f"epoch {epoch + 1}/{args.epochs}  train_loss={running_loss / len(train_loader):.4f}  "
             f"dev_loss={dev_loss:.4f}  dev_acc={dev_acc:.4f}  dev_f1={dev_f1:.4f}"
         )
+        history.append({
+            "epoch": epoch + 1,
+            "train_loss": round(running_loss / len(train_loader), 4),
+            "dev_loss": round(dev_loss, 4),
+            "dev_acc": round(dev_acc, 4),
+            "dev_macro_f1": round(dev_f1, 4),
+            "epoch_seconds": round(time.time() - epoch_start, 1),
+        })
 
         if dev_loss < best_dev_loss:
             best_dev_loss = dev_loss
@@ -438,6 +469,7 @@ def main() -> None:
                 extra_metrics={"dev_acc_at_save": round(dev_acc, 4), "epoch_saved": epoch + 1},
             )
 
+    train_seconds = time.time() - train_start
     if best_state is not None:
         head.load_state_dict(best_state["head"])
         if "backbone" in best_state:
@@ -454,10 +486,30 @@ def main() -> None:
         labels=list(range(len(labels))), zero_division=0,
     ))
 
+    run_info = {
+        "epochs": args.epochs,
+        "max_length": args.max_length,
+        "freeze_backbone": args.freeze_backbone,
+        "batch_size": args.batch_size,
+        "grad_accum": args.grad_accum,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "seed": args.seed,
+        "optimizer": optimizer_name,
+        "label_set": [str(l) for l in labels],
+        "dataset_version": args.dataset_version,
+        "data_dir": str(data_dir),
+        "train_seconds": round(train_seconds, 1),
+        "history": history,
+    }
+    best_epoch = min(history, key=lambda h: h["dev_loss"])["epoch"] if history else None
     save_checkpoint(
         output_dir, head, backbone, tokenizer, args, labels, embedding_dim,
         train_ds, dev_ds, test_ds, best_dev_loss,
-        extra_metrics={"test_accuracy": round(test_acc, 4), "test_macro_f1": round(test_f1, 4)},
+        extra_metrics={
+            "test_accuracy": round(test_acc, 4), "test_macro_f1": round(test_f1, 4),
+            "epoch_saved": best_epoch, **run_info,
+        },
         eval_report=eval_report,
     )
 
@@ -489,7 +541,7 @@ def main() -> None:
             f"vs by_dev_acc test_acc={acc_test_acc:.4f}"
         )
 
-    print("done.")
+    print(f"done. train {train_seconds:.0f}s, total {time.time() - run_start:.0f}s")
 
 
 if __name__ == "__main__":
