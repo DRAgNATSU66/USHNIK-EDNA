@@ -1271,3 +1271,81 @@ fixtures differ, so the mocks cannot drift from the API contract.
 They prove routing, guards, rendering and the call path against recorded real responses, and a pytest
 fails if those recordings go stale. Real-backend flows are still needed. The Day 18 fresh-clone run
 covers them, and the interaction gaps are listed in Q5.
+
+## QNA-018 — 2026-10-18 — Environmental context service: Copernicus Marine / NOAA ERDDAP / Open-Meteo lookup per upload, cached, with source and timestamp stored (Q5; tracker t-1026-1)
+
+**Commit:** `c6d17f6` on `sprint/d13-env-context` (based on `617576d`), merged into `LATEST_USHNIK` as
+`a5538c9`. It builds on `docs/specs/q5_environmental_sources.md` (t-1025-4, merged `617576d`). That
+spec classified 29 partner panels: 6 from our own data, 7 own data plus public, 4 public only, and 12
+removed for v2. Each source was checked live on 2026-10-18.
+
+**Q1. Mechanism, step by step.**
+1. `POST /uploads` with latitude, longitude and collected_at schedules `run_lookup` as a FastAPI
+   background task (`services/api/app/uploads/router.py:148-149`). It runs after the response is sent,
+   so it cannot block or fail the upload.
+2. `run_lookup` (`app/environment/service.py`) marks the upload's `environment_contexts` doc as pending.
+   It then checks the shared `environment_cache`, keyed on lat/lon rounded to 2 decimals, date and depth
+   (`build_query`, `:65-75`). On a miss it asks the providers in Q5 order.
+3. Request limits (`app/environment/http.py:47` `get_with_retry`): 15 s per request, 1 retry, a deadline
+   per provider, and network errors logged at ERROR.
+4. Copernicus Marine is read point-wise from its Zarr stores (`app/environment/zarr_point.py:209`
+   `read_point`). It picks the nearest ocean cell within 30 km, by haversine (`:178`), and records the
+   grid cell actually used: lat/lon, depth and distance.
+5. Results are written per upload, and to the shared cache only if no provider failed transiently.
+   Entries for dates less than 14 days old expire after 24 h (`RECENT_CACHE_TTL`, `service.py:44`).
+6. `GET /environment/uploads/{id}` (`app/environment/router.py:36`) uses the same access rule as the
+   upload. Each variable comes back as `ok`, `user_provided` or `unavailable` with a reason.
+7. User-entered DO, pH, temperature and salinity take precedence; the public value is kept beside them.
+8. `POST .../refresh` (`:86`) is admin only and skips the cache.
+
+**Q2. Sources per variable, and live values.** Measured at 15.6 N, 82.3 E, 2026-10-01 06:00Z; these agree
+with the Q5 doc's independent checks.
+
+| Variable | Primary source | Fallback | Live value |
+|---|---|---|---|
+| Temperature | Copernicus Marine `thetao` (analysis/forecast, then multiyear) | NOAA OISST via NCEI ERDDAP (surface only) | 30.2808 °C surface; 23.6626 °C at 47 m; OISST 29.86 °C |
+| Salinity | Copernicus `so` | — | 30.787 PSU |
+| Dissolved O₂ | Copernicus `o2` → mg/L | — | 6.6309 mg/L (207.2282 mmol/m³) |
+| pH | Copernicus `ph` | — | 8.0317 |
+| Currents | Copernicus `uo`/`vo` | Open-Meteo Marine | 0.3516 m/s heading 258°; Open-Meteo 0.4167 m/s |
+| Wind | ERA5 via Open-Meteo | — | 1.85 m/s from 177° |
+
+**Q3. Rationale.**
+- *Point reads from Zarr rather than the `copernicusmarine` toolbox:* the toolbox is a heavy
+  dependency, and we need one cell per upload. The only new dependency is `blosc==1.11.2`, used to
+  decode chunks; it is in `requirements.txt`.
+- *Store the grid cell actually used:* a reviewer can see that a value came from a cell 12 km and
+  3 m away, rather than taking it as a measurement at the sample site.
+- *Never invent a value:* any failure is stored as `unavailable` with a reason.
+- *User values win:* field measurements are better than a modelled or reanalysis cell.
+
+**Q4. Blast radius / known gaps.**
+- **Anonymous Copernicus access is undocumented** (Q5 doc). If it is withdrawn, salinity, DO, pH,
+  currents and deep temperature become `unavailable` until `COPERNICUS_MARINE_USERNAME`/`PASSWORD`
+  are set. The login path copies how the official toolbox does it, but **it has not been tried with a
+  real account**. This is a user action.
+- **Open-Meteo's free tier is non-commercial.** If the deployment is commercial, the wind source must
+  change. This is a user decision.
+- Always `unavailable`:
+  - pH before 2021-11, because there is no multiyear daily pH product.
+  - Land or below-seafloor cells with no ocean cell within 30 km.
+  - ERA5 hours not yet published.
+  - Anything during a network outage.
+- The first ERDDAP call in testing timed out at 15 s; a retry a few minutes later took 2.3 s. The
+  fallback chain covers this, and the timeout is logged.
+- No UI yet. Day 14 (t-1027-1) renders it.
+
+**Q5. Verification (measured).**
+- `services/api/tests/test_environment_context.py`: 34 tests run against HTTP fixtures recorded live
+  (592 KB under `tests/fixtures/environment/`, recorder `record_fixtures.py`). They cover cache
+  hit/miss, user-value precedence, every `unavailable` path, access control, and an upload that does
+  not fail when the lookup fails.
+- The fixtures were scanned for credentials before merging; none found.
+- `LATEST_USHNIK` after the merge: API **493 passed** (2 new contract cases), worker **295 passed**,
+  `npm run build` OK, Playwright **37 passed**.
+
+**Q6. Defence: "Reanalysis values aren't measurements; why show them next to eDNA results?"**
+They are labelled as context, not measurements. Each one carries its product id, the exact query URL,
+the grid cell and distance actually used, and when it was retrieved. Field measurements, when given,
+take precedence and are marked `user_provided`. The alternative was the hard-coded "4.2 °C / 1840 m"
+mock values this replaces.
