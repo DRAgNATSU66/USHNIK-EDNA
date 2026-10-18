@@ -400,6 +400,14 @@ def main(argv=None) -> int:
     res_h, pred_h, dt_h, meth_h = e2e(route_sequence_heuristic)
     p_l = np.array([[x.route_probabilities.get(r, 0.0) for r in ROUTES] for x in res_l])
     proto_learned = report(ytrue, pred_l, p_l if (p_l.sum(1) > 0).all() else None)
+    # ECE before temperature scaling on the same rows: softmax of the raw logits
+    # (rows the learned model did not score, e.g. gated low-quality, are skipped).
+    scored_l = np.array([x.router_method == "learned" for x in res_l])
+    if scored_l.any():
+        z_l = np.array([[x.raw_scores[r] for r in ROUTES] for x, s in zip(res_l, scored_l) if s])
+        proto_learned["learned_scored_n"] = int(scored_l.sum())
+        proto_learned["ece_uncalibrated_scored"] = ece(softmax(z_l), ytrue[scored_l])
+        proto_learned["ece_calibrated_scored"] = ece(softmax(z_l, T), ytrue[scored_l])
     proto_learned.update(router_methods=dict(meth_l), seconds_per_sequence=dt_l,
                          clean_subset=report(ytrue[clean_p], pred_l[clean_p]))
     proto_heur = report(ytrue, pred_h)

@@ -3,3 +3,7 @@ pymongo==4.17.0
 redis==5.2.1
 pydantic-settings==2.6.1
 python-dotenv==1.0.1
+# Learned k-mer router (B19, app/model_router/learned.py). Without numpy the
+# worker still runs, but every result says router_method=heuristic_fallback,
+# router_fallback_reason=numpy_unavailable.
+numpy==2.4.6
