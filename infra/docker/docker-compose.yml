@@ -32,6 +32,9 @@ services:
     env_file:
       - ../../.env
     environment:
+      # dev skips the JWT_SECRET startup check (B18, app/config.py). Set
+      # APP_ENV=production (and a real JWT_SECRET) to exercise it locally.
+      APP_ENV: ${APP_ENV:-dev}
       MONGODB_URI: mongodb://mongo:27017
       MONGODB_DB: synthveda
       REDIS_URL: redis://redis:6379/0

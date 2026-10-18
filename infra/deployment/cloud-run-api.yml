@@ -39,6 +39,9 @@ spec:
               memory: 1Gi
 
           env:
+            # Enables the JWT_SECRET startup check (B18, app/config.py).
+            - name: APP_ENV
+              value: production
             - name: MONGODB_URI
               valueFrom:
                 secretKeyRef:

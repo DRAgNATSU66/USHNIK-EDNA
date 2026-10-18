@@ -240,7 +240,8 @@ async def admin_key_redeem(
       - Key must be exactly 8 alphanumeric characters.
       - Key is hashed (SHA-256) before lookup — plaintext never stored or logged.
       - Atomic consume via Supabase RPC prevents race conditions.
-      - Rate limiting must be enforced at the infra/proxy layer.
+      - Rate limiting must be enforced at the infra/proxy layer
+        (infra/docker/nginx-lb.conf: 5/min per IP, burst 5, then 429).
       - Every redemption is audit-logged.
     """
     if len(body.key) != 8 or not body.key.isalnum():
