@@ -3,7 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import { tokens } from "../../components/shared/tokens";
 import MockTag from "../../components/shared/MockTag";
-import { getReport, getUpload, listReports, listFieldEntries, createFieldEntry } from "../../lib/api";
+import { getReport, listReports, listFieldEntries, createFieldEntry } from "../../lib/api";
+import { NOT_RECORDED, formatLatLong, formatMetadataField } from "../../lib/sampleMetadata";
 import treeArt from "../../assets/fieldlog-tree.png";
 
 // Single scale factor applied to every size on this page (container width,
@@ -147,7 +148,6 @@ export default function FieldLog() {
 
   const [analysisId, setAnalysisId] = useState(requestedId);
   const [report, setReport] = useState(null);
-  const [upload, setUpload] = useState(null);
   const [notes, setNotes] = useState(null);
   const [comments, setComments] = useState(null);
   const [error, setError] = useState("");
@@ -182,11 +182,6 @@ export default function FieldLog() {
     refreshComments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisId]);
-
-  useEffect(() => {
-    if (!report?.metadata?.upload_id) return;
-    getUpload(report.metadata.upload_id).then(setUpload).catch(() => setUpload(null));
-  }, [report]);
 
   function refreshNotes() {
     listFieldEntries(analysisId, "note").then(setNotes).catch((e) => setError(e.message || "Failed to load field notes."));
@@ -254,22 +249,25 @@ export default function FieldLog() {
     );
   }
 
-  // Order matches the mockup's 5-column grid exactly. Fields the backend
-  // actually stores (location/lat-long/depth/habitat/salinity/temperature)
-  // use real upload data or an honest "not recorded". Fields with no backend
-  // field at all (date/time, methodology, negative control, collector) show
-  // the mockup's sample values, tagged MOCK.
+  // Every value comes from report.metadata (all 14 optional upload fields,
+  // null = not recorded), not GET /uploads/{id}, which curators get a 403
+  // on. Nulls say "Not recorded" rather than showing a sample value. The
+  // date is metadata.collected_at; metadata.created_at is the analysis time.
+  const md = report.metadata;
+  const habitatSource = [md?.habitat, md?.source_type].filter((x) => x && x.trim()).join(" · ");
   const meta = [
-    { k: "LOCATION", v: upload?.location_label || "not recorded", mock: false },
-    { k: "DATE / TIME", v: "12 Aug 2026 · 06:40 IST", mock: true },
-    { k: "LAT / LONG", v: upload?.latitude != null && upload?.longitude != null ? `${upload.latitude.toFixed(4)}° N, ${upload.longitude.toFixed(4)}° E` : "not recorded", mock: false },
-    { k: "DEPTH", v: upload?.depth_meters != null ? `${upload.depth_meters.toLocaleString()} m` : "not recorded", mock: false },
-    { k: "HABITAT", v: upload?.habitat || "not recorded", mock: false },
-    { k: "SALINITY", v: upload?.salinity_ppt != null ? `${upload.salinity_ppt} PSU` : "not recorded", mock: false },
-    { k: "TEMPERATURE", v: upload?.temperature_celsius != null ? `${upload.temperature_celsius} °C` : "not recorded", mock: false },
-    { k: "METHODOLOGY", v: "Metabarcoding", mock: true },
-    { k: "NEGATIVE CONTROL", v: "Included", mock: true },
-    { k: "COLLECTOR", v: "M. Fernandes", mock: true },
+    { k: "LOCATION", v: formatMetadataField("location_label", md) },
+    { k: "DATE / TIME", v: formatMetadataField("collected_at", md) },
+    { k: "LAT / LONG", v: formatLatLong(md?.latitude, md?.longitude) },
+    { k: "DEPTH", v: formatMetadataField("depth_meters", md) },
+    { k: "HABITAT / SOURCE", v: habitatSource || NOT_RECORDED },
+    { k: "SALINITY", v: formatMetadataField("salinity_ppt", md) },
+    { k: "TEMPERATURE", v: formatMetadataField("temperature_celsius", md) },
+    { k: "DISSOLVED O₂", v: formatMetadataField("dissolved_oxygen_mg_l", md) },
+    { k: "PH", v: formatMetadataField("ph", md) },
+    { k: "METHODOLOGY", v: formatMetadataField("methodology", md) },
+    { k: "NEGATIVE CONTROL", v: formatMetadataField("negative_control_included", md) },
+    { k: "COLLECTOR", v: formatMetadataField("collector", md) },
   ];
 
   return (
@@ -394,9 +392,7 @@ export default function FieldLog() {
             Context was the full-width card above (swapped positions with
             Field Notes, per direct request), so it's now the narrower
             column here; its tree art and list widths are scaled down to
-            fit. Fields with no real data honestly say so; fields with no
-            backend field at all show the mockup's sample values, tagged
-            MOCK. */}
+            fit. Fields with no recorded value say "Not recorded". */}
         <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr 1fr", gap: s(18), alignItems: "stretch" }}>
           {/* Run context -- read-only, sourced from Upload Analysis; single
               source of truth per SYNTHVEDA_BUILD_SPEC.md 2.4 (no duplicate
@@ -433,9 +429,8 @@ export default function FieldLog() {
                       style={{ width: s(6), height: s(6), borderRadius: "50%", flexShrink: 0, background: tokens.sectionSubtext, boxShadow: `0 0 6px ${tokens.sectionSubtext}`, animationDelay: `${i * 0.18}s` }}
                     />
                     {m.k}
-                    {m.mock && <MockTag label="MOCK" />}
                   </span>
-                  <span style={{ fontSize: s(12), color: m.v === "not recorded" ? tokens.pending : tokens.textPrimary, fontStyle: m.v === "not recorded" ? "italic" : "normal" }}>{m.v}</span>
+                  <span style={{ fontSize: s(12), color: m.v === NOT_RECORDED ? tokens.pending : tokens.textPrimary, fontStyle: m.v === NOT_RECORDED ? "italic" : "normal" }}>{m.v}</span>
                 </div>
               ))}
             </div>
