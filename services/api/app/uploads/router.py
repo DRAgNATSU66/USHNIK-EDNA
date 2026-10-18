@@ -1,15 +1,19 @@
+import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path, PurePosixPath
+from io import BytesIO
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.concurrency import run_in_threadpool
 
 from ..auth.deps import get_current_user
 from ..models.user import UserProfile
 from ..models.upload import UploadDoc, UploadStatus
 from ..db import get_db
 from ..config import get_settings
+from ..storage import storage_from_settings, upload_key
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
+logger = logging.getLogger(__name__)
 
 # A collection timestamp this far past "now" is a typo, not clock skew.
 _COLLECTED_AT_FUTURE_TOLERANCE = timedelta(days=1)
@@ -108,14 +112,23 @@ async def create_upload(
         collector=_clean_text(collector),
     )
 
-    # Persist to local disk so the worker's parser can read it. In production
-    # this would upload to S3/GCS instead and set storage_key.
-    storage_dir = Path(settings.upload_storage_dir)
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = PurePosixPath(file.filename).name  # strip any path components
-    dest = storage_dir / f"{doc.upload_id}_{safe_name}"
-    dest.write_bytes(content)
-    doc.file_path = str(dest)
+    # Write the bytes through the storage backend (STORAGE_BACKEND: local disk
+    # or an S3-compatible bucket) and record where they went as a URI; the
+    # worker reads them back through the same module (app/storage.py).
+    # boto3 is blocking, so the write runs in the threadpool.
+    store = storage_from_settings(settings)
+    key = upload_key(doc.upload_id, file.filename)
+    try:
+        stored = await run_in_threadpool(store.put, key, BytesIO(content))
+    except Exception as exc:  # MinIO/S3 down, bad credentials, disk full
+        logger.exception("upload %s: storage write to %s failed", doc.upload_id, store.uri(key))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Upload storage unavailable ({type(exc).__name__}); nothing was saved",
+        ) from exc
+    doc.storage_uri = stored.uri
+    doc.storage_key = stored.key
+    doc.checksum_sha256 = stored.sha256
 
     db = get_db()
     await db["uploads"].insert_one(doc.model_dump())

@@ -61,7 +61,10 @@ Three separate stores, each with one job — don't blur these:
 
 ```text
 FASTA/FASTQ upload (web_frontend -> services/api)
-  -> services/api/app/uploads saves the file, writes a Mongo `uploads` doc
+  -> services/api/app/uploads writes the file through app/storage.py (local disk
+     or an S3-compatible bucket -- MinIO in compose), writes a Mongo `uploads`
+     doc carrying its storage_uri (local://<key> | s3://<bucket>/<key>) + sha256;
+     the worker's _stage_parse reads it back through its copy of storage.py
   -> services/api enqueues a job (app/queue.py -> Redis)
   -> services/worker/app/dispatcher.py polls Redis (dequeue_job), caps concurrency
      with an asyncio.Semaphore (WORKER_CONCURRENCY), spawns a task per job that

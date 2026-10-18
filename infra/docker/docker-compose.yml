@@ -5,6 +5,19 @@
 # other projects' containers.
 name: synthveda
 
+# Upload storage (B7, services/*/app/storage.py). Compose runs the s3 backend
+# against the minio service below; set STORAGE_BACKEND=local to fall back to
+# the shared uploads_data volume. The API writes, the worker reads, so both
+# get the same values. MINIO_ROOT_USER / MINIO_ROOT_PASSWORD come from the
+# shell or infra/docker/.env; the defaults are dev-only.
+x-object-storage-env: &object-storage-env
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-s3}
+  OBJECT_STORAGE_URL: http://minio:9000
+  OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-synthveda-uploads}
+  OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-synthveda}
+  OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-synthveda-dev-secret}
+  OBJECT_STORAGE_REGION: us-east-1
+
 services:
 
   # ------------------------------------------------------------------
@@ -25,11 +38,14 @@ services:
       ALLOWED_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
       UPLOAD_STORAGE_DIR: /app/uploads
       MODELS_REGISTRY_PATH: /app/models/registry
+      <<: *object-storage-env
     depends_on:
       mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     volumes:
       - ../../services/api/app:/app/app    # hot-reload in dev
       - uploads_data:/app/uploads
@@ -57,11 +73,17 @@ services:
       REDIS_URL: redis://redis:6379/0
       WORKER_CONCURRENCY: "2"
       MODELS_REGISTRY_PATH: /app/models/registry
+      # local:// uploads resolve here: the same uploads_data volume the API
+      # writes to.
+      UPLOAD_STORAGE_DIR: /app/uploads
+      <<: *object-storage-env
     depends_on:
       mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     volumes:
       - ../../services/worker/app:/app/app  # hot-reload in dev
       - uploads_data:/app/uploads
@@ -102,6 +124,48 @@ services:
       retries: 5
 
   # ------------------------------------------------------------------
+  # MinIO -- S3-compatible object storage for uploads (B7)
+  # ------------------------------------------------------------------
+  # pgsty/minio is the maintained community build (MinIO Inc. stopped
+  # publishing images); it bundles the `mc` client used by minio-init.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    container_name: synthveda-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-synthveda}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-synthveda-dev-secret}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # One-shot: create the uploads bucket (idempotent), then exit 0. api and
+  # worker wait for it (service_completed_successfully).
+  minio-init:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-synthveda}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-synthveda-dev-secret}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-synthveda-uploads}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set synthveda http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        && mc mb --ignore-existing "synthveda/$$OBJECT_STORAGE_BUCKET"
+    restart: "no"
+
+  # ------------------------------------------------------------------
   # Frontend — React SPA served via nginx
   # ------------------------------------------------------------------
   frontend:
@@ -121,4 +185,5 @@ services:
 volumes:
   mongo_data:
   redis_data:
-  uploads_data:
+  uploads_data:   # local storage backend (STORAGE_BACKEND=local)
+  minio_data:     # s3 storage backend: the MinIO bucket contents

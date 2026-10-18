@@ -44,8 +44,14 @@ class UploadDoc(BaseModel):
     user_id: Optional[str] = None
     original_filename: str
     file_size_bytes: int
-    storage_key: Optional[str] = None
-    file_path: Optional[str] = None  # local disk path; read by the worker's parser
+    # Where the bytes are (B7, app/storage.py): local://<key> or
+    # s3://<bucket>/<key>. The worker reads the file back through this URI.
+    storage_uri: Optional[str] = None
+    storage_key: Optional[str] = None  # the <key> part of storage_uri
+    checksum_sha256: Optional[str] = None  # of the stored bytes; the worker verifies it
+    # Pre-B7 uploads only: an absolute path on the API's disk. New uploads
+    # leave it None; the worker still reads it when storage_uri is absent.
+    file_path: Optional[str] = None
     status: UploadStatus = UploadStatus.pending
     # Sample metadata provided at upload time. Every field is optional and is
     # listed in OPTIONAL_METADATA_FIELDS above.

@@ -15,11 +15,12 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from .config import NOVELTY_THRESHOLD
+from .config import NOVELTY_THRESHOLD, get_worker_settings
 from .fastx_parser import parse_and_batch_auto
 from .model_router import route_batch, RouterInput
 from .inference import run_inference_batch
 from .novelty import score_batch, contamination_score_batch
+from .storage import local_copy_for_upload
 
 
 async def run_job(db: AsyncIOMotorDatabase, job_id: str) -> None:
@@ -75,30 +76,27 @@ async def _stage_parse(upload: dict) -> list[dict]:
     Phase 5: parse the uploaded FASTA/FASTQ file into sequence records.
 
     Uses the Rust `synthveda-parse` binary when available (fast path), or falls
-    back to the pure-Python parser.  The file path comes from the upload doc's
-    `file_path` field (set by the API when it saves the upload to disk).
+    back to the pure-Python parser. The bytes are read through app/storage.py
+    from the upload doc's `storage_uri` (local:// under UPLOAD_STORAGE_DIR, or
+    s3:// streamed to a temp file); pre-B7 docs that carry only an absolute
+    `file_path` are read from that path.
+
+    An upload with no file at all, a missing object, or bytes that fail the
+    doc's checksum raise -- run_job() marks the job failed rather than
+    analysing a made-up sequence (a stub here once produced a "completed"
+    analysis of ATCGATCGATCG that looked like a real result).
 
     Returns a flat list of sequence dicts ready for the QC stage.
     """
-    file_path: str | None = upload.get("file_path")
-    if not file_path:
-        # Fail the job rather than analysing a made-up sequence: a stub here
-        # used to produce a "completed" analysis of ATCGATCGATCG that looked
-        # like a real result. run_job() catches this and marks the job failed.
-        raise ValueError(
-            f"Upload {upload.get('upload_id', '?')} has no file_path; nothing to parse"
-        )
+    settings = get_worker_settings()
 
-    # Run the blocking parser in a thread pool so the event loop is not blocked.
+    def parse() -> tuple[list, bool]:
+        with local_copy_for_upload(upload, settings) as path:
+            return parse_and_batch_auto(str(path), batch_size=1000, min_length=10)
+
+    # Fetching and parsing block, so they run in a thread pool.
     loop = asyncio.get_event_loop()
-    batches, used_rust = await loop.run_in_executor(
-        None,
-        lambda: parse_and_batch_auto(
-            file_path,
-            batch_size=1000,
-            min_length=10,
-        ),
-    )
+    batches, used_rust = await loop.run_in_executor(None, parse)
     backend = "Rust" if used_rust else "Python"
     total = sum(len(b) for b in batches)
     print(f"[worker] parsed {total} sequences via {backend} parser ({upload.get('original_filename', '?')})")

@@ -1,4 +1,6 @@
 from functools import lru_cache
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,6 +26,23 @@ class WorkerSettings(BaseSettings):
     job_timeout_seconds: int = 600
     # Novelty (see DEFAULT_NOVELTY_THRESHOLD above).
     novelty_threshold: float = Field(default=DEFAULT_NOVELTY_THRESHOLD, gt=0.0, lt=1.0)
+
+    # Upload storage (B7; see app/storage.py). Same fields and defaults as
+    # services/api/app/config.py; services/api/tests/test_storage.py checks
+    # the two agree. The worker reads each upload from the backend its
+    # storage_uri names, so storage_backend only matters to the writer (the
+    # API) -- it is defined here so both services take the same .env.
+    storage_backend: Literal["local", "s3"] = "local"
+    # local:// keys resolve under this directory: it must be the directory
+    # the API writes to (compose: the shared uploads_data volume).
+    upload_storage_dir: str = "uploads"
+    # s3:// URIs are read from this endpoint with these credentials. A blank
+    # URL means AWS S3; blank keys use boto3's default credential chain.
+    object_storage_url: str = ""
+    object_storage_bucket: str = "synthveda-uploads"
+    object_storage_access_key: str = ""
+    object_storage_secret_key: str = ""
+    object_storage_region: str = "us-east-1"
 
 
 @lru_cache
