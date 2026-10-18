@@ -98,6 +98,51 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: placeholder-google-client-id.apps.googleusercontent.com
 
   # -----------------------------------------------------------------------
+  # Job 3b: Frontend e2e (Playwright, Chromium) over every routed page.
+  # The API is mocked at the network layer with fixtures recorded from the
+  # real FastAPI app (services/api/scripts/gen_e2e_fixtures.py; the API Tests
+  # job fails if they go stale), so no Mongo/Redis/GPU is needed here.
+  # -----------------------------------------------------------------------
+  frontend-e2e:
+    name: Frontend E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web_frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web_frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        # playwright.config.js builds the app (VITE_API_URL -> a mocked host)
+        # and serves it with vite preview via its webServer block.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web_frontend/playwright-report/
+            web_frontend/test-results/
+          retention-days: 14
+
+  # -----------------------------------------------------------------------
   # Job 4: Python security scan (bandit, medium+ severity)
   # -----------------------------------------------------------------------
   security-scan:

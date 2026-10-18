@@ -1,0 +1,15 @@
+{
+  "analysis_id": "ana_e2e0000000001",
+  "total_warnings": 1,
+  "warnings": [
+    {
+      "contamination_score": 0.94,
+      "contamination_type": "human",
+      "reason_codes": [
+        "human_contaminant_match"
+      ],
+      "route": "human_domestic",
+      "sequence_id": "seq_e2e_contam_005"
+    }
+  ]
+}

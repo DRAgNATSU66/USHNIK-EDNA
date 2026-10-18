@@ -1,0 +1,28 @@
+[
+  {
+    "analysis_id": "ana_e2e0000000001",
+    "anchor_sequence_id": "seq_e2e_novel_003",
+    "author_id": "usr_e2e_curator",
+    "author_name": "Cyrus Curator",
+    "body": "seq_e2e_novel_003 looks worth a voucher specimen.",
+    "created_at": "2026-10-11T09:00:00",
+    "edits": [],
+    "entry_id": "fle_e2e_cmt00001",
+    "kind": "comment",
+    "reply_to": null,
+    "updated_at": null
+  },
+  {
+    "analysis_id": "ana_e2e0000000001",
+    "anchor_sequence_id": null,
+    "author_id": "usr_e2e_researcher",
+    "author_name": "Rhea Researcher",
+    "body": "Agreed, sample preserved in ethanol.",
+    "created_at": "2026-10-11T10:00:00",
+    "edits": [],
+    "entry_id": "fle_e2e_cmt00002",
+    "kind": "comment",
+    "reply_to": "fle_e2e_cmt00001",
+    "updated_at": null
+  }
+]

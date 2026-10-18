@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright e2e (t-1029-2)
+dist-e2e
+dist-e2e-real
+test-results
+playwright-report
+blob-report

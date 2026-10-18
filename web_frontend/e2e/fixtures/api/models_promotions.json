@@ -1,0 +1,20 @@
+{
+  "events": [
+    {
+      "action": "model_registered",
+      "actor_email": "admin@e2e.test",
+      "actor_id": "usr_e2e_admin",
+      "actor_role": "admin",
+      "artifact_uri": "data:heads/fish.pt",
+      "checksum": "sha256:e2e",
+      "metrics": {
+        "test_accuracy": 0.81
+      },
+      "model_id": "dnabert2_fish_v1",
+      "registry_file": "dnabert2_fish_v1.json",
+      "route": "fish",
+      "timestamp": "2026-10-14T11:00:00",
+      "training_dataset_version": "tb_2026_09_fish"
+    }
+  ]
+}
