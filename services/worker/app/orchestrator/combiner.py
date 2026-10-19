@@ -38,7 +38,11 @@ written to the decision trace's "combine" list.
    reference miss in reference_hit_outside_router (a 100 % no_consensus human
    hit lost the route to a 90.36 % family-level misc hit), and a GRCh38 hit
    beaten by the final route's own closer assignment no longer flags the read
-   as human-DNA contamination (grch38_beaten_by, below).
+   as human-DNA contamination (grch38_beaten_by, below). On the held-out
+   sample (docs/ml/results/orchestrator_smoke_2026-10-19.json vs
+   ..._orchestrator-1.1.0.json) exactly one row changed (the 100 % human
+   no_consensus read, back to the human route); the GRCh38-beaten path did
+   not occur in that sample.
 
    Heads never choose the route: each head was trained only on its own
    route's sequences, so a fish head's 0.9 on a plant read says nothing, and

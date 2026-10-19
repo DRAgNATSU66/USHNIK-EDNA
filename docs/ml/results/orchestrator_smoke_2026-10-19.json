@@ -1,7 +1,7 @@
 {
-  "orchestrator_version": "orchestrator-1.1.0",
+  "orchestrator_version": "orchestrator-1.2.0",
   "date": "2026-10-19",
-  "command": "python -m training.eval_orchestrator run --split test --per-route 100 --seed 1019 --out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/test_v110.json --rows-out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/test_v110.jsonl",
+  "command": "python -m training.eval_orchestrator run --split test --per-route 100 --seed 1019 --out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/test_v120.json --rows-out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/test_v120.jsonl",
   "sample": {
     "split": "test",
     "per_route": 100,
@@ -49,23 +49,23 @@
     "low_quality:low_quality": 29,
     "animal_general:dnabert2_animal_v2": 98,
     "plant:dnabert2_plant_v1": 92,
-    "misc_unknown:dnabert2_misc_unknown_v2": 78,
-    "human_domestic_contamination:dnabert2_human_domestic_v2": 101,
+    "misc_unknown:dnabert2_misc_unknown_v2": 77,
+    "human_domestic_contamination:dnabert2_human_domestic_v2": 102,
     "bacteria_pathogen:dnabert2_bacteria_v1": 102
   },
   "timing": {
-    "routing_seconds": 3.28,
-    "orchestrator_seconds": 105.02,
-    "orchestrator_ms_per_sequence": 175.3,
+    "routing_seconds": 3.26,
+    "orchestrator_seconds": 105.35,
+    "orchestrator_ms_per_sequence": 175.9,
     "phase_started_at_seconds": {
       "evidence": 0.01,
-      "scoring": 104.92
+      "scoring": 105.25
     },
     "provider_ms_sum": {
-      "route_head": 16387.7,
-      "reference_lookup": 88424.7,
-      "contamination": 14.4,
-      "novelty": 20.2
+      "route_head": 16509.7,
+      "reference_lookup": 88631.0,
+      "contamination": 15.3,
+      "novelty": 20.5
     },
     "reference_batches": [
       {
@@ -79,9 +79,9 @@
         "unique_queries": 98,
         "threads": 4,
         "search_seconds": 3.4,
-        "peak_rss_mb": 166.5,
-        "elapsed_seconds": 3.42,
-        "per_sequence_seconds": 0.0349
+        "peak_rss_mb": 166.4,
+        "elapsed_seconds": 3.43,
+        "per_sequence_seconds": 0.035
       },
       {
         "route": "animal_general",
@@ -94,7 +94,7 @@
         "unique_queries": 96,
         "threads": 4,
         "search_seconds": 5.6,
-        "peak_rss_mb": 270.6,
+        "peak_rss_mb": 272.1,
         "elapsed_seconds": 5.62,
         "per_sequence_seconds": 0.0585
       },
@@ -109,7 +109,7 @@
         "unique_queries": 90,
         "threads": 4,
         "search_seconds": 2.2,
-        "peak_rss_mb": 154.4,
+        "peak_rss_mb": 154.8,
         "elapsed_seconds": 2.21,
         "per_sequence_seconds": 0.0246
       },
@@ -124,7 +124,7 @@
         "unique_queries": 90,
         "threads": 4,
         "search_seconds": 3.8,
-        "peak_rss_mb": 94.1,
+        "peak_rss_mb": 93.5,
         "elapsed_seconds": 3.82,
         "per_sequence_seconds": 0.0424
       },
@@ -139,9 +139,9 @@
         "unique_queries": 95,
         "threads": 4,
         "search_seconds": 1.2,
-        "peak_rss_mb": 83.7,
+        "peak_rss_mb": 83.3,
         "grch38_seconds": 2.4,
-        "grch38_peak_rss_mb": 1084.3,
+        "grch38_peak_rss_mb": 1084.4,
         "elapsed_seconds": 3.62,
         "per_sequence_seconds": 0.0377
       },
@@ -156,7 +156,7 @@
         "unique_queries": 100,
         "threads": 4,
         "search_seconds": 57.65,
-        "peak_rss_mb": 151.9,
+        "peak_rss_mb": 152.0,
         "elapsed_seconds": 57.67,
         "per_sequence_seconds": 0.5767
       },
@@ -186,9 +186,9 @@
         "unique_queries": 76,
         "threads": 4,
         "search_seconds": 0.4,
-        "peak_rss_mb": 62.6,
+        "peak_rss_mb": 62.7,
         "grch38_seconds": 0.8,
-        "grch38_peak_rss_mb": 790.6,
+        "grch38_peak_rss_mb": 790.8,
         "elapsed_seconds": 1.2,
         "per_sequence_seconds": 0.0158
       },
@@ -218,7 +218,7 @@
         "unique_queries": 76,
         "threads": 4,
         "search_seconds": 5.6,
-        "peak_rss_mb": 127.1,
+        "peak_rss_mb": 127.2,
         "elapsed_seconds": 5.61,
         "per_sequence_seconds": 0.0738
       },
@@ -233,7 +233,7 @@
         "unique_queries": 54,
         "threads": 4,
         "search_seconds": 0.6,
-        "peak_rss_mb": 139.3,
+        "peak_rss_mb": 139.4,
         "elapsed_seconds": 0.6,
         "per_sequence_seconds": 0.0111
       },
@@ -247,28 +247,28 @@
         "batch_size": 65,
         "unique_queries": 64,
         "threads": 4,
-        "search_seconds": 0.8,
+        "search_seconds": 1.0,
         "peak_rss_mb": 75.1,
-        "elapsed_seconds": 0.8,
-        "per_sequence_seconds": 0.0123
+        "elapsed_seconds": 1.0,
+        "per_sequence_seconds": 0.0154
       }
     ],
     "stats": {
-      "orchestrator_version": "orchestrator-1.1.0",
+      "orchestrator_version": "orchestrator-1.2.0",
       "sequences": 599,
-      "elapsed_seconds": 105.014,
-      "per_sequence_ms": 175.31
+      "elapsed_seconds": 105.346,
+      "per_sequence_ms": 175.87
     }
   },
   "memory": {
     "peak_gpu_allocated_mb": 2294.2,
-    "peak_rss_mb_python": 1798.9,
-    "peak_rss_mb_search_process": 270.6,
-    "peak_rss_mb_grch38": 1084.3
+    "peak_rss_mb_python": 1799.0,
+    "peak_rss_mb_search_process": 272.1,
+    "peak_rss_mb_grch38": 1084.4
   },
   "trace_bson_bytes": {
-    "mean": 5439,
-    "max": 9138
+    "mean": 5470,
+    "max": 9169
   },
   "overall": {
     "n": 599,
@@ -300,20 +300,20 @@
     "route": {
       "router_correct": 527,
       "router_accuracy": 0.8798,
-      "final_correct": 532,
-      "final_accuracy": 0.8881,
-      "final_route_changed": 19,
+      "final_correct": 533,
+      "final_accuracy": 0.8898,
+      "final_route_changed": 18,
       "changed_wrong_to_right": 12,
-      "changed_right_to_wrong": 7,
+      "changed_right_to_wrong": 6,
       "changed_wrong_to_wrong": 0,
       "route_rule": {
         "single_route": 308,
-        "reference_confirms_router": 54,
+        "reference_confirms_router": 55,
         "router_primary": 137,
         "low_quality_gate": 29,
         "reference_overrides_router": 9,
         "grch38_human_route": 57,
-        "reference_hit_outside_router": 5
+        "reference_hit_outside_router": 4
       }
     },
     "head_vs_reference_final_route": {
@@ -341,18 +341,18 @@
         "possible_novelty | assigned/superkingdom": 8,
         "unknown_needs_online_confirmation | assigned/species": 8,
         "possible_contamination | assigned/species": 8,
+        "possible_contamination | no_consensus": 7,
         "likely_taxonomic_group | assigned/family": 7,
         "possible_novelty | assigned/order": 6,
-        "possible_contamination | no_consensus": 6,
         "possible_novelty | assigned/class": 5,
         "likely_taxonomic_group | no_hit": 4,
         "unknown_needs_online_confirmation | below_threshold": 4,
         "possible_novelty | assigned/phylum": 3,
-        "unknown_needs_online_confirmation | assigned/family": 3,
         "known_species | assigned/superkingdom": 3,
         "likely_taxonomic_group | assigned/superkingdom": 3,
         "likely_taxonomic_group | assigned/class": 3,
         "likely_taxonomic_group | below_threshold": 2,
+        "unknown_needs_online_confirmation | assigned/family": 2,
         "likely_taxonomic_group | assigned/order": 2,
         "known_species | assigned/phylum": 1,
         "likely_taxonomic_group | assigned/phylum": 1,
@@ -367,8 +367,8 @@
       "heads_disagree": 237
     },
     "result_class": {
-      "final_correct": 462,
-      "final_accuracy": 0.7713,
+      "final_correct": 463,
+      "final_accuracy": 0.773,
       "legacy_router_head_correct": 517,
       "legacy_router_head_accuracy": 0.8631,
       "final_distribution": {
@@ -376,8 +376,8 @@
         "likely_taxonomic_group": 77,
         "possible_novelty": 101,
         "low_quality_unusable": 29,
-        "unknown_needs_online_confirmation": 42,
-        "possible_contamination": 33
+        "unknown_needs_online_confirmation": 41,
+        "possible_contamination": 34
       },
       "confusion_label->final": {
         "known_species -> known_species": 271,
@@ -392,9 +392,9 @@
         "low_quality_unusable -> low_quality_unusable": 29,
         "possible_contamination -> known_species": 6,
         "possible_contamination -> likely_taxonomic_group": 1,
-        "possible_contamination -> possible_contamination": 27,
+        "possible_contamination -> possible_contamination": 28,
         "possible_contamination -> possible_novelty": 2,
-        "possible_contamination -> unknown_needs_online_confirmation": 4,
+        "possible_contamination -> unknown_needs_online_confirmation": 3,
         "possible_novelty -> known_species": 39,
         "possible_novelty -> likely_taxonomic_group": 43,
         "possible_novelty -> possible_contamination": 2,
@@ -437,12 +437,26 @@
         "unknown_needs_online_confirmation": 1
       }
     },
+    "contamination": {
+      "flagged": 102,
+      "flagged_by_label": {
+        "possible_contamination": 33,
+        "known_species": 65,
+        "unknown_needs_online_confirmation": 2,
+        "possible_novelty": 2
+      },
+      "human_dna": 102,
+      "human_dna_by_final_route": {
+        "human_domestic_contamination": 102
+      },
+      "grch38_beaten_by_closer_assignment": 0
+    },
     "taxon": {
-      "named": 435,
+      "named": 434,
       "named_by_rank": {
         "genus": 106,
         "species": 200,
-        "family": 72,
+        "family": 71,
         "class": 19,
         "order": 17,
         "phylum": 6,
@@ -557,6 +571,13 @@
         "downgraded_by_reference_by_label": {
           "possible_novelty": 7
         }
+      },
+      "contamination": {
+        "flagged": 0,
+        "flagged_by_label": {},
+        "human_dna": 0,
+        "human_dna_by_final_route": {},
+        "grch38_beaten_by_closer_assignment": 0
       },
       "taxon": {
         "named": 91,
@@ -690,6 +711,17 @@
           "known_species": 3
         }
       },
+      "contamination": {
+        "flagged": 3,
+        "flagged_by_label": {
+          "possible_contamination": 3
+        },
+        "human_dna": 3,
+        "human_dna_by_final_route": {
+          "human_domestic_contamination": 3
+        },
+        "grch38_beaten_by_closer_assignment": 0
+      },
       "taxon": {
         "named": 84,
         "named_by_rank": {
@@ -816,6 +848,13 @@
         "downgraded_by_reference_by_label": {
           "possible_novelty": 8
         }
+      },
+      "contamination": {
+        "flagged": 0,
+        "flagged_by_label": {},
+        "human_dna": 0,
+        "human_dna_by_final_route": {},
+        "grch38_beaten_by_closer_assignment": 0
       },
       "taxon": {
         "named": 77,
@@ -951,6 +990,17 @@
           "possible_novelty": 4
         }
       },
+      "contamination": {
+        "flagged": 2,
+        "flagged_by_label": {
+          "possible_contamination": 2
+        },
+        "human_dna": 2,
+        "human_dna_by_final_route": {
+          "human_domestic_contamination": 2
+        },
+        "grch38_beaten_by_closer_assignment": 0
+      },
       "taxon": {
         "named": 88,
         "named_by_rank": {
@@ -990,17 +1040,16 @@
       "route": {
         "router_correct": 86,
         "router_accuracy": 0.86,
-        "final_correct": 92,
-        "final_accuracy": 0.92,
-        "final_route_changed": 8,
+        "final_correct": 93,
+        "final_accuracy": 0.93,
+        "final_route_changed": 7,
         "changed_wrong_to_right": 7,
-        "changed_right_to_wrong": 1,
+        "changed_right_to_wrong": 0,
         "changed_wrong_to_wrong": 0,
         "route_rule": {
           "grch38_human_route": 55,
           "router_primary": 24,
-          "reference_confirms_router": 18,
-          "reference_hit_outside_router": 1,
+          "reference_confirms_router": 19,
           "reference_overrides_router": 2
         }
       },
@@ -1012,10 +1061,9 @@
           "possible_contamination | no_hit": 14,
           "known_species | no_hit": 11,
           "possible_contamination | assigned/species": 8,
-          "possible_contamination | no_consensus": 4,
+          "possible_contamination | no_consensus": 5,
           "possible_novelty | no_hit": 2,
           "unknown_needs_online_confirmation | no_hit": 2,
-          "unknown_needs_online_confirmation | assigned/family": 1,
           "likely_taxonomic_group | no_hit": 1,
           "unknown_needs_online_confirmation | assigned/genus": 1,
           "possible_contamination | assigned/genus": 1,
@@ -1028,25 +1076,25 @@
         "heads_disagree": 95
       },
       "result_class": {
-        "final_correct": 89,
-        "final_accuracy": 0.89,
+        "final_correct": 90,
+        "final_accuracy": 0.9,
         "legacy_router_head_correct": 86,
         "legacy_router_head_accuracy": 0.86,
         "final_distribution": {
           "known_species": 65,
-          "possible_contamination": 28,
-          "unknown_needs_online_confirmation": 4,
+          "possible_contamination": 29,
           "possible_novelty": 2,
-          "likely_taxonomic_group": 1
+          "likely_taxonomic_group": 1,
+          "unknown_needs_online_confirmation": 3
         },
         "confusion_label->final": {
           "known_species -> known_species": 63,
           "known_species -> possible_contamination": 2,
           "possible_contamination -> known_species": 2,
           "possible_contamination -> likely_taxonomic_group": 1,
-          "possible_contamination -> possible_contamination": 26,
+          "possible_contamination -> possible_contamination": 27,
           "possible_contamination -> possible_novelty": 2,
-          "possible_contamination -> unknown_needs_online_confirmation": 4
+          "possible_contamination -> unknown_needs_online_confirmation": 3
         },
         "class_rule": {
           "head_class": 100
@@ -1062,11 +1110,22 @@
         "suppressed_by_reference_by_label": {},
         "downgraded_by_reference_by_label": {}
       },
+      "contamination": {
+        "flagged": 93,
+        "flagged_by_label": {
+          "known_species": 65,
+          "possible_contamination": 28
+        },
+        "human_dna": 93,
+        "human_dna_by_final_route": {
+          "human_domestic_contamination": 93
+        },
+        "grch38_beaten_by_closer_assignment": 0
+      },
       "taxon": {
-        "named": 66,
+        "named": 65,
         "named_by_rank": {
           "species": 62,
-          "family": 1,
           "genus": 2,
           "superkingdom": 1
         },
@@ -1189,6 +1248,18 @@
         "downgraded_by_reference_by_label": {
           "unknown_needs_online_confirmation": 1
         }
+      },
+      "contamination": {
+        "flagged": 4,
+        "flagged_by_label": {
+          "unknown_needs_online_confirmation": 2,
+          "possible_novelty": 2
+        },
+        "human_dna": 4,
+        "human_dna_by_final_route": {
+          "human_domestic_contamination": 4
+        },
+        "grch38_beaten_by_closer_assignment": 0
       },
       "taxon": {
         "named": 29,
