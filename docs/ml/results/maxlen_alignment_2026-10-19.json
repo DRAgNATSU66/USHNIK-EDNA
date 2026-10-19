@@ -1,0 +1,1300 @@
+{
+  "generated_at": "2026-10-19T11:09:24+00:00",
+  "script": "services/worker/training/eval_maxlen_alignment.py",
+  "question": "Served route heads scored on their held-out test split at max_length 512 (pre-fix inference) vs the max_length each head was trained at.",
+  "metric_note": "Top-1 argmax over the head's label set, as in finetune.py / evaluate_checkpoint.py; the confidence-threshold mapping to result_class is not applied.",
+  "device": "NVIDIA GeForce RTX 3070",
+  "dtype": "float32",
+  "torch": "2.14.1+cu130",
+  "transformers": "4.57.6",
+  "batch_size_requested": 8,
+  "limit": null,
+  "seed": null,
+  "total_seconds": 157.9,
+  "routes": [
+    {
+      "route": "fish",
+      "model_id": "dnabert2_fish_v2",
+      "registry_status": "production",
+      "trained_max_length": 256,
+      "trained_max_length_source": "registry",
+      "compare_max_length": 512,
+      "test_csv": "processed/fish/test.csv",
+      "test_csv_sha256": "4110ffbebd68d1898872a3a2c6b0003cb548b0e204367fdd68a20343719bedb5",
+      "test_rows_total": 592,
+      "test_rows_scored": 592,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.8986,
+        "test_macro_f1": 0.8646,
+        "test_size": 592
+      },
+      "token_length": {
+        "median": 135,
+        "p90": 243,
+        "max": 940,
+        "rows_over_trained_max_length": 58,
+        "rows_over_compare_max_length": 3
+      },
+      "at_trained_max_length": {
+        "n": 592,
+        "accuracy": 0.8986,
+        "f1_macro": 0.8646,
+        "f1_per_class": {
+          "known_species": 0.9375,
+          "possible_novelty": 0.715,
+          "low_quality_unusable": 0.9412
+        },
+        "confusion_matrix": [
+          [
+            450,
+            49,
+            1
+          ],
+          [
+            10,
+            74,
+            0
+          ],
+          [
+            0,
+            0,
+            8
+          ]
+        ],
+        "seconds": 3.8
+      },
+      "at_compare_max_length": {
+        "n": 592,
+        "accuracy": 0.8986,
+        "f1_macro": 0.8646,
+        "f1_per_class": {
+          "known_species": 0.9375,
+          "possible_novelty": 0.715,
+          "low_quality_unusable": 0.9412
+        },
+        "confusion_matrix": [
+          [
+            450,
+            49,
+            1
+          ],
+          [
+            10,
+            74,
+            0
+          ],
+          [
+            0,
+            0,
+            8
+          ]
+        ],
+        "seconds": 5.9
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 534,
+          "accuracy": 0.8876,
+          "f1_macro": 0.7706,
+          "f1_per_class": {
+            "known_species": 0.9301,
+            "possible_novelty": 0.715,
+            "low_quality_unusable": 0.6667
+          },
+          "confusion_matrix": [
+            [
+              399,
+              49,
+              1
+            ],
+            [
+              10,
+              74,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 534,
+          "accuracy": 0.8876,
+          "f1_macro": 0.7706,
+          "f1_per_class": {
+            "known_species": 0.9301,
+            "possible_novelty": 0.715,
+            "low_quality_unusable": 0.6667
+          },
+          "confusion_matrix": [
+            [
+              399,
+              49,
+              1
+            ],
+            [
+              10,
+              74,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 3e-06
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 58,
+          "accuracy": 1.0,
+          "f1_macro": 0.6667,
+          "f1_per_class": {
+            "known_species": 1.0,
+            "possible_novelty": 0.0,
+            "low_quality_unusable": 1.0
+          },
+          "confusion_matrix": [
+            [
+              51,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              7
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 58,
+          "accuracy": 1.0,
+          "f1_macro": 0.6667,
+          "f1_per_class": {
+            "known_species": 1.0,
+            "possible_novelty": 0.0,
+            "low_quality_unusable": 1.0
+          },
+          "confusion_matrix": [
+            [
+              51,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              7
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.096437
+      },
+      "top1_flips": {
+        "total": 0,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 0,
+        "fixed_by_trained": 0,
+        "broken_by_trained": 0
+      }
+    },
+    {
+      "route": "plant",
+      "model_id": "dnabert2_plant_v1",
+      "registry_status": "experimental",
+      "trained_max_length": 256,
+      "trained_max_length_source": "tokenizer_json",
+      "compare_max_length": 512,
+      "test_csv": "processed/plant/test.csv",
+      "test_csv_sha256": "7dc9c4367506fbe2a4bdde9671c0ba9f133155d8a4c3ed4a1740c5b439c0e66a",
+      "test_rows_total": 596,
+      "test_rows_scored": 596,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.9703,
+        "test_macro_f1": 0.9422,
+        "test_size": 606
+      },
+      "token_length": {
+        "median": 153,
+        "p90": 373,
+        "max": 1055,
+        "rows_over_trained_max_length": 147,
+        "rows_over_compare_max_length": 2
+      },
+      "at_trained_max_length": {
+        "n": 596,
+        "accuracy": 0.9564,
+        "f1_macro": 0.6889,
+        "f1_per_class": {
+          "known_species": 0.9732,
+          "possible_novelty": 0.8904,
+          "possible_contamination": 0.8919,
+          "low_quality_unusable": 0.0
+        },
+        "confusion_matrix": [
+          [
+            472,
+            11,
+            2,
+            0
+          ],
+          [
+            5,
+            65,
+            0,
+            0
+          ],
+          [
+            6,
+            0,
+            33,
+            0
+          ],
+          [
+            2,
+            0,
+            0,
+            0
+          ]
+        ],
+        "seconds": 3.8
+      },
+      "at_compare_max_length": {
+        "n": 596,
+        "accuracy": 0.953,
+        "f1_macro": 0.6853,
+        "f1_per_class": {
+          "known_species": 0.9711,
+          "possible_novelty": 0.8784,
+          "possible_contamination": 0.8919,
+          "low_quality_unusable": 0.0
+        },
+        "confusion_matrix": [
+          [
+            470,
+            13,
+            2,
+            0
+          ],
+          [
+            5,
+            65,
+            0,
+            0
+          ],
+          [
+            6,
+            0,
+            33,
+            0
+          ],
+          [
+            2,
+            0,
+            0,
+            0
+          ]
+        ],
+        "seconds": 6.4
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 449,
+          "accuracy": 0.971,
+          "f1_macro": 0.6046,
+          "f1_per_class": {
+            "known_species": 0.984,
+            "possible_novelty": 0.5455,
+            "possible_contamination": 0.8889,
+            "low_quality_unusable": 0.0
+          },
+          "confusion_matrix": [
+            [
+              401,
+              0,
+              2,
+              0
+            ],
+            [
+              5,
+              3,
+              0,
+              0
+            ],
+            [
+              6,
+              0,
+              32,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 449,
+          "accuracy": 0.971,
+          "f1_macro": 0.6046,
+          "f1_per_class": {
+            "known_species": 0.984,
+            "possible_novelty": 0.5455,
+            "possible_contamination": 0.8889,
+            "low_quality_unusable": 0.0
+          },
+          "confusion_matrix": [
+            [
+              401,
+              0,
+              2,
+              0
+            ],
+            [
+              5,
+              3,
+              0,
+              0
+            ],
+            [
+              6,
+              0,
+              32,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 1e-06
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 147,
+          "accuracy": 0.9116,
+          "f1_macro": 0.7087,
+          "f1_per_class": {
+            "known_species": 0.9161,
+            "possible_novelty": 0.9185,
+            "possible_contamination": 1.0,
+            "low_quality_unusable": 0.0
+          },
+          "confusion_matrix": [
+            [
+              71,
+              11,
+              0,
+              0
+            ],
+            [
+              0,
+              62,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              2,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 147,
+          "accuracy": 0.898,
+          "f1_macro": 0.7018,
+          "f1_per_class": {
+            "known_species": 0.902,
+            "possible_novelty": 0.9051,
+            "possible_contamination": 1.0,
+            "low_quality_unusable": 0.0
+          },
+          "confusion_matrix": [
+            [
+              69,
+              13,
+              0,
+              0
+            ],
+            [
+              0,
+              62,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              2,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.563271
+      },
+      "top1_flips": {
+        "total": 2,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 2,
+        "fixed_by_trained": 2,
+        "broken_by_trained": 0
+      }
+    },
+    {
+      "route": "bacteria_pathogen",
+      "model_id": "dnabert2_bacteria_v1",
+      "registry_status": "experimental",
+      "trained_max_length": 256,
+      "trained_max_length_source": "tokenizer_json",
+      "compare_max_length": 512,
+      "test_csv": "processed/bacteria_pathogen/test.csv",
+      "test_csv_sha256": "ffce941f1cfd802d1e324978e61226674fd25ff667d551269ff16fb545e4fd1d",
+      "test_rows_total": 4219,
+      "test_rows_scored": 4219,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.842,
+        "test_macro_f1": 0.8529,
+        "test_size": 4729
+      },
+      "token_length": {
+        "median": 298,
+        "p90": 326,
+        "max": 404,
+        "rows_over_trained_max_length": 2972,
+        "rows_over_compare_max_length": 0
+      },
+      "at_trained_max_length": {
+        "n": 4219,
+        "accuracy": 0.8322,
+        "f1_macro": 0.8341,
+        "f1_per_class": {
+          "known_species": 0.819,
+          "likely_taxonomic_group": 0.6889,
+          "possible_novelty": 0.8857,
+          "possible_contamination": 0.9428
+        },
+        "confusion_matrix": [
+          [
+            1172,
+            207,
+            121,
+            2
+          ],
+          [
+            43,
+            486,
+            34,
+            0
+          ],
+          [
+            133,
+            153,
+            1713,
+            1
+          ],
+          [
+            12,
+            2,
+            0,
+            140
+          ]
+        ],
+        "seconds": 32.5
+      },
+      "at_compare_max_length": {
+        "n": 4219,
+        "accuracy": 0.8229,
+        "f1_macro": 0.8252,
+        "f1_per_class": {
+          "known_species": 0.8107,
+          "likely_taxonomic_group": 0.6635,
+          "possible_novelty": 0.8837,
+          "possible_contamination": 0.9428
+        },
+        "confusion_matrix": [
+          [
+            1135,
+            244,
+            121,
+            2
+          ],
+          [
+            38,
+            491,
+            34,
+            0
+          ],
+          [
+            113,
+            180,
+            1706,
+            1
+          ],
+          [
+            12,
+            2,
+            0,
+            140
+          ]
+        ],
+        "seconds": 52.2
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 1247,
+          "accuracy": 0.9342,
+          "f1_macro": 0.6995,
+          "f1_per_class": {
+            "known_species": 0.9622,
+            "likely_taxonomic_group": 0.129,
+            "possible_novelty": 0.7843,
+            "possible_contamination": 0.9223
+          },
+          "confusion_matrix": [
+            [
+              994,
+              1,
+              0,
+              2
+            ],
+            [
+              22,
+              2,
+              2,
+              0
+            ],
+            [
+              41,
+              1,
+              80,
+              0
+            ],
+            [
+              12,
+              1,
+              0,
+              89
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 1247,
+          "accuracy": 0.9342,
+          "f1_macro": 0.6995,
+          "f1_per_class": {
+            "known_species": 0.9622,
+            "likely_taxonomic_group": 0.129,
+            "possible_novelty": 0.7843,
+            "possible_contamination": 0.9223
+          },
+          "confusion_matrix": [
+            [
+              994,
+              1,
+              0,
+              2
+            ],
+            [
+              22,
+              2,
+              2,
+              0
+            ],
+            [
+              41,
+              1,
+              80,
+              0
+            ],
+            [
+              12,
+              1,
+              0,
+              89
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 7e-06
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 2972,
+          "accuracy": 0.7894,
+          "f1_macro": 0.7552,
+          "f1_per_class": {
+            "known_species": 0.4472,
+            "likely_taxonomic_group": 0.7014,
+            "possible_novelty": 0.8914,
+            "possible_contamination": 0.9808
+          },
+          "confusion_matrix": [
+            [
+              178,
+              206,
+              121,
+              0
+            ],
+            [
+              21,
+              484,
+              32,
+              0
+            ],
+            [
+              92,
+              152,
+              1633,
+              1
+            ],
+            [
+              0,
+              1,
+              0,
+              51
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 2972,
+          "accuracy": 0.7762,
+          "f1_macro": 0.7323,
+          "f1_per_class": {
+            "known_species": 0.3842,
+            "likely_taxonomic_group": 0.6749,
+            "possible_novelty": 0.8893,
+            "possible_contamination": 0.9808
+          },
+          "confusion_matrix": [
+            [
+              141,
+              243,
+              121,
+              0
+            ],
+            [
+              16,
+              489,
+              32,
+              0
+            ],
+            [
+              72,
+              179,
+              1626,
+              1
+            ],
+            [
+              0,
+              1,
+              0,
+              51
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.611264
+      },
+      "top1_flips": {
+        "total": 175,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 175,
+        "fixed_by_trained": 89,
+        "broken_by_trained": 50
+      }
+    },
+    {
+      "route": "animal_general",
+      "model_id": "dnabert2_animal_v2",
+      "registry_status": "production",
+      "trained_max_length": 256,
+      "trained_max_length_source": "registry",
+      "compare_max_length": 512,
+      "test_csv": "processed/animal_general/test.csv",
+      "test_csv_sha256": "bd5f64706180d98f7957e4eb040212816f5225c6972235517d58fe1d93757ae3",
+      "test_rows_total": 992,
+      "test_rows_scored": 992,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.876,
+        "test_macro_f1": 0.7411,
+        "test_size": 992
+      },
+      "token_length": {
+        "median": 107,
+        "p90": 215,
+        "max": 397,
+        "rows_over_trained_max_length": 53,
+        "rows_over_compare_max_length": 0
+      },
+      "at_trained_max_length": {
+        "n": 992,
+        "accuracy": 0.876,
+        "f1_macro": 0.7411,
+        "f1_per_class": {
+          "known_species": 0.8858,
+          "likely_taxonomic_group": 0.4098,
+          "possible_novelty": 0.9276
+        },
+        "confusion_matrix": [
+          [
+            415,
+            56,
+            29
+          ],
+          [
+            0,
+            25,
+            2
+          ],
+          [
+            22,
+            14,
+            429
+          ]
+        ],
+        "seconds": 5.2
+      },
+      "at_compare_max_length": {
+        "n": 992,
+        "accuracy": 0.876,
+        "f1_macro": 0.7411,
+        "f1_per_class": {
+          "known_species": 0.8858,
+          "likely_taxonomic_group": 0.4098,
+          "possible_novelty": 0.9276
+        },
+        "confusion_matrix": [
+          [
+            415,
+            56,
+            29
+          ],
+          [
+            0,
+            25,
+            2
+          ],
+          [
+            22,
+            14,
+            429
+          ]
+        ],
+        "seconds": 9.1
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 939,
+          "accuracy": 0.8711,
+          "f1_macro": 0.7363,
+          "f1_per_class": {
+            "known_species": 0.8795,
+            "likely_taxonomic_group": 0.4034,
+            "possible_novelty": 0.9261
+          },
+          "confusion_matrix": [
+            [
+              387,
+              56,
+              28
+            ],
+            [
+              0,
+              24,
+              1
+            ],
+            [
+              22,
+              14,
+              407
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 939,
+          "accuracy": 0.8711,
+          "f1_macro": 0.7363,
+          "f1_per_class": {
+            "known_species": 0.8795,
+            "likely_taxonomic_group": 0.4034,
+            "possible_novelty": 0.9261
+          },
+          "confusion_matrix": [
+            [
+              387,
+              56,
+              28
+            ],
+            [
+              0,
+              24,
+              1
+            ],
+            [
+              22,
+              14,
+              407
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.0
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 53,
+          "accuracy": 0.9623,
+          "f1_macro": 0.8685,
+          "f1_per_class": {
+            "known_species": 0.9825,
+            "likely_taxonomic_group": 0.6667,
+            "possible_novelty": 0.9565
+          },
+          "confusion_matrix": [
+            [
+              28,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              22
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 53,
+          "accuracy": 0.9623,
+          "f1_macro": 0.8685,
+          "f1_per_class": {
+            "known_species": 0.9825,
+            "likely_taxonomic_group": 0.6667,
+            "possible_novelty": 0.9565
+          },
+          "confusion_matrix": [
+            [
+              28,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              22
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.076451
+      },
+      "top1_flips": {
+        "total": 0,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 0,
+        "fixed_by_trained": 0,
+        "broken_by_trained": 0
+      }
+    },
+    {
+      "route": "human_domestic_contamination",
+      "model_id": "dnabert2_human_domestic_v2",
+      "registry_status": "production",
+      "trained_max_length": 256,
+      "trained_max_length_source": "registry",
+      "compare_max_length": 512,
+      "test_csv": "processed/human_domestic_contamination/test.csv",
+      "test_csv_sha256": "c9796352f8ab0f9af6f3c989157d3d3e771e56c31ca47d240c510f5ba1acc57d",
+      "test_rows_total": 914,
+      "test_rows_scored": 914,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.9792,
+        "test_macro_f1": 0.979,
+        "test_size": 914
+      },
+      "token_length": {
+        "median": 87,
+        "p90": 323,
+        "max": 600,
+        "rows_over_trained_max_length": 315,
+        "rows_over_compare_max_length": 3
+      },
+      "at_trained_max_length": {
+        "n": 914,
+        "accuracy": 0.9792,
+        "f1_macro": 0.979,
+        "f1_per_class": {
+          "possible_contamination": 0.9772,
+          "known_species": 0.9809
+        },
+        "confusion_matrix": [
+          [
+            407,
+            9
+          ],
+          [
+            10,
+            488
+          ]
+        ],
+        "seconds": 5.2
+      },
+      "at_compare_max_length": {
+        "n": 914,
+        "accuracy": 0.9792,
+        "f1_macro": 0.979,
+        "f1_per_class": {
+          "possible_contamination": 0.9772,
+          "known_species": 0.9809
+        },
+        "confusion_matrix": [
+          [
+            407,
+            9
+          ],
+          [
+            10,
+            488
+          ]
+        ],
+        "seconds": 9.2
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 599,
+          "accuracy": 0.9699,
+          "f1_macro": 0.9648,
+          "f1_per_class": {
+            "possible_contamination": 0.9783,
+            "known_species": 0.9514
+          },
+          "confusion_matrix": [
+            [
+              405,
+              8
+            ],
+            [
+              10,
+              176
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 599,
+          "accuracy": 0.9699,
+          "f1_macro": 0.9648,
+          "f1_per_class": {
+            "possible_contamination": 0.9783,
+            "known_species": 0.9514
+          },
+          "confusion_matrix": [
+            [
+              405,
+              8
+            ],
+            [
+              10,
+              176
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 4e-06
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 315,
+          "accuracy": 0.9968,
+          "f1_macro": 0.8992,
+          "f1_per_class": {
+            "possible_contamination": 0.8,
+            "known_species": 0.9984
+          },
+          "confusion_matrix": [
+            [
+              2,
+              1
+            ],
+            [
+              0,
+              312
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 315,
+          "accuracy": 0.9968,
+          "f1_macro": 0.8992,
+          "f1_per_class": {
+            "possible_contamination": 0.8,
+            "known_species": 0.9984
+          },
+          "confusion_matrix": [
+            [
+              2,
+              1
+            ],
+            [
+              0,
+              312
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.068904
+      },
+      "top1_flips": {
+        "total": 0,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 0,
+        "fixed_by_trained": 0,
+        "broken_by_trained": 0
+      }
+    },
+    {
+      "route": "misc_unknown",
+      "model_id": "dnabert2_misc_unknown_v2",
+      "registry_status": "production",
+      "trained_max_length": 256,
+      "trained_max_length_source": "registry",
+      "compare_max_length": 512,
+      "test_csv": "processed/misc_unknown/test.csv",
+      "test_csv_sha256": "b40ce2b513cb53f9e7252912a915a2436701dabba41473d2e0d908c73839c77d",
+      "test_rows_total": 1362,
+      "test_rows_scored": 1362,
+      "sampled": false,
+      "registry_test_metrics": {
+        "test_accuracy": 0.9361,
+        "test_macro_f1": 0.9411,
+        "test_size": 1362
+      },
+      "token_length": {
+        "median": 89,
+        "p90": 300,
+        "max": 425,
+        "rows_over_trained_max_length": 204,
+        "rows_over_compare_max_length": 0
+      },
+      "at_trained_max_length": {
+        "n": 1362,
+        "accuracy": 0.9361,
+        "f1_macro": 0.9411,
+        "f1_per_class": {
+          "unknown_needs_online_confirmation": 0.9174,
+          "possible_novelty": 0.9126,
+          "low_quality_unusable": 0.9932
+        },
+        "confusion_matrix": [
+          [
+            461,
+            35,
+            1
+          ],
+          [
+            47,
+            449,
+            4
+          ],
+          [
+            0,
+            0,
+            365
+          ]
+        ],
+        "seconds": 6.8
+      },
+      "at_compare_max_length": {
+        "n": 1362,
+        "accuracy": 0.9339,
+        "f1_macro": 0.9391,
+        "f1_per_class": {
+          "unknown_needs_online_confirmation": 0.9143,
+          "possible_novelty": 0.9096,
+          "low_quality_unusable": 0.9932
+        },
+        "confusion_matrix": [
+          [
+            459,
+            37,
+            1
+          ],
+          [
+            48,
+            448,
+            4
+          ],
+          [
+            0,
+            0,
+            365
+          ]
+        ],
+        "seconds": 12.2
+      },
+      "rows_within_trained_max_length": {
+        "at_trained": {
+          "n": 1158,
+          "accuracy": 0.9318,
+          "f1_macro": 0.9327,
+          "f1_per_class": {
+            "unknown_needs_online_confirmation": 0.9129,
+            "possible_novelty": 0.8907,
+            "low_quality_unusable": 0.9945
+          },
+          "confusion_matrix": [
+            [
+              393,
+              34,
+              0
+            ],
+            [
+              41,
+              322,
+              4
+            ],
+            [
+              0,
+              0,
+              364
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 1158,
+          "accuracy": 0.9318,
+          "f1_macro": 0.9327,
+          "f1_per_class": {
+            "unknown_needs_online_confirmation": 0.9129,
+            "possible_novelty": 0.8907,
+            "low_quality_unusable": 0.9945
+          },
+          "confusion_matrix": [
+            [
+              393,
+              34,
+              0
+            ],
+            [
+              41,
+              322,
+              4
+            ],
+            [
+              0,
+              0,
+              364
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 3e-06
+      },
+      "rows_over_trained_max_length": {
+        "at_trained": {
+          "n": 204,
+          "accuracy": 0.9608,
+          "f1_macro": 0.8614,
+          "f1_per_class": {
+            "unknown_needs_online_confirmation": 0.9444,
+            "possible_novelty": 0.9732,
+            "low_quality_unusable": 0.6667
+          },
+          "confusion_matrix": [
+            [
+              68,
+              1,
+              1
+            ],
+            [
+              6,
+              127,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        },
+        "at_compare": {
+          "n": 204,
+          "accuracy": 0.9461,
+          "f1_macro": 0.8505,
+          "f1_per_class": {
+            "unknown_needs_online_confirmation": 0.9231,
+            "possible_novelty": 0.9618,
+            "low_quality_unusable": 0.6667
+          },
+          "confusion_matrix": [
+            [
+              66,
+              3,
+              1
+            ],
+            [
+              7,
+              126,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        },
+        "max_abs_prob_diff": 0.699664
+      },
+      "top1_flips": {
+        "total": 5,
+        "within_trained_max_length": 0,
+        "over_trained_max_length": 5,
+        "fixed_by_trained": 4,
+        "broken_by_trained": 1
+      }
+    }
+  ]
+}
