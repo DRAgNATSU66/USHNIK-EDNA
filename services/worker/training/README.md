@@ -11,6 +11,7 @@ Builds the per-route training data and fine-tunes the route heads.
 | `check_leakage.py` | Exact cross-split check (THEORY_README §3, exit 1 if non-zero) plus near-duplicate and cross-route counts |
 | `fetch_supplementary.py` | Fetches extra sequences for thin classes from official APIs into `raw/supplementary/` |
 | `finetune.py`, `evaluate_checkpoint.py` | Training and evaluation |
+| `eval_orchestrator.py` | Day 9 orchestrator: planner sweep on dev, held-out smoke run (`docs/ml/results/orchestrator_*`) |
 
 ## Rebuilding `processed/` (`build_dataset.py`)
 
