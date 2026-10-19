@@ -101,7 +101,8 @@ class _FakeColl:
     def _matches(self, doc, flt):
         return all(_get_path(doc, k) == v for k, v in (flt or {}).items())
 
-    async def find_one(self, flt=None, sort=None, **_):
+    async def find_one(self, flt=None, projection=None, sort=None, **_):
+        # projection is accepted (Motor's 2nd positional arg) but not applied.
         if self.interleave:
             await asyncio.sleep(0)
         found = [d for d in self.docs if self._matches(d, flt)]
@@ -130,6 +131,18 @@ class _FakeColl:
         stored["_id"] = next(self._ids)
         self.docs.append(stored)
         return MagicMock(inserted_id=stored["_id"])
+
+    async def insert_many(self, docs, **_):
+        ids = [(await self.insert_one(d)).inserted_id for d in docs]
+        return MagicMock(inserted_ids=ids)
+
+    async def update_many(self, flt, update, **_):
+        n = 0
+        for d in self.docs:
+            if self._matches(d, flt):
+                d.update(copy.deepcopy(update.get("$set", {})))
+                n += 1
+        return MagicMock(matched_count=n, modified_count=n)
 
     async def update_one(self, flt, update, **_):
         for d in self.docs:
