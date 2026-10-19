@@ -1,10 +1,12 @@
-"""Shapes for the partner endpoints (t-1026-2 summary, B16)."""
+"""Shapes for the partner endpoints (t-1026-2 summary, B16; t-1028-1 audits, M1)."""
 from __future__ import annotations
 
-from datetime import date, datetime
+import uuid
+from datetime import date, datetime, timezone
+from enum import StrEnum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SummaryInterval = Literal["day", "week", "month"]
 SummaryScope = Literal["mine", "all"]
@@ -100,6 +102,26 @@ class SiteSummary(BaseModel):
     environment_providers: list[str] = Field(default_factory=list)
 
 
+class TaskSummary(BaseModel):
+    """Field-log tasks (kind=task) on the analyses in scope."""
+    total: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+    overdue: int = 0  # not done, due_date before today (UTC)
+    next_due_date: Optional[date] = None  # earliest due_date among tasks not done
+
+
+class AuditSummary(BaseModel):
+    """Audits in the summary's owner scope: current state, not date-filtered
+    (a pending audit created before date_from is still pending)."""
+    total: int = 0
+    pending: int = 0  # scheduled + in_progress
+    by_status: dict[str, int] = Field(default_factory=dict)
+    findings_by_severity: dict[str, int] = Field(default_factory=dict)
+    next_due_date: Optional[date] = None  # earliest due_date among pending audits
+    overdue: int = 0  # pending audits with due_date before today (UTC)
+    last_completed_at: Optional[datetime] = None
+
+
 class PartnerSummary(BaseModel):
     generated_at: datetime
     scope: SummaryScopeInfo
@@ -116,3 +138,112 @@ class PartnerSummary(BaseModel):
     environment: EnvironmentCoverage
     sites: list[SiteSummary] = Field(default_factory=list)
     sites_truncated: bool = False
+    tasks: TaskSummary
+    audits: AuditSummary
+
+
+# ---------------------------------------------------------------------------
+# Audits (t-1028-1, M1)
+# ---------------------------------------------------------------------------
+
+class AuditStatus(StrEnum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    completed = "completed"
+    cancelled = "cancelled"
+
+
+# scheduled + in_progress: what the Industrial page calls "pending audits".
+PENDING_AUDIT_STATUSES = (AuditStatus.scheduled, AuditStatus.in_progress)
+
+
+class AuditTargetKind(StrEnum):
+    upload = "upload"        # ref = upload_id, checked to exist and be visible to the caller
+    analysis = "analysis"    # ref = analysis_id, same check
+    site = "site"            # a sampling site or zone, free text
+    organisation = "organisation"
+    other = "other"
+
+
+class FindingSeverity(StrEnum):
+    info = "info"
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+def _not_blank(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        raise ValueError("must not be blank")
+    return v
+
+
+class AuditTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: AuditTargetKind
+    ref: Optional[str] = Field(default=None, max_length=200)
+    label: str = Field(min_length=1, max_length=300)
+
+    _strip = field_validator("ref", "label")(_not_blank)
+
+    @model_validator(mode="after")
+    def _ref_for_records(self):
+        if self.kind in (AuditTargetKind.upload, AuditTargetKind.analysis) and not self.ref:
+            raise ValueError(f"target.ref (the {self.kind.value}_id) is required when target.kind is {self.kind.value}")
+        return self
+
+
+class AuditFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    severity: FindingSeverity
+    description: str = Field(min_length=1, max_length=4000)
+    reference: Optional[str] = Field(default=None, max_length=500)
+
+    _strip = field_validator("description", "reference")(_not_blank)
+
+
+class CreateAuditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: AuditTarget
+    scope: str = Field(min_length=1, max_length=2000)
+    findings: list[AuditFinding] = Field(default_factory=list, max_length=200)
+    status: AuditStatus = AuditStatus.scheduled
+    due_date: Optional[date] = None
+    # Only with status=completed; defaults to the time of the POST when
+    # omitted. Lets a past audit be recorded with the date it finished.
+    completed_at: Optional[datetime] = None
+
+    _strip = field_validator("scope")(_not_blank)
+
+    @model_validator(mode="after")
+    def _completion(self):
+        if self.completed_at is not None:
+            if self.status != AuditStatus.completed:
+                raise ValueError("completed_at is only allowed when status is completed")
+            ts = self.completed_at
+            ts = ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+            if ts > datetime.now(timezone.utc):
+                raise ValueError("completed_at cannot be in the future")
+        return self
+
+
+class AuditDoc(BaseModel):
+    audit_id: str = Field(default_factory=lambda: f"aud_{uuid.uuid4().hex[:16]}")
+    target: AuditTarget
+    scope: str
+    findings: list[AuditFinding] = Field(default_factory=list)
+    status: AuditStatus
+    # ISO date string: BSON has no date-only type (same as field-log tasks).
+    due_date: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    created_by: str
+    # Frozen at write time, like field-log author_name.
+    created_by_name: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)

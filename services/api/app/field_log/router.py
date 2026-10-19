@@ -4,7 +4,10 @@ Field Log API.
 Backs the Researcher Mode "Field Log" tab (SYNTHVEDA_BUILD_SPEC.md 2.4):
 field notes/anomalies (unthreaded) and team discussion (optionally threaded
 one level, optionally anchored to a specific sequence). Both are the same
-underlying entry shape, discriminated by `kind`.
+underlying entry shape, discriminated by `kind`. A third kind, `task` (M1),
+adds task_status (open | in_progress | done), an optional due_date and a
+free-text assignee; those fields are refused on notes and comments, and
+PATCH records their changes in the same edit history as body/anchor.
 
 Endpoints:
   POST  /field-log/entries                          Create a note or comment
@@ -36,6 +39,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from datetime import date
 from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Annotated, Optional
@@ -43,7 +47,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..auth.deps import get_current_user
 from ..config import get_settings
@@ -56,6 +60,8 @@ from ..models.field_log import (
     FieldEntryDoc,
     FieldEntryEdit,
     FieldEntryKind,
+    TASK_FIELDS,
+    TaskStatus,
 )
 from ..models.user import UserProfile, UserRole
 from ..storage import StorageError, storage_for_uri, storage_from_settings, upload_key
@@ -87,13 +93,25 @@ class CreateFieldEntryRequest(BaseModel):
     body: str
     anchor_sequence_id: Optional[str] = None
     reply_to: Optional[str] = None
+    # kind=task only; task_status defaults to open.
+    task_status: Optional[TaskStatus] = None
+    due_date: Optional[date] = None
+    assignee: Optional[str] = Field(default=None, max_length=200)
 
 
 class UpdateFieldEntryRequest(BaseModel):
     """Omitted fields are left alone; `anchor_sequence_id: null` clears the
-    anchor (model_fields_set tells "omitted" from "null")."""
+    anchor (model_fields_set tells "omitted" from "null"), as do
+    `due_date: null` and `assignee: null` on a task."""
     body: Optional[str] = None
     anchor_sequence_id: Optional[str] = None
+    task_status: Optional[TaskStatus] = None
+    due_date: Optional[date] = None
+    assignee: Optional[str] = Field(default=None, max_length=200)
+
+
+def _clean_assignee(value: Optional[str]) -> Optional[str]:
+    return (value or "").strip() or None
 
 
 def _actor_name(user: UserProfile) -> str:
@@ -127,9 +145,16 @@ async def create_entry(
     body: CreateFieldEntryRequest,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
 ):
-    """Log a field note or post a team-discussion comment."""
+    """Log a field note, post a team-discussion comment, or add a task."""
     if not body.body.strip():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Entry body cannot be empty")
+    is_task = body.kind == FieldEntryKind.task
+    stray = [f for f in TASK_FIELDS if getattr(body, f) is not None]
+    if stray and not is_task:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{', '.join(stray)} only apply to kind=task entries",
+        )
 
     db = get_db()
     await _check_analysis_access(db, body.analysis_id, current_user)
@@ -147,6 +172,9 @@ async def create_entry(
         body=body.body.strip(),
         anchor_sequence_id=body.anchor_sequence_id,
         reply_to=body.reply_to,
+        task_status=(body.task_status or TaskStatus.open) if is_task else None,
+        due_date=body.due_date.isoformat() if is_task and body.due_date else None,
+        assignee=_clean_assignee(body.assignee) if is_task else None,
     )
     await db[ENTRIES].insert_one(entry.model_dump())
     return entry
@@ -158,7 +186,7 @@ async def list_entries(
     analysis_id: str,
     kind: Optional[FieldEntryKind] = None,
 ):
-    """List field notes and/or comments for one analysis, oldest first.
+    """List field notes, comments and/or tasks for one analysis, oldest first.
     Each entry carries its full edit history (`edits`)."""
     db = get_db()
     await _check_analysis_access(db, analysis_id, current_user)
@@ -191,7 +219,8 @@ async def update_entry(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
 ):
     """
-    Edit a note or comment's body and/or anchor. The previous values are
+    Edit a note, comment or task (body, anchor; on tasks also task_status,
+    due_date, assignee). The previous values are
     kept: one FieldEntryEdit (editor, time, field old -> new) is appended to
     `edits`. A PATCH that changes nothing returns the entry as is and
     records nothing.
@@ -206,6 +235,14 @@ async def update_entry(
         if requested["body"] is None or not requested["body"].strip():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Entry body cannot be empty")
         requested["body"] = requested["body"].strip()
+    if "task_status" in requested:
+        if requested["task_status"] is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="task_status cannot be null")
+        requested["task_status"] = requested["task_status"].value
+    if "due_date" in requested:
+        requested["due_date"] = requested["due_date"].isoformat() if requested["due_date"] else None
+    if "assignee" in requested:
+        requested["assignee"] = _clean_assignee(requested["assignee"])
 
     db = get_db()
     doc = await _load_entry(db, entry_id, current_user)
@@ -213,6 +250,12 @@ async def update_entry(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the entry's author or a curator can edit it",
+        )
+    stray = [f for f in TASK_FIELDS if f in requested]
+    if stray and doc.get("kind") != FieldEntryKind.task:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{', '.join(stray)} only apply to kind=task entries",
         )
 
     changes = [

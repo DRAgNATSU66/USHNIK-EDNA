@@ -16,6 +16,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await _audit_indexes(db)
     await _field_log_indexes(db)
     await _environment_indexes(db)
+    await _partner_audit_indexes(db)
 
 
 async def _uploads_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -117,6 +118,17 @@ async def _environment_indexes(db: AsyncIOMotorDatabase) -> None:
         # Recent dates expire after 24 h; old dates have expires_at=None and
         # are never removed (TTL indexes skip null).
         IndexModel([("expires_at", ASCENDING)], name="env_cache_expires_ttl", expireAfterSeconds=0),
+    ])
+
+
+async def _partner_audit_indexes(db: AsyncIOMotorDatabase) -> None:
+    # Partner audit records (app/partner/router.py, t-1028-1). Not the
+    # review-decision log in audit_logs.
+    await db["audits"].create_indexes([
+        IndexModel([("audit_id", ASCENDING)], unique=True, name="audit_id_unique"),
+        IndexModel([("created_by", ASCENDING), ("created_at", DESCENDING)], name="audits_created_by_recent"),
+        IndexModel([("status", ASCENDING)], name="audits_status"),
+        IndexModel([("created_at", DESCENDING)], name="audits_created_at"),
     ])
 
 

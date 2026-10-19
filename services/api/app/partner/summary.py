@@ -3,7 +3,8 @@ Partner summary aggregation (t-1026-2, B16).
 
 Every number is counted from Mongo at request time: uploads, analysis_results
 (per-sequence results, projected to the handful of fields counted here so the
-embeddings never leave the database), reviews and environment_contexts. There
+embeddings never leave the database), reviews, environment_contexts, field-log
+tasks and audits (t-1028-1). There
 is no cache and no placeholder: an empty scope yields zeros, empty lists and a
 note saying so.
 
@@ -25,11 +26,16 @@ from ..environment import service as env_service
 from ..environment.models import VARIABLES, USER_FIELDS
 from ..environment.providers import ALL_PROVIDERS
 from ..models.analysis import SequenceResultClass, TaxonomicRoute
+from ..models.field_log import FieldEntryKind, TaskStatus
 from ..models.review import ReviewState
 from .models import (
-    EnvironmentCoverage, EnvironmentSourceCount, PartnerSummary, ReviewSummary, SiteSummary,
-    SummaryScopeInfo, SummaryTotals, TaxonCount, TimeSeriesPoint,
+    PENDING_AUDIT_STATUSES, AuditStatus, AuditSummary, EnvironmentCoverage, EnvironmentSourceCount,
+    FindingSeverity, PartnerSummary, ReviewSummary, SiteSummary, SummaryScopeInfo, SummaryTotals,
+    TaskSummary, TaxonCount, TimeSeriesPoint,
 )
+
+AUDITS = "audits"
+FIELD_LOG_ENTRIES = "field_log_entries"
 
 TOP_TAXA_DEFAULT = 10
 TOP_TAXA_MAX = 50
@@ -104,6 +110,11 @@ DEFINITIONS: dict[str, str] = {
     "environment": (
         "Read from environment_contexts with the same merge as GET /environment/uploads/{id}: "
         "a user-entered value counts as user_provided, a public value as ok."
+    ),
+    "tasks": "Field-log entries of kind task on the analyses in scope; overdue = not done and due before today (UTC).",
+    "audits": (
+        "Audit records created by the scoped user (all users for scope=all), in their current state and "
+        "not date-filtered; pending = scheduled or in_progress."
     ),
 }
 
@@ -328,6 +339,10 @@ async def build_summary(
     if truncated:
         notes.append(f"sites lists the {MAX_SITES} newest of {len(with_coords)} uploads with coordinates.")
 
+    today = (now or datetime.now(timezone.utc)).date()
+    tasks = await _tasks(db, analysis_ids, today)
+    audits = await _audits(db, {"created_by": owner_filter["user_id"]} if "user_id" in owner_filter else {}, today)
+
     # -- notes ----------------------------------------------------------------
     if not uploads and not totals.analyses:
         notes.append("No uploads or analyses in this scope and date range; every count is zero.")
@@ -358,7 +373,57 @@ async def build_summary(
         environment=environment,
         sites=sites,
         sites_truncated=truncated,
+        tasks=tasks,
+        audits=audits,
     )
+
+
+def _iso_date(v: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(v) if isinstance(v, str) else None
+    except ValueError:
+        return None
+
+
+async def _tasks(db, analysis_ids: list[str], today: date) -> TaskSummary:
+    out = TaskSummary(by_status={s.value: 0 for s in TaskStatus})
+    if not analysis_ids:
+        return out
+    flt = {"kind": FieldEntryKind.task.value, "analysis_id": {"$in": analysis_ids}}
+    async for t in db[FIELD_LOG_ENTRIES].find(flt, {"_id": 0, "task_status": 1, "due_date": 1}):
+        st = t.get("task_status") or TaskStatus.open.value
+        out.total += 1
+        out.by_status[st] = out.by_status.get(st, 0) + 1
+        due = _iso_date(t.get("due_date"))
+        if st != TaskStatus.done and due is not None:
+            out.overdue += int(due < today)
+            if out.next_due_date is None or due < out.next_due_date:
+                out.next_due_date = due
+    return out
+
+
+async def _audits(db, owner: dict[str, Any], today: date) -> AuditSummary:
+    out = AuditSummary(by_status={s.value: 0 for s in AuditStatus},
+                       findings_by_severity={s.value: 0 for s in FindingSeverity})
+    proj = {"_id": 0, "status": 1, "due_date": 1, "completed_at": 1, "findings.severity": 1}
+    async for a in db[AUDITS].find(owner, proj):
+        st = a.get("status") or "unrecorded"
+        out.total += 1
+        out.by_status[st] = out.by_status.get(st, 0) + 1
+        for f in a.get("findings") or []:
+            sev = f.get("severity") or "unrecorded"
+            out.findings_by_severity[sev] = out.findings_by_severity.get(sev, 0) + 1
+        if st in PENDING_AUDIT_STATUSES:
+            out.pending += 1
+            due = _iso_date(a.get("due_date"))
+            if due is not None:
+                out.overdue += int(due < today)
+                if out.next_due_date is None or due < out.next_due_date:
+                    out.next_due_date = due
+        done_at = _as_utc(a.get("completed_at")) if st == AuditStatus.completed else None
+        if done_at and (out.last_completed_at is None or done_at > out.last_completed_at):
+            out.last_completed_at = done_at
+    return out
 
 
 async def _environment(db, uploads: list[dict[str, Any]]) -> tuple[EnvironmentCoverage, dict[str, dict[str, Any]]]:
