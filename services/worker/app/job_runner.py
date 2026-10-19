@@ -6,8 +6,13 @@ Pipeline stages (each updates job.state in MongoDB):
   -> novelty_scoring -> reporting -> completed | failed
 
 Phase 5: parsing calls the real fastx_parser (Rust binary or Python fallback).
-Phase 6: routing calls the real model_router (heuristic marker + biophysical scorer).
-Phases 7–8 stubs remain until those phases are implemented.
+Phase 6: routing calls the real model_router (learned k-mer router, heuristic fallback).
+Day 9: inference and novelty scoring are one orchestrator stage
+(app/orchestrator/, decision Q7): per sequence a plan of candidate routes,
+the heads and reference lookup of each, contamination and novelty on the
+final route, one combined "decision" and a "decision_trace". job.state is
+"inferencing" while evidence is collected and "novelty_scoring" while it is
+scored and combined -- the same states the API already knows.
 """
 import asyncio
 from datetime import datetime, timezone
@@ -18,8 +23,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from .config import NOVELTY_THRESHOLD, get_worker_settings
 from .fastx_parser import parse_and_batch_auto
 from .model_router import route_batch, RouterInput
-from .inference import run_inference_batch
-from .novelty import score_batch, contamination_score_batch
+from .orchestrator import ORCHESTRATOR_VERSION, run_orchestrator
 from .storage import local_copy_for_upload
 
 
@@ -49,10 +53,7 @@ async def run_job(db: AsyncIOMotorDatabase, job_id: str) -> None:
         routed = await _stage_route(sequences)
 
         await _set_state(db, job_id, "inferencing")
-        predictions = await _stage_infer(routed)
-
-        await _set_state(db, job_id, "novelty_scoring")
-        scored = await _stage_novelty(predictions)
+        scored = await _stage_orchestrate(db, job_id, routed)
 
         await _set_state(db, job_id, "reporting")
         analysis_id = await _stage_report(db, job, upload, scored)
@@ -182,94 +183,53 @@ async def _stage_route(sequences: list[dict]) -> list[dict]:
     return sequences
 
 
-async def _stage_infer(routed: list[dict]) -> list[dict]:
+# Orchestrator phase -> job.state (both states predate the orchestrator).
+_PHASE_STATES = {"evidence": "inferencing", "scoring": "novelty_scoring"}
+
+
+async def _stage_orchestrate(db: AsyncIOMotorDatabase, job_id: str, routed: list[dict],
+                             orchestrate: Any = None) -> list[dict]:
     """
-    Phase 7: run DNA foundation model inference for each sequence.
+    Day 9 (decision Q7): plan, collect evidence, combine (app/orchestrator/).
 
-    Uses the model registry to select the best available model per route.
-    Falls back to stub predictions (unknown_needs_online_confirmation) when
-    torch is not installed or no trained weights exist yet.
-
-    The [CLS] embedding returned by each PredictionResult is stored on the
-    sequence dict for use by Phase 8 novelty scoring.
+    Replaces the separate inference and novelty stages. The orchestrator is
+    synchronous (model forward passes, BLAST subprocesses) and runs in the
+    thread pool; it reports its phase back so job.state moves from
+    "inferencing" to "novelty_scoring" when evidence collection ends.
+    `orchestrate` is injectable for tests (default: run_orchestrator).
     """
     if not routed:
         return routed
-
     loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(None, run_inference_batch, routed)
+    orchestrate = orchestrate or run_orchestrator
 
-    mode_counts: dict[str, int] = {}
-    for seq, result in zip(routed, results):
-        seq["result_class"] = result.result_class
-        seq["predicted_taxon"] = result.predicted_taxon
-        seq["confidence"] = result.confidence
-        seq["model_version_used"] = result.model_version_used
-        seq["inference_mode"] = str(result.inference_mode)
-        seq["stub_reason"] = result.stub_reason   # None unless inference_mode == "stub"
-        seq["label_scores"] = result.label_scores
-        seq["embedding"] = result.embedding   # used by Phase 8
-        mode_counts[str(result.inference_mode)] = mode_counts.get(str(result.inference_mode), 0) + 1
+    def on_phase(phase: str) -> None:
+        state = _PHASE_STATES.get(phase)
+        if state is None or state == "inferencing":   # already set before the stage
+            return
+        fut = asyncio.run_coroutine_threadsafe(_set_state(db, job_id, state), loop)
+        try:
+            fut.result(timeout=30)
+        except Exception as exc:   # a state write must not fail the analysis
+            print(f"[worker] could not set job state {state}: {exc!r}")
 
-    model_seqs = mode_counts.get("model", 0)
-    stub_seqs = mode_counts.get("stub", 0)
-    lq_seqs = mode_counts.get("low_quality", 0)
-    stub_reasons = sorted({r.stub_reason for r in results if r.stub_reason})
+    stats = await loop.run_in_executor(None, lambda: orchestrate(routed, on_phase=on_phase))
+
+    modes: dict[str, int] = {}
+    wide = changed = flagged_novelty = flagged_contam = 0
+    for seq in routed:
+        modes[str(seq.get("inference_mode"))] = modes.get(str(seq.get("inference_mode")), 0) + 1
+        trace = seq.get("decision_trace") or {}
+        wide += len((trace.get("plan") or {}).get("routes") or []) > 1
+        changed += seq.get("route") != seq.get("router_route")
+        flagged_novelty += seq.get("novelty_score", 0.0) >= NOVELTY_THRESHOLD
+        flagged_contam += bool(seq.get("contamination_flagged"))
     print(
-        f"[worker] inference complete: {model_seqs} model, {stub_seqs} stub, {lq_seqs} low_quality"
-        + (f" (stub reasons: {', '.join(stub_reasons)})" if stub_reasons else "")
+        f"[worker] orchestrator {ORCHESTRATOR_VERSION}: {len(routed)} sequences, {wide} planned on >1 route, "
+        f"{changed} final route != router route, head modes {modes}, {flagged_novelty} possible_novelty, "
+        f"{flagged_contam} contamination flags ({(stats or {}).get('per_sequence_ms')} ms/sequence)"
     )
     return routed
-
-
-async def _stage_novelty(predictions: list[dict]) -> list[dict]:
-    """
-    Phase 8: compute novelty and contamination scores from multi-signal evidence.
-
-    Contamination is scored first so the novelty scorer can use the result as
-    a gate — a sequence flagged as contamination cannot score high on novelty.
-
-    Scoring runs in a thread pool to avoid blocking the event loop.
-    """
-    if not predictions:
-        return predictions
-
-    loop = asyncio.get_event_loop()
-
-    # Step 1: contamination scoring (attaches contamination_score to each dict
-    # so the novelty scorer can read it in step 2).
-    cont_results = await loop.run_in_executor(
-        None, contamination_score_batch, predictions
-    )
-    for seq, cr in zip(predictions, cont_results):
-        seq["contamination_score"] = cr.contamination_score
-        seq["contamination_flagged"] = cr.is_flagged
-        seq["contamination_type"] = cr.contamination_type
-        seq["contamination_reason_codes"] = cr.reason_codes
-
-    # Step 2: novelty scoring.
-    novelty_results = await loop.run_in_executor(
-        None, score_batch, predictions
-    )
-    flagged_novelty = 0
-    flagged_contam = 0
-    for seq, nr, cr in zip(predictions, novelty_results, cont_results):
-        seq["novelty_score"] = nr.novelty_score
-        seq["novelty_level"] = str(nr.novelty_level)
-        seq["novelty_signals"] = nr.signals
-        seq["novelty_reason_codes"] = nr.reason_codes
-        seq["abyss_recommendation"] = str(nr.abyss_recommendation)
-        seq["requires_cloud_confirmation"] = nr.requires_cloud_confirmation
-        if nr.novelty_score >= NOVELTY_THRESHOLD:
-            flagged_novelty += 1
-        if cr.is_flagged:
-            flagged_contam += 1
-
-    print(
-        f"[worker] novelty scoring: {flagged_novelty} possible_novelty, "
-        f"{flagged_contam} contamination flags"
-    )
-    return predictions
 
 
 async def _stage_report(
@@ -304,6 +264,7 @@ async def _stage_report(
         "user_id": job.get("user_id"),
         "mode": job.get("mode", "online_full"),
         "model_version_set": "stub_none",
+        "orchestrator_version": ORCHESTRATOR_VERSION,
         "summary": {
             "total_sequences": total,
             "known_species": known,

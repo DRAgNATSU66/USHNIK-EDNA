@@ -39,7 +39,8 @@ written to the decision trace's "combine" list.
   qc_gate                          final route low_quality                                 low_quality_unusable
   grch38_contamination             GRCh38 marked it human contamination, final route is    possible_contamination
                                    not the human route (whose head separates human/
-                                   domestic species from lab vectors)
+                                   domestic species from lab vectors), and the final
+                                   route's own assignment is not a closer match
   head_low_quality                 the head says low_quality_unusable                      low_quality_unusable
   contamination_gates_novelty      head says possible_novelty, contamination flagged       possible_contamination
   novelty_suppressed_by_reference  head says possible_novelty, reference names a species   known_species
@@ -201,12 +202,22 @@ class CombineInput:
     def grch38(self) -> bool:
         return _ok(self.contamination) and bool(self.contamination["payload"].get("grch38_contamination"))
 
+    @property
+    def grch38_beaten(self) -> bool:
+        """The final route's own reference assignment is a closer match than
+        the GRCh38 hit (the lookup's own non_human_better rule, applied
+        across routes: the GRCh38 search runs only on the human route)."""
+        if not (self.grch38 and self.assigned):
+            return False
+        hg = self.contamination["payload"].get("human_genome") or {}
+        return (self.identity or 0.0) > float(hg.get("identity") or 0.0)
+
 
 ClassRule = tuple[str, Callable[[CombineInput], bool], Callable[[CombineInput], str]]
 
 CLASS_RULES: list[ClassRule] = [
     ("qc_gate", lambda c: c.final_route == LOW_QUALITY_ROUTE, lambda c: "low_quality_unusable"),
-    ("grch38_contamination", lambda c: c.grch38 and c.final_route != HUMAN_ROUTE,
+    ("grch38_contamination", lambda c: c.grch38 and c.final_route != HUMAN_ROUTE and not c.grch38_beaten,
      lambda c: "possible_contamination"),
     ("head_low_quality", lambda c: c.head_class == "low_quality_unusable", lambda c: "low_quality_unusable"),
     ("contamination_gates_novelty", lambda c: c.head_class == "possible_novelty" and c.contamination_flagged,
@@ -296,15 +307,22 @@ def combine(c: CombineInput, settings: Any, novelty_threshold: float) -> tuple[d
     raw_flag = (raw is not None and raw >= novelty_threshold) or c.head_class == "possible_novelty"
     final_score = round(raw * gate, 4) if raw is not None else None
     final_flag = (final_score is not None and final_score >= novelty_threshold) or result_class == "possible_novelty"
-    if nov is None:
-        steps.append(_step("novelty", "novelty_unscored", None, (c.novelty or {}).get("reason")))
-    elif gate_rule:
-        steps.append(_step("novelty", gate_rule, {"raw": raw, "gate": gate, "final": final_score},
-                           "flag kept for review: the reference cannot resolve the species"
-                           if gate == 1.0 else None))
     novelty = {"raw_score": raw, "gate": gate, "final_score": final_score, "gate_rule": gate_rule,
                "raw_flag": raw_flag, "final_flag": final_flag,
-               "suppressed_by_reference": raw_flag and not final_flag and gate_rule == "novelty_suppressed_by_reference"}
+               "suppressed_by_reference": raw_flag and not final_flag and gate_rule == "novelty_suppressed_by_reference",
+               "downgraded_by_reference": raw_flag and (gate_rule == "novelty_downgraded_by_reference"
+                                                        or rule_name == "novelty_downgraded_by_reference")}
+    if nov is None:
+        steps.append(_step("novelty", "novelty_unscored", novelty, (c.novelty or {}).get("reason")))
+    elif gate_rule == "novelty_downgraded_by_reference":
+        steps.append(_step("novelty", gate_rule, novelty,
+                           "flag kept for review: the reference cannot resolve the species"))
+    elif gate_rule:
+        why = ("contamination flagged" if gate_rule == "contamination_gates_novelty" else
+               f"reference names {c.eff_taxon} at {c.identity}% (QNA-020 Q4)")
+        steps.append(_step("novelty", gate_rule, novelty, why))
+    else:
+        steps.append(_step("novelty", "novelty_ungated", novelty, None))
 
     head_conf = (c.head.get("payload") or {}).get("confidence") if c.head_ok else None
     decision = {
