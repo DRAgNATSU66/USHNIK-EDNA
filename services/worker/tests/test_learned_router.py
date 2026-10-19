@@ -335,15 +335,16 @@ class TestRealV2Artifact:
         except RouterLoadError as exc:
             pytest.skip(f"router v2 artifact not available here ({exc.reason})")
 
-    def test_v2_is_candidate_and_not_served(self):
+    def test_v2_is_production_and_served(self):
+        # Promoted through POST /models/{id}/promote on 2026-10-19 (QNA-023).
         from app.inference.registry import ModelRegistry
 
         reg = ModelRegistry()
         entry = reg.get("kmer_router_v2")
         if entry is None:
             pytest.skip("kmer_router_v2 not in the registry")
-        assert entry.status == "candidate"
-        assert reg.best_available("router").model_id != "kmer_router_v2"
+        assert entry.status == "production"
+        assert reg.best_available("router").model_id == "kmer_router_v2"
 
     def test_v2_routes_both_strands_of_held_out_sequences(self):
         model = self._v2()

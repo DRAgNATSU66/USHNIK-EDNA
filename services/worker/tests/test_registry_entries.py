@@ -54,11 +54,21 @@ def test_notes_are_plain_text(name, data):
     assert "â€" not in notes and "Ã" not in notes, name
 
 
-def test_v2_candidates_do_not_change_selection():
+# Serving state after the 2026-10-19 promotion (QNA-023): four v2 heads are
+# production and served; plant and bacteria v2 stay candidates and v1 serves.
+PROMOTED_V2 = {"fish", "animal_general", "human_domestic_contamination", "misc_unknown"}
+
+
+def test_v2_head_selection_matches_promotion():
     reg = ModelRegistry(REGISTRY_DIR)
     v2 = [e for e in reg.all_entries() if e.model_id.startswith("dnabert2_") and e.model_id.endswith("_v2")]
+    assert len(v2) == 6
     for e in v2:
-        assert e.status == "candidate", e.model_id
         assert e.label_set_version == "v1", e.model_id
         selected = reg.best_available(e.route)
-        assert selected is None or selected.model_id != e.model_id
+        if str(e.route) in PROMOTED_V2:
+            assert e.status == "production", e.model_id
+            assert selected is not None and selected.model_id == e.model_id
+        else:
+            assert e.status == "candidate", e.model_id
+            assert selected is None or selected.model_id != e.model_id
