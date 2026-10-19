@@ -652,3 +652,71 @@ async def test_csv_export_is_recorded_on_custody_chain(fclient, fake_db, researc
     assert events[-1]["event_type"] == "report_exported"
     assert events[-1]["payload"]["format"] == "csv"
     assert events[-1]["payload"]["sha256"] == hashlib.sha256(resp.content).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Review findings (round 1): raw-file access policy, review text on the chain
+# ---------------------------------------------------------------------------
+
+async def _store_owner_sample_with_file(fake_db, local_storage):
+    await fake_db["analysis_results"].insert_one(_analysis_doc())
+    await fake_db["uploads"].insert_one(_upload_doc(storage_uri=local_storage.uri, checksum=local_storage.sha256))
+
+
+async def test_fair_export_omits_raw_file_for_a_curator(fclient, fake_db, curator_token, local_storage, data_root):
+    """A curator may read the report but not the upload (uploads/access.py), so not its bytes either."""
+    await _store_owner_sample_with_file(fake_db, local_storage)
+    assert (await fclient.get("/uploads/upl_cust_001", headers=_auth(curator_token))).status_code == 403
+
+    resp = await fclient.get("/reports/ana_cust_001/export/fair", headers=_auth(curator_token))
+    assert resp.status_code == 200, resp.text
+    files = _read_zip(resp.content)
+    assert not any(p.startswith("raw/") for p in files)
+    assert RAW_FASTA not in resp.content
+    readme = files["README.md"].decode()
+    assert "The uploaded file is not included" in readme and "upload access policy" in readme
+    events = await load_chain(fake_db, chain_id_for_upload("upl_cust_001"))
+    assert events[-1]["payload"]["raw_file_included"] is False
+
+
+async def test_fair_export_includes_raw_file_for_an_admin(fclient, fake_db, admin_token, local_storage, data_root):
+    await _store_owner_sample_with_file(fake_db, local_storage)
+    resp = await fclient.get("/reports/ana_cust_001/export/fair", headers=_auth(admin_token))
+    assert resp.status_code == 200, resp.text
+    assert _read_zip(resp.content)["raw/stn14_sample.fasta"] == RAW_FASTA
+
+
+async def test_review_by_a_user_without_access_appends_nothing_to_the_chain(
+    fclient, fake_db, other_researcher_token,
+):
+    await fake_db["analysis_results"].insert_one(_analysis_doc())
+    await fake_db["uploads"].insert_one(_upload_doc())
+    resp = await fclient.post("/reviews", json={
+        "analysis_id": "ana_cust_001", "sequence_id": "seq_001", "correction_type": "species_correction",
+        "proposed_taxon": "Jane Doe, +1-555-0100, jane@example.com",
+    }, headers=_auth(other_researcher_token))
+    assert resp.status_code == 201  # POST /reviews' own access rule is unchanged (open issue)
+    # Not a review event, and not the first observation that derives analysis_completed either.
+    assert _custody_docs(fake_db) == []
+
+
+async def test_review_submitted_event_hashes_free_text(fclient, fake_db, researcher_token):
+    await fake_db["analysis_results"].insert_one(_analysis_doc())
+    await fake_db["uploads"].insert_one(_upload_doc())
+    text = "Jane Doe, +1-555-0100, jane@example.com"
+    resp = await fclient.post("/reviews", json={
+        "analysis_id": "ana_cust_001", "sequence_id": "seq_001", "correction_type": "species_correction",
+        "proposed_taxon": text,
+    }, headers=_auth(researcher_token))
+    assert resp.status_code == 201, resp.text
+    events = await load_chain(fake_db, chain_id_for_upload("upl_cust_001"))
+    submitted = [e for e in events if e["event_type"] == "review_submitted"]
+    assert len(submitted) == 1
+    payload = submitted[0]["payload"]
+    assert payload["review_id"] == resp.json()["review_id"]
+    assert payload["proposed_taxon_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+    assert payload["correction_type_sha256"] == hashlib.sha256(b"species_correction").hexdigest()
+    assert payload["sequence_id_sha256"] == hashlib.sha256(b"seq_001").hexdigest()
+    assert "Jane Doe" not in json.dumps(events, default=str)
+    assert "species_correction" not in json.dumps(submitted, default=str)
+    assert verify_chain(events)["valid"] is True

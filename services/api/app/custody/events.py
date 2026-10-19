@@ -27,6 +27,12 @@ logging existed (or whose append failed), marked derived=true.
 Events never carry personal names or emails: only user_id and role. Sample
 metadata is recorded as a sha256 plus the list of provided field names, so
 the immutable chain holds no collector name that could not later be erased.
+Review free text (sequence_id, correction_type, proposed_taxon, evidence
+text) is likewise recorded only as sha256: the clear text stays in the
+reviews collection, reachable through review_id, where it can be erased.
+Review events are appended only for an actor who may read the analysis
+(its owner, or curator / admin / company_owner, the report access rule);
+anyone else's review writes nothing to the owner's chain.
 
 Failure policy: upload and review events are best-effort (the caller logs
 and continues) because the upload or review is already committed when the
@@ -42,6 +48,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from ..models.upload import OPTIONAL_METADATA_FIELDS
+from ..models.user import UserRole
 from .chain import (
     CUSTODY_COLLECTION,
     append_event,
@@ -53,6 +60,9 @@ from .chain import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Who may read an analysis (reports/router.py _fetch_analysis_and_reviews): owner or these roles.
+_ANALYSIS_READER_ROLES = frozenset(str(r) for r in (UserRole.curator, UserRole.admin, UserRole.company_owner))
 
 SYSTEM_ACTOR_DERIVED = {"type": "system", "id": "api-derived"}
 SYSTEM_ACTOR_BACKFILL = {"type": "system", "id": "api-custody-backfill"}
@@ -202,11 +212,14 @@ async def record_review_event(
     review_id: str,
     actor: dict[str, Any],
     details: dict[str, Any],
+    text_fields: Optional[dict[str, Optional[str]]] = None,
 ) -> Optional[dict[str, Any]]:
     """
     Best-effort: append a review action to the reviewed analysis's chain.
-    Logs and returns None when the analysis is unknown or the append fails;
-    the review itself is already committed (see the module docstring).
+    Logs and returns None when the analysis is unknown, the actor may not
+    read it, or the append fails; the review itself is already committed
+    (see the module docstring). text_fields are user free text: each is
+    recorded as <name>_sha256 (None when absent), never in clear.
     """
     try:
         if not analysis_id:
@@ -215,6 +228,14 @@ async def record_review_event(
         if not analysis_doc:
             logger.info("custody: review %s names unknown analysis %s; no event", review_id, analysis_id)
             return None
+        if actor.get("user_id") != analysis_doc.get("user_id") and actor.get("role") not in _ANALYSIS_READER_ROLES:
+            logger.info("custody: review %s by %s, who cannot read analysis %s; no event",
+                        review_id, actor.get("user_id"), analysis_id)
+            return None
+        details = {**details, **{
+            f"{name}_sha256": None if value is None else sha256_hex(value)
+            for name, value in (text_fields or {}).items()
+        }}
         upload = await db["uploads"].find_one({"upload_id": analysis_doc.get("upload_id", "")})
         await ensure_analysis_events(db, analysis_doc, upload)
         event, _ = await append_event(

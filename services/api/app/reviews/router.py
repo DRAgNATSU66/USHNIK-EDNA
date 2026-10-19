@@ -120,8 +120,9 @@ async def submit_review(
     await record_review_event(
         db, "review_submitted", analysis_id=body.analysis_id, review_id=review.review_id,
         actor=user_actor(current_user),
-        details={"sequence_id": body.sequence_id, "review_type": str(body.review_type),
-                 "correction_type": body.correction_type, "proposed_taxon": body.proposed_taxon},
+        details={"review_type": str(body.review_type)},
+        text_fields={"sequence_id": body.sequence_id, "correction_type": body.correction_type,
+                     "proposed_taxon": body.proposed_taxon},
     )
     return review
 

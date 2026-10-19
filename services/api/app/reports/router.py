@@ -47,6 +47,7 @@ from . import fair
 from .builder import build_report, build_report_csv
 from .models import AnalysisReport, REPORT_DISCLAIMER
 from ..uploads.context import build_metadata_context
+from ..uploads.access import can_view_upload
 
 logger = logging.getLogger(__name__)
 
@@ -403,8 +404,9 @@ async def export_report_fair(
 ):
     """
     Download a FAIR ZIP (contents in app/reports/fair.py). The uploaded file
-    is included only when include_raw is true and its bytes re-hash to the
-    checksum recorded at upload. Recorded on the custody chain before the
+    is included only when include_raw is true, the caller may read the upload
+    itself (app/uploads/access.py) and its bytes re-hash to the checksum
+    recorded at upload. Recorded on the custody chain before the
     response starts; refused (503) if it cannot be.
     """
     doc, _reviews, upload = await _fetch_analysis_and_reviews(analysis_id, current_user)
@@ -422,6 +424,13 @@ async def export_report_fair(
             raw_info["reason"] = "include_raw=false was requested"
         elif upload is None:
             raw_info["reason"] = "the upload record no longer exists"
+        elif not can_view_upload(upload.get("user_id"), current_user):
+            # Report access (owner or curator+) is wider than upload access
+            # (owner, admin, company_owner): the raw bytes follow the upload's rule.
+            raw_info["reason"] = (
+                "the requester may read this report but not the uploaded file "
+                "(upload access policy: owner, admin or company_owner)"
+            )
         else:
             check = await run_in_threadpool(check_stored_file, upload, settings, raw_tmp)
             raw_info["check"] = check
