@@ -479,11 +479,71 @@ async def test_batch_mirror_failure_midway_keeps_accurate_flags(client, admin_to
     assert any("Supabase mirror of training batch" in r.getMessage() for r in caplog.records)
 
 
+@pytest.mark.anyio
+async def test_mongo_records_exist_before_supabase_is_called(client, researcher_token, curator_token,
+                                                             admin_token, db, supabase, monkeypatch):
+    """MongoDB is written first, so a Supabase call that hangs or dies cannot cost the record."""
+    seen: dict[str, int] = {}
+
+    def spy(name, coll):
+        real = getattr(sc_module.SupabaseClient, name)
+
+        async def wrapped(*a, **kw):
+            seen[name] = len(db[coll].docs)
+            return await real(*a, **kw)
+        monkeypatch.setattr(sc_module.SupabaseClient, name, staticmethod(wrapped))
+
+    spy("insert_review_evidence", "review_evidence")
+    spy("insert_curation_decision", "curation_decisions")
+    spy("get_or_create_training_batch", "training_batch_items")
+    db["analysis_results"].docs.append(ANALYSIS)
+
+    review = await _submit(client, researcher_token, correction_type="fish_species_correction")
+    r = await client.post(f"/reviews/{review['review_id']}/decision", json={"decision": "accept"},
+                          headers=_auth(curator_token))
+    assert r.status_code == 200, r.text
+    r = await client.post("/reviews/batch/create", json={"route": "fish", "month_year": "2026-10"},
+                          headers=_auth(admin_token))
+    assert r.json()["status"] == "assembled", r.text
+
+    assert seen == {"insert_review_evidence": 2, "insert_curation_decision": 1,
+                    "get_or_create_training_batch": 1}
+    # ...and flipped to mirrored once Supabase accepted the rows.
+    assert all(d["supabase_mirrored"] for c in ("review_evidence", "curation_decisions", "training_batch_items")
+               for d in db[c].docs)
+
+
+@pytest.mark.anyio
+async def test_unconfigured_supabase_still_records_skip_reasons(client, admin_token, db, monkeypatch):
+    monkeypatch.setattr(sc_module, "_client", None)
+    db["reviews"].docs.append(_accepted("rev_x", "seq_missing", proposed_taxon="Gadus morhua"))
+    r = await client.post("/reviews/batch/create", json={"route": "fish", "month_year": "2026-10"},
+                          headers=_auth(admin_token))
+    body = r.json()
+    assert (body["status"], body["supabase_mirror"], body["supabase_items_skipped"]) == (
+        "assembled_local_only", "not_configured", 1)
+    [item] = db["training_batch_items"].docs
+    assert item["supabase_skip_reason"] == "sequence not found in analysis_results"
+    assert item["supabase_mirrored"] is False
+
+
 # ---------------------------------------------------------------------------
 # B9 audit: no migration table is left unread/unwritten by the API
 # ---------------------------------------------------------------------------
 
-def test_every_migration_table_is_used_by_the_supabase_client():
-    src = (Path(sc_module.__file__)).read_text()
-    used = set(re.findall(r'table\("(\w+)"\)', src))
+def test_every_migration_table_is_read_or_written_by_the_api():
+    """
+    Every table the migrations create is touched by a SupabaseClient method
+    that some API module outside db/ actually calls -- not merely present in
+    the client.
+    """
+    app_dir = Path(sc_module.__file__).resolve().parents[1]
+    src = Path(sc_module.__file__).read_text()
+    callers = "\n".join(p.read_text() for p in app_dir.rglob("*.py") if p.parent.name != "db")
+    methods = re.split(r"\n    @staticmethod\n", src)
+    used: set[str] = set()
+    for body in methods:
+        m = re.match(r"\s*async def (\w+)", body)
+        if m and re.search(rf"\.{m.group(1)}\(", callers):
+            used |= set(re.findall(r'table\("(\w+)"\)', body))
     assert set(SCHEMA) - used == set()

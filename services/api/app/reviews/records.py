@@ -6,12 +6,15 @@ document in the MongoDB collection of the same name. The Supabase tables of
 the same names (migration 20260526000001, amended by 20261019000001) are a
 best-effort mirror, like the expert_reviews / training_batches / model_versions
 mirrors: a Supabase failure is logged with its traceback and never fails the
-request, and each MongoDB document carries `supabase_mirrored` so a backfill
-can find the rows Supabase is missing.
+request. Each MongoDB document is inserted before the mirror runs, with
+`supabase_mirrored` false, and flipped to true only for rows Supabase
+accepted, so a slow or failing Supabase can never cost the MongoDB record and
+a backfill can find the rows Supabase is missing.
 
 The Supabase rows reference expert_reviews(id), a uuid, so every mirror first
 upserts the review's expert_reviews row (keyed by the MongoDB review_id); that
-is also the only place expert_reviews is written.
+upsert is the only place an expert_reviews row is created (triage still
+updates an existing row via SupabaseClient.update_review_state).
 """
 from __future__ import annotations
 
@@ -186,11 +189,16 @@ async def record_evidence(db: AsyncIOMotorDatabase, review: dict, docs: list[dic
                 for d in docs
             ])
 
-    status = await _mirror(f"review_evidence for {review['review_id']}", write)
     if docs:
-        for d in docs:
-            d["supabase_mirrored"] = status == "written"
         await db["review_evidence"].insert_many(docs)
+    status = await _mirror(f"review_evidence for {review['review_id']}", write)
+    if docs and status == "written":
+        await db["review_evidence"].update_many(
+            {"evidence_id": {"$in": [d["evidence_id"] for d in docs]}},
+            {"$set": {"supabase_mirrored": True}},
+        )
+        for d in docs:
+            d["supabase_mirrored"] = True
     return status
 
 
@@ -273,9 +281,12 @@ async def record_decision(
             "decided_at": _iso(decided_at),
         })
 
-    status = await _mirror(f"curation decision on {review['review_id']}", write)
-    doc["supabase_mirrored"] = status == "written"
     await db["curation_decisions"].insert_one(doc)
+    status = await _mirror(f"curation decision on {review['review_id']}", write)
+    if status == "written":
+        await db["curation_decisions"].update_one(
+            {"decision_id": doc["decision_id"]}, {"$set": {"supabase_mirrored": True}}
+        )
     return status
 
 
@@ -339,6 +350,18 @@ async def record_batch_items(
         for r in reviews
     ]
     by_review = {r["review_id"]: r for r in reviews}
+    # Why a row cannot be mirrored does not depend on Supabase, so it is
+    # decided before the MongoDB insert and recorded even when Supabase is
+    # not configured.
+    for item in items:
+        if not sequences.get((item["analysis_id"], item["sequence_id"])):
+            item["supabase_skip_reason"] = "sequence not found in analysis_results"
+        elif not item["taxon"]:
+            item["supabase_skip_reason"] = "review has no proposed_taxon"
+        elif not _profile_id(item["curated_by"]):
+            item["supabase_skip_reason"] = "review has no deciding curator"
+    if items:
+        await db["training_batch_items"].insert_many(items)
 
     async def write() -> None:
         batch_row = await SupabaseClient.get_or_create_training_batch(batch_id, month_year, route, created_by)
@@ -347,16 +370,10 @@ async def record_batch_items(
             raise LookupError(f"training_batches row for {batch_id} returned no id")
         mirrored = 0
         for item in items:
-            sequence = sequences.get((item["analysis_id"], item["sequence_id"]))
-            curated_by = _profile_id(item["curated_by"])
-            if not sequence:
-                item["supabase_skip_reason"] = "sequence not found in analysis_results"
-            elif not item["taxon"]:
-                item["supabase_skip_reason"] = "review has no proposed_taxon"
-            elif not curated_by:
-                item["supabase_skip_reason"] = "review has no deciding curator"
             if item["supabase_skip_reason"]:
                 continue
+            sequence = sequences[(item["analysis_id"], item["sequence_id"])]
+            curated_by = _profile_id(item["curated_by"])
             review_type = str(by_review[item["review_id"]].get("review_type") or "")
             cs = await SupabaseClient.insert_curated_sequence({
                 "sequence_id": item["sequence_id"],
@@ -377,8 +394,13 @@ async def record_batch_items(
         await SupabaseClient.set_training_batch_sequence_count(batch_id, mirrored)
 
     status = await _mirror(f"training batch {batch_id}", write)
-    if items:
-        await db["training_batch_items"].insert_many(items)
+    # A failure part-way leaves the items written before it mirrored, so the
+    # flags follow each item, not the overall status.
+    mirrored_ids = [i["item_id"] for i in items if i["supabase_mirrored"]]
+    if mirrored_ids:
+        await db["training_batch_items"].update_many(
+            {"item_id": {"$in": mirrored_ids}}, {"$set": {"supabase_mirrored": True}}
+        )
     return {
         "supabase_mirror": status,
         "items": len(items),
