@@ -22,8 +22,9 @@ set:
       result_class vs label (and the legacy router+head answer on the same
       rows), final_route accuracy vs router-only accuracy, novelty flags the
       reference suppressed or downgraded (split by label), plant names capped
-      at genus, wall time per sequence, peak GPU memory, peak RSS, and the
-      BSON size of the stored trace.
+      at genus, contamination flags (by label; human_dna by final route; GRCh38
+      hits beaten by a closer assignment), wall time per sequence, peak GPU
+      memory, peak RSS, and the BSON size of the stored trace.
 
 The processed CSVs carry sequence,label only; the true route is the
 directory the row came from (the route training.routing assigned it).
@@ -276,6 +277,11 @@ def cmd_run(args: argparse.Namespace) -> None:
         capped = sum(any(c["rule"] == "genus_cap" for c in _steps(s, "taxon")) for s in group)
         heads_only = sum(any(c["rule"] == "heads_only" for c in _steps(s, "taxon")) for s in group)
         named = Counter(s["decision"]["taxon_rank"] for s in group if s["decision"]["predicted_taxon"])
+        # contamination as stored in the legacy fields (these drive the
+        # auto_contamination review), split by label and by final route
+        cflag = [(s, t) for s, t in zip(group, truth) if s.get("contamination_flagged")]
+        human_dna = [(s, t) for s, t in cflag if s.get("contamination_type") == "human_dna"]
+        beaten = sum("grch38_beaten_by_closer_assignment" in (s.get("contamination_reason_codes") or []) for s in group)
         return {
             "n": n,
             "labels": dict(Counter(t["label"] for t in truth)),
@@ -312,6 +318,10 @@ def cmd_run(args: argparse.Namespace) -> None:
             "novelty": {"raw_flags_by_label": dict(raw_flags), "final_flags_by_label": dict(final_flags),
                         "suppressed_by_reference_by_label": dict(suppressed),
                         "downgraded_by_reference_by_label": dict(downgraded)},
+            "contamination": {"flagged": len(cflag), "flagged_by_label": dict(Counter(t["label"] for _, t in cflag)),
+                              "human_dna": len(human_dna),
+                              "human_dna_by_final_route": dict(Counter(s["route"] for s, _ in human_dna)),
+                              "grch38_beaten_by_closer_assignment": beaten},
             "taxon": {"named": sum(named.values()), "named_by_rank": dict(named),
                       "plant_names_capped_at_genus": capped, "heads_only_no_reference": heads_only},
         }
