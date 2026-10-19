@@ -298,3 +298,40 @@ def test_novelty_unscored_is_recorded():
                                        novelty=nov(0.0, status="skipped")), S, THRESHOLD)
     assert n["final_score"] is None
     assert [s["rule"] for s in steps if s["step"] == "novelty"] == ["novelty_unscored"]
+
+
+# Review fix (orchestrator-1.2.0): a no_consensus top pick is not a reference
+# miss for reference_hit_outside_router; its identity counts as in the tie rule.
+NO_CONSENSUS_TABLE = [
+    ("no_consensus_100_beats_weak_family_hit", HUMAN, 100.0, 90.36, HUMAN, "reference_confirms_router"),
+    ("no_consensus_within_tie", HUMAN, 94.0, 94.4, HUMAN, "reference_confirms_router"),
+    ("no_consensus_weaker_than_other_hit", HUMAN, 85.0, 92.0, MISC, "reference_hit_outside_router"),
+]
+
+
+@pytest.mark.parametrize("name,primary,p_id,other_id,final,rule", NO_CONSENSUS_TABLE,
+                         ids=[x[0] for x in NO_CONSENSUS_TABLE])
+def test_no_consensus_primary_outside_router(name, primary, p_id, other_id, final, rule):
+    retro = {"superkingdom": "Viruses", "phylum": "Artverviricota", "class": "Revtraviricetes",
+             "family": "Retroviridae"}
+    got, steps = select_route(plan(primary, MISC), {},
+                              {primary: ref(primary, status="no_consensus", identity=p_id),
+                               MISC: ref(MISC, identity=other_id, lineage=retro, rank="family")}, S)
+    assert got == final
+    assert [s["rule"] for s in steps if s["step"] == "route"] == [rule]
+
+
+def test_grch38_beaten_records_step_and_does_not_gate():
+    # Contamination record as the provider writes it when the engine says the
+    # final route's assignment beat GRCh38: not flagged, beaten_by recorded.
+    c = {"provider": "contamination", "status": "ok",
+         "payload": {"contamination_score": 0.05, "flagged": False, "grch38_contamination": False, "grch38_hit": True,
+                     "grch38_beaten_by": {"route": ANIMAL, "taxon": "Apis mellifera", "identity": 99.9,
+                                          "grch38_identity": 99.2},
+                     "human_genome": {"identity": 99.2, "contamination": True}}}
+    decision, steps, n = combine(CombineInput(final_route=ANIMAL, head=head(ANIMAL, "possible_novelty"),
+                                              reference=ref(ANIMAL, identity=99.9, lineage=ANIMAL_LIN),
+                                              contamination=c, novelty=nov(0.6)), S, THRESHOLD)
+    assert decision["result_class"] == "known_species"
+    assert n["gate_rule"] == "novelty_suppressed_by_reference"
+    assert "grch38_beaten_by_closer_assignment" in [s["rule"] for s in steps]

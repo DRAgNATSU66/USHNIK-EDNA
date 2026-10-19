@@ -296,3 +296,80 @@ def test_run_job_records_decision_and_trace(monkeypatch):
         assert r["decision_trace"]["plan"]["primary_route"] == r["router_route"]
     doc.pop("_id", None)
     bson.BSON.encode(doc)
+
+
+# ---------------------------------------------------------------------------
+# GRCh38 beaten by a closer assignment on the final route (review fix,
+# orchestrator-1.2.0): the read must not be flagged as human DNA.
+# ---------------------------------------------------------------------------
+
+ANIMAL_PAN = {"superkingdom": "Eukaryota", "kingdom": "Metazoa", "phylum": "Chordata", "class": "Mammalia",
+              "genus": "Pan", "species": "Pan troglodytes"}
+
+
+class FakeReferenceHG(FakeReference):
+    """FakeReference whose human-route records carry a GRCh38 hit."""
+
+    def __init__(self, table, hg):
+        super().__init__(table)
+        self.hg = hg
+
+    def collect(self, items, route, context=None):
+        out = super().collect(items, route, context)
+        if route == HUMAN:
+            for r in out:
+                r.payload["human_genome"] = dict(self.hg)
+        return out
+
+
+GRCH38_99_2 = {"hit": True, "identity": 99.2, "query_coverage": 100.0, "subject": "chr1", "contamination": True}
+
+
+@pytest.mark.parametrize("probs,table,final", [
+    # router human, fish assignment closer than GRCh38 -> fish (finding 1)
+    ({HUMAN: 0.6, FISH: 0.35, PLANT: 0.05}, {("a", FISH): ("assigned", 99.9, FISH_LIN)}, FISH),
+    # router animal, Pan troglodytes closer than GRCh38 -> animal (finding 4)
+    ({ANIMAL: 0.6, HUMAN: 0.35, FISH: 0.05}, {("a", ANIMAL): ("assigned", 99.9, ANIMAL_PAN)}, ANIMAL),
+], ids=["human_router_fish_closer", "animal_router_pan_closer"])
+def test_grch38_beaten_is_not_human_contamination(probs, table, final):
+    seqs = [routed("a", probs)]
+    run(seqs, head=FakeHead({}, default=("ok", "possible_novelty", 0.95)), ref=FakeReferenceHG(table, GRCH38_99_2))
+    seq = seqs[0]
+    assert seq["decision"]["final_route"] == final
+    assert seq["contamination_flagged"] is False
+    assert seq["contamination_type"] != "human_dna"
+    assert "grch38_human_hit" not in seq["contamination_reason_codes"]
+    assert "grch38_beaten_by_closer_assignment" in seq["contamination_reason_codes"]
+    assert seq["result_class"] != "possible_contamination"
+    assert seq["novelty_gate_rule"] != "contamination_gates_novelty"
+    reviews = job_runner._build_auto_reviews("ana", "job", [seq])
+    assert "auto_contamination" not in [r["review_type"] for r in reviews]
+    rules = [c["rule"] for c in seq["decision_trace"]["combine"]]
+    assert "grch38_beaten_by_closer_assignment" in rules
+    contam = next(e for e in seq["decision_trace"]["evidence"] if e["provider"] == "contamination")
+    assert contam["payload"]["grch38_hit"] is True and contam["payload"]["grch38_contamination"] is False
+    assert contam["payload"]["grch38_beaten_by"]["route"] == final
+
+
+def test_grch38_not_beaten_still_flags_human_dna():
+    # The final route's assignment (98.0) is not closer than GRCh38 (99.2).
+    seqs = [routed("a", {ANIMAL: 0.6, HUMAN: 0.35, FISH: 0.05})]
+    run(seqs, head=FakeHead({}, default=("ok", "known_species", 0.95)),
+        ref=FakeReferenceHG({("a", ANIMAL): ("assigned", 98.0, ANIMAL_PAN)}, GRCH38_99_2))
+    seq = seqs[0]
+    assert seq["decision"]["final_route"] == HUMAN       # grch38_human_route: nothing closer
+    assert seq["contamination_flagged"] is True and seq["contamination_type"] == "human_dna"
+
+
+def test_no_consensus_top_pick_is_not_a_miss_end_to_end():
+    # Finding 3: human ref no_consensus at 100 %, misc assigned family at
+    # 90.36 % -> stays on human.
+    retro = {"superkingdom": "Viruses", "phylum": "Artverviricota", "class": "Revtraviricetes",
+             "family": "Retroviridae"}
+    seqs = [routed("a", {HUMAN: 0.6, MISC: 0.3, PLANT: 0.1})]
+    run(seqs, ref=FakeReference({("a", HUMAN): ("no_consensus", 100.0, {}),
+                                 ("a", MISC): ("assigned", 90.36, retro)}))
+    seq = seqs[0]
+    assert seq["decision"]["final_route"] == HUMAN
+    route_step = [c for c in seq["decision_trace"]["combine"] if c["step"] == "route"][0]
+    assert route_step["rule"] == "reference_confirms_router"
