@@ -194,7 +194,10 @@ class ContaminationProvider:
     HumanGenomeEvidence dict). A GRCh38 hit that the lookup marked as
     contamination (>= REFERENCE_HUMAN_GENOME_IDENTITY over the coverage
     floor, no better non-human assignment) flags the sequence as human_dna
-    even when the heuristic does not."""
+    even when the heuristic does not -- unless context "grch38_beaten_by" says
+    the final route's own assignment is a closer match (orchestrator
+    combiner.grch38_beaten_by); then the hit is kept as evidence
+    (grch38_hit) but does not flag."""
 
     name = "contamination"
     version = "1.0"
@@ -220,7 +223,9 @@ class ContaminationProvider:
                                           elapsed_ms=elapsed_ms_since(t0)))
                 continue
             hg = ctx.get("human_genome") or None
-            grch38 = bool(hg and hg.get("contamination"))
+            grch38_hit = bool(hg and hg.get("contamination"))
+            beaten = ctx.get("grch38_beaten_by") if grch38_hit else None
+            grch38 = grch38_hit and not beaten
             flagged = bool(cr.is_flagged) or grch38
             ctype = "human_dna" if grch38 else cr.contamination_type
             codes = list(cr.reason_codes)
@@ -229,10 +234,14 @@ class ContaminationProvider:
                 if "contamination_flagged" not in codes:
                     codes.append("contamination_flagged")
                 codes = [c for c in codes if c != "clean_sequence"]
+            elif beaten:
+                codes.append("grch38_beaten_by_closer_assignment")
             payload = plain({
                 "contamination_score": round(float(cr.contamination_score), 4),
                 "heuristic_flagged": bool(cr.is_flagged),
                 "grch38_contamination": grch38,
+                "grch38_hit": grch38_hit,
+                "grch38_beaten_by": beaten,
                 "flagged": flagged,
                 "contamination_type": ctype,
                 "signals": {k: round(float(v), 4) for k, v in cr.signals.items()},

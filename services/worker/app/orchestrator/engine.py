@@ -39,14 +39,14 @@ from typing import Any, Callable, Sequence
 
 from app.evidence.base import EVIDENCE_SKIPPED, EvidenceRecord, plain, unavailable_records
 from app.novelty.scorer import _novelty_level
-from app.orchestrator.combiner import CombineInput, combine, select_route
+from app.orchestrator.combiner import CombineInput, combine, grch38_beaten_by, select_route
 from app.orchestrator.planner import LOW_QUALITY_ROUTE, Plan, expand_plan, plan_sequence
 
 logger = logging.getLogger(__name__)
 
 # Bump when a planner/combiner rule or the trace shape changes: a stored
 # decision is only comparable with decisions of the same version.
-ORCHESTRATOR_VERSION = "orchestrator-1.1.0"
+ORCHESTRATOR_VERSION = "orchestrator-1.2.0"
 
 HUMAN_ROUTE = "human_domestic_contamination"
 
@@ -218,7 +218,12 @@ class Orchestrator:
         ctx.pop("embedding", None)
         h = self._head_fields(st)
         ctx["result_class"] = h.get("result_class") or ""
-        ctx["human_genome"] = self._human_genome(st)
+        hg = self._human_genome(st)
+        ctx["human_genome"] = hg
+        # A closer assignment on the final route beats the GRCh38 hit
+        # (combiner.grch38_beaten_by): the provider must not flag human DNA.
+        ref = st.refs.get(st.final_route)
+        ctx["grch38_beaten_by"] = grch38_beaten_by(st.final_route, ref.to_dict() if ref else None, hg)
         return ctx
 
     def _novelty_context(self, st: _SeqState) -> dict:

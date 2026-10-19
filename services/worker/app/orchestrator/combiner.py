@@ -15,12 +15,16 @@ written to the decision trace's "combine" list.
   reference_confirms_router    a candidate has a strong reference hit (assigned, identity   the router's top pick
                                >= REFERENCE_SPECIES_IDENTITY) and the top pick's best hit
                                (assigned or no_consensus) is within REFERENCE_TIE_DELTA
-                               of the best
+                               of the best; or no strong hit, the top pick is
+                               no_consensus and its identity is within REFERENCE_TIE_DELTA
+                               of (or above) the best placeable assignment elsewhere
   reference_overrides_router   ... and another candidate's hit beats the top pick's by      that candidate
                                more than REFERENCE_TIE_DELTA
   reference_hit_outside_router no strong hit; the top pick's reference DB was searched and  the candidate with the
-                               has no assignment, another candidate's has one whose         best assigned identity
-                               lineage places it (implied_route not None)
+                               has no assignment (no_hit / below_threshold, or              best assigned identity
+                               no_consensus beaten by more than REFERENCE_TIE_DELTA),
+                               another candidate's has one whose lineage places it
+                               (implied_route not None)
   router_primary               otherwise (including reference unavailable: heads only)      the router's top pick
 
    orchestrator-1.1.0 added grch38_human_route, counted a no_consensus top
@@ -29,6 +33,12 @@ written to the decision trace's "combine" list.
    route changes of the orchestrator-1.0.0 held-out smoke run
    (docs/ml/results/orchestrator_smoke_2026-10-19_orchestrator-1.0.0.json)
    and checked on a dev sample before the test sample was re-run.
+
+   orchestrator-1.2.0 (review fixes): a no_consensus top pick is no longer a
+   reference miss in reference_hit_outside_router (a 100 % no_consensus human
+   hit lost the route to a 90.36 % family-level misc hit), and a GRCh38 hit
+   beaten by the final route's own closer assignment no longer flags the read
+   as human-DNA contamination (grch38_beaten_by, below).
 
    Heads never choose the route: each head was trained only on its own
    route's sequences, so a fish head's 0.9 on a plant read says nothing, and
@@ -63,6 +73,14 @@ written to the decision trace's "combine" list.
   reference_only                   no head prediction, reference assigned                  known_species if species
                                                                                            rank, else likely_taxonomic_group
   no_evidence                      neither                                                 unknown_needs_online_confirmation
+
+   GRCh38 beaten (grch38_beaten_by): when the final route is not the human
+   route and its own reference assignment (not genus Homo) is closer than the
+   GRCh38 hit, the GRCh38 hit is not contamination -- the lookup's own
+   non_human_better rule, applied across routes. The engine computes it
+   before the contamination provider runs, so the provider does not flag the
+   read (no human_dna type, no novelty gate, no auto_contamination review);
+   the combine trace records it as "grch38_beaten_by_closer_assignment".
 
    Novelty score: the scorer's score times a gate, like the scorer's own
    contamination gate. Gate 0 when contamination is flagged
@@ -100,6 +118,26 @@ def _identity(rec: dict | None) -> float | None:
 
 def _step(step: str, rule: str, outcome: Any, detail: str | None = None) -> dict:
     return {"step": step, "rule": rule, "outcome": outcome, "detail": detail}
+
+
+def grch38_beaten_by(final_route: str | None, reference: dict | None, human_genome: dict | None) -> dict | None:
+    """The final route's own assignment that is a closer match than a GRCh38
+    contamination hit, or None. reference: the final route's reference
+    evidence (EvidenceRecord.to_dict()); human_genome: HumanGenomeEvidence
+    dict from the human route's lookup. On the human route the lookup
+    already applied its non_human_better rule, so None there."""
+    if final_route in (None, HUMAN_ROUTE, LOW_QUALITY_ROUTE):
+        return None
+    if not (human_genome and human_genome.get("contamination")) or not _assigned(reference):
+        return None
+    p = reference.get("payload") or {}
+    if (p.get("lineage") or {}).get("genus") == "Homo":
+        return None
+    ident, hg_id = _identity(reference), float(human_genome.get("identity") or 0.0)
+    if ident is None or ident <= hg_id:
+        return None
+    return {"route": final_route, "taxon": p.get("taxon"), "rank": p.get("rank"), "identity": ident,
+            "grch38_identity": hg_id}
 
 
 # ---------------------------------------------------------------------------
@@ -172,16 +210,27 @@ def select_route(plan: Plan, heads: dict[str, dict], refs: dict[str, dict], sett
         return best, steps
 
     prim_ref = refs.get(primary)
-    if _ok(prim_ref) and (prim_ref.get("payload") or {}).get("status") in REFERENCE_MISS_STATUSES:
+    prim_status = ((prim_ref or {}).get("payload") or {}).get("status")
+    if _ok(prim_ref) and prim_status in REFERENCE_MISS_STATUSES:
         # A lineage too coarse to place (e.g. only "Eukaryota") is not
         # evidence for any route (lineage.implied_route).
         others = [r for r in plan.routes if r != primary and _assigned(refs.get(r))
                   and implied_route((refs[r].get("payload") or {}).get("lineage")) is not None]
         if others:
             best = max(others, key=lambda r: (_identity(refs[r]) or 0, -order[r]))
+            best_id = _identity(refs[best]) or 0.0
+            # no_consensus is not a miss: its tied hits matched the read at that
+            # identity but disagreed on a taxon. It counts as in the tie rule.
+            p_id = _identity(prim_ref) if prim_status == "no_consensus" else None
+            if p_id is not None and p_id >= best_id - tie:
+                steps.append(_step("route", "reference_confirms_router", primary,
+                                   f"{primary} reference: no_consensus at {p_id}%, within {tie:g} of (or above) "
+                                   f"{best} assigned at {best_id}%"))
+                return primary, steps
             steps.append(_step("route", "reference_hit_outside_router", best,
-                               f"{primary} reference: {prim_ref['payload'].get('status')}; {best} reference assigned "
-                               f"at {_identity(refs[best])}%"))
+                               f"{primary} reference: {prim_status}"
+                               + (f" at {p_id}%" if p_id is not None else "")
+                               + f"; {best} reference assigned at {best_id}%"))
             return best, steps
 
     if not any(_ok(refs.get(r)) for r in plan.routes):
@@ -235,14 +284,25 @@ class CombineInput:
         return _ok(self.contamination) and bool(self.contamination["payload"].get("grch38_contamination"))
 
     @property
+    def grch38_beaten_by(self) -> dict | None:
+        """grch38_beaten_by() as the contamination provider recorded it."""
+        if not _ok(self.contamination):
+            return None
+        return self.contamination["payload"].get("grch38_beaten_by")
+
+    @property
     def grch38_beaten(self) -> bool:
         """The final route's own reference assignment is a closer match than
         the GRCh38 hit (the lookup's own non_human_better rule, applied
-        across routes: the GRCh38 search runs only on the human route)."""
-        if not (self.grch38 and self.assigned):
+        across routes: the GRCh38 search runs only on the human route).
+        Normally the provider has already cleared grch38_contamination; this
+        also covers a contamination record written without the engine."""
+        if self.grch38_beaten_by:
+            return True
+        if not self.grch38:
             return False
         hg = self.contamination["payload"].get("human_genome") or {}
-        return (self.identity or 0.0) > float(hg.get("identity") or 0.0)
+        return grch38_beaten_by(self.final_route, self.reference, hg) is not None
 
 
 ClassRule = tuple[str, Callable[[CombineInput], bool], Callable[[CombineInput], str]]
@@ -306,6 +366,12 @@ def combine(c: CombineInput, settings: Any, novelty_threshold: float) -> tuple[d
         steps.append(_step("taxon", "reference_taxon", {"taxon": c.eff_taxon, "rank": c.eff_rank},
                            f"{payload.get('identity')}% identity, {payload.get('reference_db')} "
                            f"{payload.get('reference_db_version')}"))
+
+    beaten = c.grch38_beaten_by
+    if beaten:
+        steps.append(_step("contamination", "grch38_beaten_by_closer_assignment", beaten,
+                           f"{beaten.get('route')} assignment {beaten.get('taxon')} at {beaten.get('identity')}% is "
+                           f"closer than the GRCh38 hit at {beaten.get('grch38_identity')}%: not human contamination"))
 
     # -- class ----------------------------------------------------------------
     rule_name, result_class = "no_evidence", "unknown_needs_online_confirmation"

@@ -151,6 +151,18 @@ def test_contamination_grch38_hit_flags_human_dna():
     assert not recs[1].payload["flagged"] and not recs[2].payload["flagged"]
 
 
+def test_contamination_grch38_beaten_does_not_flag():
+    hg = {"hit": True, "contamination": True, "identity": 99.2}
+    beaten = {"route": "fish", "taxon": "Salmo trutta", "rank": "species", "identity": 99.9, "grch38_identity": 99.2}
+    ctx = [{"human_genome": hg, "grch38_beaten_by": beaten}, {"human_genome": hg}, {}]
+    recs = ContaminationProvider(lambda d: _cr(False)).collect(ITEMS, "fish", ctx)
+    p0 = recs[0].payload
+    assert not p0["flagged"] and not p0["grch38_contamination"] and p0["grch38_hit"]
+    assert p0["contamination_type"] is None and p0["grch38_beaten_by"] == beaten
+    assert "grch38_beaten_by_closer_assignment" in p0["reason_codes"] and "grch38_human_hit" not in p0["reason_codes"]
+    assert recs[1].payload["flagged"] and recs[1].payload["contamination_type"] == "human_dna"
+
+
 def test_contamination_scorer_raising_is_unavailable():
     def boom(d):
         raise KeyError("gc_ratio")
