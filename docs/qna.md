@@ -1690,3 +1690,324 @@ This is the first live use of the B8 flow, which QNA-014 Q5 had listed as not ye
 The registry accuracy went down because the test set changed, not the model. On the same rows, human
 rises from .545 to .979, animal from .500 to .876, fish from .858 to .899, and misc from .868 to .936.
 Every promotion is audited with those numbers in its notes, and v1 is one promote call away.
+
+## QNA-024 — 2026-10-19 — Deterministic orchestrator: evidence-provider interface, multi-route planner, rule-table combiner, decision trace (Q7; tracker t-1022-1, t-1022-2)
+
+**Commit:** `01b2bbf`, `69b8c5f` (WIP from the first agent; the second was preserved after the usage-limit stop), `84ae320`, `b005e9b`, `b7a423f`, `532bfd4`, `1a499e2` (orchestrator-1.1.0), `7e9cdca` (results), `b6e384d`, all on `sprint/d9-orchestrator`.
+
+**Merged:** `sprint/d9-orchestrator` into `LATEST_USHNIK` as `4c6d223` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+**Superseded in part by QNA-025** (orchestrator-1.2.0 review fixes, written the same day after adversarial review). The 1.1.0 numbers below stay as measured; QNA-025 holds the reported 1.2.0 run. This entry also closes tracker t-1022-3 (transcript entry for the orchestration change).
+- Results: `docs/ml/results/orchestrator_smoke_2026-10-19.json` (reported, 1.1.0), `…_orchestrator-1.0.0.json` (first run), `orchestrator_dev_check_2026-10-19_orchestrator-{1.0.0,1.1.0}.json`, `orchestrator_planner_dev_2026-10-19.json`.
+- Script: `services/worker/training/eval_orchestrator.py`. Per-row traces: `synthveda-data/logs/orchestrator/`.
+
+**Q1. Mechanism: what happens to one sequence?**
+1. **Plan** (`app/orchestrator/planner.py:140` `plan_sequence`). The router-stage rules (`PLAN_RULES`, `:132`) are router_uncalibrated, low_confidence (top probability < `ORCHESTRATOR_CONFIDENCE_THRESHOLD`=0.70), narrow_margin (top-1 minus top-2 < `ORCHESTRATOR_MARGIN_THRESHOLD`=0.6) and weak_route (top pick in {human, misc}).
+   - If any rule fires, the plan is the router's top `ORCHESTRATOR_MAX_ROUTES`=3 routes by probability. Every rule that fired is recorded.
+   - If none fires, the plan is confident_router with one route. low_quality is planned alone.
+2. **Primary reference lookup.** One batched BLAST call per route under the existing host search lock (`engine.py:157`).
+3. **Expansion** (`planner.py:178` `expand_plan`, called at `engine.py:160`). A miss in the primary DB (no_hit, below_threshold or no_consensus) adds the router's next route (rule reference_miss). A hit whose lineage maps to another route adds that route (reference_lineage_route). Both stay within the cap.
+4. **Remaining lookups and heads.** Reference lookups for the other planned routes run batched per route (`engine.py:161`). Every planned route's head runs, grouped by route so each backbone loads once (`engine.py:167`). The `route_head` provider (`app/evidence/providers.py:56`) can run any route's head, not only the router's pick.
+5. **Final route** (`combiner.py:109` `select_route`). First matching rule wins: low_quality_gate, single_route, grch38_human_route, reference_confirms_router / reference_overrides_router (an assignment at ≥ 97% in any candidate DB; a tie within 0.5 points keeps the router's pick), reference_hit_outside_router, router_primary.
+   - Heads never pick the route. heads_disagree and reference_lineage_vs_router are recorded as disagreements.
+6. **Contamination, then novelty, on the final route** (`engine.py:181`). Contamination includes the GRCh38 human-genome result from the human route's lookup.
+7. **Combine** (`combiner.py:277`).
+   - Taxon comes from the final route's reference. Plant species names are cut back to genus (genus_cap).
+   - Class rules, first match wins (`CLASS_RULES`, `:250`): qc_gate, grch38_contamination, head_low_quality, contamination_gates_novelty, novelty_suppressed_by_reference (species hit → known_species, novelty score gated to 0), novelty_downgraded_by_reference (≥ 97% but coarser rank → likely_taxonomic_group, score kept so the read still goes to review), head_class, reference_only, no_evidence.
+8. **Output** (`engine.py:233`, `:264`). `decision` {final_route, result_class, predicted_taxon, taxon_rank, percent_identity, reference_db, reference_db_version, confidence, rule} and `decision_trace` {orchestrator_version, plan, evidence (EvidenceRecord.to_dict(), at most 3 hits, no embeddings), combine}.
+   - The old fields are filled from the decision; router_route keeps the router's pick.
+9. **Job runner.** `job_runner._stage_orchestrate` (`job_runner.py:190`) runs it in the thread pool. job.state goes inferencing → novelty_scoring through a thread-safe callback, so there is no new state.
+10. **Settings.** All thresholds are `ORCHESTRATOR_*` settings (`app/config.py:98-130`). The engine version is `ORCHESTRATOR_VERSION = "orchestrator-1.1.0"` (`engine.py:49`).
+
+**Q2. Rationale: why these rules rather than the alternatives?**
+- **Not "plan wide only when the router is unsure".** On dev (8,299 sequences past the QC gate, 673 router v2 errors), 370 of the errors are at ≥ 0.70 confidence. Confidence alone puts the true route into the plan for only 250 errors, at 9.9% of sequences planned wide. Adding weak_route covers 445 errors at 29.7%; margin < 0.6 adds 12 more (457 at 30.5%). The margin rule adds little, and that is stated in the config comment.
+- **Not "the most confident head wins".** Each head was trained on its own route's label set, so probabilities from different heads cannot be compared. Reference identity can be compared (same aligner, same 80% coverage floor), so only reference hits move the route.
+- **Novelty.** QNA-020 Q4 required that a reference hit count against novelty. A species-level hit suppresses the flag. An LCA or genus-capped hit only downgrades the class and keeps the score, so a reviewer still sees it rather than losing the flag silently.
+
+**Q3. Results (measured; 100 test rows per route, seed 1019, 599 after QC; served models; reference v2 via BLAST; RTX 3070).**
+
+| Route | Planned >1 route | Router acc. → final | Fixed / broken | Class acc. final (old router+head) | Novelty suppressed / downgraded | Plant capped |
+|---|---|---|---|---|---|---|
+| fish | 17% | .960 → .970 | 1/0 | .758 (.899) | 12 / 7 | 0 |
+| plant | 19% | .90 → .91 | 1/0 | .79 (.86) | 0 / 11 | 18 |
+| animal | 34% | .94 → .95 | 2/1 | .65 (.88) | 14 / 8 | 0 |
+| bacteria | 19% | .96 → .96 | 1/1 | .67 (.77) | 8 / 4 | 1 |
+| human | 100% | .86 → .92 | 7/1 | .89 (.86) | 0 / 0 | 0 |
+| misc | 73% | .66 → .62 | 0/4 | .87 (.91) | 1 / 1 | 0 |
+| **all** | 43.7% | **.8798 → .8881** | 12/7 | **.7713 (.8631)** | 35 / 31 | 19 |
+
+- **Planning.** Router-stage rules fired: confident_router 349, weak_route 186, narrow_margin 85, low_confidence 71, low_quality_gate 29. reference_miss expansions: 147. True route inside the plan: 559/599.
+- **Disagreements.** Head vs reference on the final route: 317 agree, 63 disagree. Router vs reference lineage: 78 sequences, but in only 6 does the lineage point to the true route. heads_disagree fires on 237 of the 262 multi-route plans.
+- **Novelty flags:** 172 → 137. Of the suppressed flags, 33 are on rows labelled possible_novelty.
+- **Cost.**
+  - Time: 105.0 s for 599 sequences (175 ms/sequence). The reference lookup accounts for 88.4 s, with the bacteria BLAST batch alone at 57.65 s per 100 sequences. Heads take 16.4 s.
+  - Memory: peak GPU allocated 2,294 MB; Python RSS 1,799 MB; BLAST 271 MB; GRCh38 BLAST 1,084 MB.
+  - Trace size: mean 5,439 B BSON, max 9,138 B.
+
+**Q4. Blast radius: what this does not show, and what can break.**
+- **Class accuracy against labels goes down** (.8631 → .7713) because of the required novelty rule. Per QNA-020 Q4, reference v2 holds near-relatives of the "uncultured/environmental" possible_novelty rows. Either those labels or the rule is wrong for these rows. This is the Day 10 / B5 question; the rule was not loosened to recover the number.
+- **orchestrator-1.0.0 made routing worse:** .8798 → .8765, with 7 fixed and 9 broken. Three logic fixes, released as 1.1.0, were found by reading those test-set route changes:
+  - a GRCh38 hit counts as evidence for the human route;
+  - a no_consensus top pick still counts in the tie rule;
+  - an Eukaryota-only lineage never moves the route.
+  Before re-running test, I checked them on a dev sample: route .8583 → .8583 under 1.0.0, .8583 → .8750 under 1.1.0. This is test-informed rule design and is disclosed as such.
+- **misc gets worse** (0 fixed, 4 broken): misc-labelled reads hit animal or bacteria DBs at 91–99%.
+- **analysis_results grows:** 17.5 KB per sequence measured, so one document reaches the 16 MB Mongo limit at about 950 sequences (about 1,390 before; the embeddings were already 9.5 KB per sequence).
+- **The API cannot show the trace yet.** Its SequenceResult model drops decision, decision_trace and router_route until it is extended.
+- **GRCh38 runs only when the human route is planned.**
+- **Old-field semantics changed:** route = final route; route_confidence = the router's probability for the final route; with no head prediction, novelty_score is 0.0 ("novelty_unscored") instead of a score from a stub's confidence of 0.0.
+
+**Q5. Verification.**
+- **Tests.** 94 new: planner table (`tests/test_orchestrator_planner.py`, 20), combiner route/class/novelty tables plus the lineage mirror against `training.routing` (`test_orchestrator_combiner.py`, 49), provider unavailable/skipped paths (`test_evidence_providers.py`, 14), and engine plus `run_job` with fake providers (`test_orchestrator_engine.py`, 11). The engine tests check the state sequence parsing→qc→routing→inferencing→novelty_scoring→reporting→completed and that `bson.BSON.encode` succeeds on the stored document.
+- **Suites.** Worker: 454 passed, plus the 2 known stale registry failures. API: 512 passed.
+- **Dev planner numbers.** `python -m training.eval_orchestrator planner --split dev` reproduced the WIP comment's numbers exactly (673 errors / 457 covered / 370 at ≥ 0.70).
+- **Live run.** `run_job` from the worktree against local Mongo gave job_orch_65b9641391 → **ana_ca1680d40e6e4ef8**: 24/24 results with decision + trace, 8 automatic reviews.
+
+**Q6. Defence: "your orchestrator makes the answers worse than the old pipeline."**
+On routing it is better on held-out rows: .8798 → .8881 on test and .8583 → .8750 on dev. The first version was worse, and that result is kept in the record. On result_class it scores lower against the labels, and the whole drop comes from one required rule: a ≥ 97% reference match cannot stay "possible novelty". The labels call those rows novel because of their source names, not their sequence distance. The trace records every suppression and downgrade with the hit's identity, so a reviewer can overturn each one. The rule is a single table row and can be changed once Day 10 decides which side is wrong.
+
+## QNA-025 — 2026-10-19 — Orchestrator 1.2.0 review fixes: GRCh38 beaten, no_consensus top pick, decision trace through the API (Q7; tracker t-1022-1, t-1022-2)
+
+**Commit:** 49daf0b (worker fixes), 4c1a9b1 (API), 2556113 + aab1f5c (eval + results) on sprint/d9-orchestrator. This follows and partly supersedes QNA-024 (orchestrator-1.1.0): the 1.1.0 smoke numbers are kept as docs/ml/results/orchestrator_smoke_2026-10-19_orchestrator-1.1.0.json.
+
+**Merged:** `sprint/d9-orchestrator` into `LATEST_USHNIK` as `4c6d223` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+**Supersedes parts of QNA-024.** Open owner decision, raised 2026-10-19 by the orchestrating session: on the held-out sample the orchestrator's result_class agrees with the dataset labels on 0.773 of rows vs 0.8631 for the old router+head answer. Of 180 possible_novelty-labelled rows, 39 become known_species and 43 likely_taxonomic_group because reference v2 has a ≥97% / ≥80%-coverage hit (QNA-020 Q4 rule); 17 known_species rows become likely_taxonomic_group (plant genus cap, LCA). Whether the class rule or the dataset label is right for those rows is not established by this run.
+
+**Q1 — Mechanism. What changed, step by step?**
+(a) GRCh38 beaten. `combiner.grch38_beaten_by()` (services/worker/app/orchestrator/combiner.py:127) returns the final route's assignment when all of these hold: the final route is not human_domestic_contamination or low_quality; the human route's GRCh38 evidence has `contamination=True`; the final route's reference is `assigned`; the genus is not Homo; and its identity is strictly greater than the GRCh38 identity. Otherwise it returns None. `Orchestrator._contamination_context` (engine.py:216-227) calls it after `select_route` and passes `grch38_beaten_by` to `ContaminationProvider`. The provider (evidence/providers.py:225-245) then sets `grch38_contamination=False` and `flagged` from the heuristic only, keeps `grch38_hit=True` and `grch38_beaten_by` in the payload, and adds the reason code `grch38_beaten_by_closer_assignment`. `combine()` writes a `contamination / grch38_beaten_by_closer_assignment` step. Because `_write_legacy` reads the provider's payload, contamination_flagged, contamination_type and `_build_auto_reviews` all follow.
+(b) no_consensus top pick. In `select_route`'s reference_hit_outside_router branch (combiner.py:222-239), a no_consensus top pick's identity now counts. If it is within REFERENCE_TIE_DELTA (0.5) of the best placeable assignment elsewhere, or above it, the result is `reference_confirms_router`; otherwise `reference_hit_outside_router`, with both identities in the detail.
+(c) API. `SequenceDecision`, `SequenceResult.router_route/decision/decision_trace` and `AnalysisResultDoc.orchestrator_version` were added (services/api/app/models/analysis.py:28-78). `GET /analysis/{id}?include_trace=false` drops the traces (analysis/router.py:104-122).
+
+**Q2 — Rationale. Why this over the rejected alternative?**
+(a) The alternative was to patch only the combiner's `contamination_flagged`. That would have left the stored legacy fields (contamination_flagged, contamination_type human_dna) and the auto_contamination review queue saying "human DNA", because those are written from the provider payload, not from the combiner. Deciding before the provider runs makes every downstream reader consistent. The rule is the reference lookup's own `non_human_better` (reference_lookup.py:756), applied across routes, and it was already the combiner's stated `grch38_beaten` rule. 1.1.0 applied it to only one class rule.
+(b) The reviewer suggested removing no_consensus from REFERENCE_MISS_STATUSES. I rejected that, because the planner (planner.py:44) also uses that constant to plan one more route when the top pick's tied hits disagree, and extra evidence changes no answer. The faulty decision was in the combiner. The fix reuses the tie semantics 1.1.0 already applied in the strong-hit branch, so no_consensus means the same thing in both branches.
+(c) Pass-through fields were chosen over a per-sequence trace endpoint because the UI needs no second fetch. include_trace=false covers large analyses, since a trace averages 5.47 KB BSON.
+
+**Q3 — Blast radius. What breaks if this is wrong?**
+(a) If grch38_beaten_by were too lenient, a real human read could escape the human_dna flag. Guards: it never applies when the final route is human (the lookup already decided there); Homo assignments are excluded; the inequality is strict. And the route only leaves human after a GRCh38 hit when `grch38_human_route` found a candidate assignment closer than GRCh38 (combiner.py, grch38_human_route rule). The heuristic contamination flag is untouched. On the held-out sample the path fired 0 times; all 102 flags stayed human_dna on the human route.
+(b) If the no_consensus rule were wrong, reads could stick on the router's route against a better hit elsewhere. It only applies when the other hit is at most 0.5 points above the no_consensus identity; test `no_consensus_weaker_than_other_hit` (85.0 vs 92.0) still moves the route.
+(c) API fields are Optional, so old docs validate (`test_pre_orchestrator_result_still_validates`). Response size grows by about 5.5 KB per sequence by default.
+ORCHESTRATOR_VERSION went to orchestrator-1.2.0 (engine.py:49), so stored decisions can be told apart.
+
+**Q4 — Verification. Which checks prove it?**
+Tests that failed before the fix and pass after (WIP commit bab7e62 holds them failing):
+- services/worker/tests/test_orchestrator_engine.py:334 `test_grch38_beaten_is_not_human_contamination`, parametrised over the reviewer's two probes. It asserts contamination_flagged False, no human_dna, no auto_contamination review, the trace step, and the payload grch38_hit/grch38_beaten_by.
+- :354 control test: GRCh38 not beaten still flags human_dna.
+- :364 the human:test:42 shape end to end.
+- test_orchestrator_combiner.py:305-337: no_consensus table (3 cases) and the beaten-step/gate test.
+- test_evidence_providers.py:154: provider unit test.
+- services/api/tests/test_analysis_decision.py: 3 tests (model keeps the fields, old docs validate, GET returns decision + trace and honours include_trace=false).
+Suites: worker `/home/natsu/dev/synth-veda/services/worker/.venv/bin/python -m pytest tests/ -q` gives 463 passed, 2 failed. The 2 are pre-existing at base 5870c8b (registry promotion asserts) and are fixed on LATEST_USHNIK by 1f95333. API: 515 passed (512 + 3).
+Before the API fix I confirmed the drop read-only on the stored doc ana_ca1680d40e6e4ef8: `AnalysisResultDoc(**doc).model_dump()` had no decision/decision_trace.
+
+**Q5 — Results. What did the held-out rerun measure?**
+`python -m training.eval_orchestrator run --split test --per-route 100 --seed 1019`, saved as docs/ml/results/orchestrator_smoke_2026-10-19.json (599 rows after QC, reference v2, RTX 3070).
+- Exactly one decision changed against 1.1.0: human_domestic_contamination:test:42 moved misc_unknown -> human, possible_contamination, which matches its label.
+- Final route 533/599 (0.8898), up from 532; router-only 527 (0.8798). Route changes 18: 12 wrong->right, 6 right->wrong (was 7).
+- misc_unknown final 0.62 is still below router-only 0.66.
+- result_class 463/599 (0.773), up from 462, but still below the legacy router+head 517/599 (0.8631). The reference suppressed 33 possible_novelty-labelled flags against 2 known_species-labelled ones, which is the main cost.
+- Contamination (newly counted): 102 flagged, all human_dna, all on the human route, 65 of them labelled known_species. GRCh38-beaten path: 0 occurrences in this sample.
+- 175.9 ms/sequence; peak GPU 2294.2 MB; trace BSON mean 5470 B, max 9169 B.
+
+**Q6 — Defence. "Isn't dropping a GRCh38 hit hiding contamination?"**
+No. The hit stays in the trace (`grch38_hit`, `grch38_beaten_by`, both identities) and in contamination_reason_codes. Only the *flag* follows the rule the reference lookup already applies inside the human route: a strictly closer non-Homo assignment wins. The alternative was a read that the trace places as Salmo trutta at 99.9% being reported and queued as human DNA at 99.2%. That contradicts the system's own evidence, and a reviewer would see the contradiction in the stored record. The rule never fires on the human route and never on a Homo assignment. On real held-out data it fired 0 times, so it changes no reported number; it only removes a contradiction the tests reproduce. And "the UI shows the trace": the API now returns it, but no React view renders it yet, and I list that as open rather than claim it.
+
+## QNA-026 — 2026-10-19 — Inference tokenises each route head at its training max_length (QNA-022 open issue; no tracker task; open issue carried in the sprint handoff)
+
+**Commit:** 71d6500 (code + tests), 190c237 (measurement) on sprint/d9-maxlen
+
+**Merged:** `sprint/d9-maxlen` into `LATEST_USHNIK` as `8b92811` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+**Q1 Mechanism: what does inference do now, step by step?**
+1. predictor._run_model loads the backbone and head as before. At services/worker/app/inference/predictor.py:177 it then calls `resolve_max_length(entry)` and passes the result to `tokenize_dna(..., max_length=max_length)` (line 178). The literal `max_length=512` is gone.
+2. `resolve_max_length` (services/worker/app/inference/max_length.py:84) returns the first positive int from four sources, in this order:
+   - (a) `entry.metrics["max_length"]` from models/registry/*.json. All six v2 heads record 256 there.
+   - (b) `metrics.json` in the directory of `artifact_uri`. finetune.save_checkpoint writes run_info there.
+   - (c) `truncation.max_length` in the local backbone's tokenizer.json. The v1 checkpoints (2026-08-03) were saved by a fast tokenizer last called at 256, so 256 is recorded there.
+   - (d) `WorkerSettings.inference_default_max_length` (services/worker/app/config.py:34, default 256, env INFERENCE_DEFAULT_MAX_LENGTH), logged at WARNING (max_length.py:108).
+3. Bools, non-ints and values <= 0 are rejected (`_as_max_length`). Unreadable JSON falls through to the next source. The result is cached per (model_id, artifact_uri, base_model) (max_length.py:115), so the files are read once per model per process.
+4. `heads.tokenize_dna` (heads.py:163) no longer has a default for max_length, so no caller can silently get 512 back.
+
+**Q2 Rationale: why read the model's own record instead of changing the literal to 256?**
+- **Rejected: a literal 256.** It would have fixed today's heads but would make the same mistake again for any head trained at another --max-length.
+- **Chosen: the training record.** The window is a property of the trained model, so it is read from that model's record. v2 has it in the registry and metrics.json. For v1 the only surviving record is tokenizer.json, because finetune.py did not write max_length into metrics.json before the v2 run.
+- **Fallback.** A single named setting, not a literal, as the task required. Its default equals finetune's --max-length default.
+- **Registry untouched.** No registry JSON was edited, because every runnable head already resolves from its own record. tests/test_max_length.py::test_every_registered_head_has_a_recorded_max_length asserts source != default and value == 256 for all of them.
+
+**Q3 Blast radius: what changes if this is wrong?**
+- **Only the tokenisation window changes.** Only the window of route-head inference via predictor.py changes; routers do not go through it. Sequences of up to 256 BPE tokens give the same embeddings at both lengths: the largest probability difference on such rows is at most 7e-06 across all 6 routes.
+- **Only long sequences can change prediction.** Only sequences longer than 256 tokens can change prediction; they are now truncated as in training.
+- **If the resolver picked a wrong value.** A long read would be truncated differently from training. That would show up as WARNING/INFO log lines "Model X tokenises at max_length=N (source: S)".
+- **Speed.** Inference is about 1.6–1.8x faster at 256. For example, bacteria takes 32.5 s vs 52.2 s for 4219 rows.
+
+**Q4 Verification: which checks prove it?**
+- **Unit tests.** `cd services/worker && /home/natsu/dev/synth-veda/services/worker/.venv/bin/python -m pytest tests/test_max_length.py -q` gives 31 passed. They cover:
+  - the resolution order;
+  - default = named setting;
+  - default = finetune default;
+  - bad values skipped;
+  - unreadable files fall through;
+  - caching;
+  - predictor passing the resolved length;
+  - tokenize_dna passing it through;
+  - every real registry head resolving to 256 from its own record.
+- **Full worker suite.** 391 passed, 2 failed. The 2 failures (test_learned_router::test_v2_is_candidate_and_not_served, test_registry_entries::test_v2_candidates_do_not_change_selection) also fail on LATEST_USHNIK 5870c8b. They assert 'candidate' on entries that QNA-023 promoted to production.
+- **API suite.** 512 passed.
+- **Measurement.** Command: `SYNTHVEDA_DATA_ROOT=… python -m training.eval_maxlen_alignment --out ../../docs/ml/results/maxlen_alignment_2026-10-19.json`. It used full test splits on an RTX 3070, fp32, 157.9 s. The v2 heads at 256 reproduce their registry test_accuracy/test_macro_f1 exactly, which shows the script uses the same pipeline as evaluate_checkpoint.py.
+
+**Q5 Results: what was measured (top-1 accuracy / macro-F1, trained 256 vs 512, full test split)?**
+
+| Route | Head | n | at 256 | at 512 | Flips |
+|---|---|---|---|---|---|
+| fish | v2 | 592 | 0.8986 / 0.8646 | identical | 0 |
+| plant | v1, still served | 596 | 0.9564 / 0.6889 | 0.9530 / 0.6853 | 2 (both fixed by 256) |
+| bacteria_pathogen | v1, still served | 4219 | 0.8322 / 0.8341 | 0.8229 / 0.8252 | 175 (89 fixed, 50 broken by 256, the rest wrong both ways) |
+| animal_general | v2 | 992 | 0.8760 / 0.7411 | identical | 0 |
+| human_domestic_contamination | v2 | 914 | 0.9792 / 0.9790 | identical | 0 |
+| misc_unknown | v2 | 1362 | 0.9361 / 0.9411 | 0.9339 / 0.9391 | 5 (4 fixed, 1 broken by 256) |
+
+- **Where flips occur.** Every flip is on a row over 256 tokens.
+- **Gain size.** 512 never scored higher than 256. The gain is small: at most +0.0093 accuracy (bacteria v1), and zero on 3 of the 4 production v2 heads.
+
+**Q6 Defence: "the gains are noise; why bother?"**
+- **The claim is correctness, not accuracy.** Each head's classifier was fit only on [CLS] embeddings of inputs truncated at 256. Serving 512 feeds it an input distribution it never saw. The data shows this is not harmless on long reads: maximum probability shifts on rows over 256 tokens are 0.56 (plant), 0.61 (bacteria) and 0.70 (misc_unknown).
+- **The accuracy numbers are reported as measured.** They include the three routes where nothing changed.
+- **Why plant's macro-F1 is low.** It reflects the v1 plant head scored on the rebuilt v2 split, which is unrelated to max_length (the plant v2 registry entry has the v1-on-new-test comparison).
+- **Why no larger window.** A run that retrains at 512 to test whether a longer window helps is a separate experiment, not a reason to serve a mismatched window.
+
+## QNA-027 — 2026-10-19 — Review records written: review_evidence, curation_decisions, training_batch_items (B9; tracker t-1024-2)
+
+**Commit:** 95b5c9a on sprint/d11-review-tables (series 96974d8, 23d6e39, d82babf, 95b5c9a on top of 5870c8b)
+
+**Merged:** `sprint/d11-review-tables` into `LATEST_USHNIK` as `10b2570` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+**Q1 Mechanism: what happens, step by step?**
+1. `POST /reviews` (services/api/app/reviews/router.py:120) inserts the review, then calls `record_submission` (records.py:206).
+   - `load_result_snapshot` (records.py:109) fetches the reviewed element of `analysis_results.results[]` with an `$elemMatch` projection and drops `embedding` and `sequence`.
+   - Everything else is kept, including the orchestrator's `decision`/`decision_trace` if the worker wrote them (read-only use of task A's contract).
+   - `evidence_docs` (records.py:131) builds one document of type `result_snapshot`, with the snapshot in `payload`, and one of type `text` for the notes.
+2. `POST /reviews/{id}/evidence` goes through `add_evidence` (curation.py:171): one `text` record, plus one record per attachment, typed `url` for http(s) links and `reference` otherwise.
+3. `POST /reviews/{id}/decision` (router.py:303-312):
+   - `ensure_snapshot` (records.py:214) captures a snapshot if the review has none. Auto-queued reviews are inserted by the worker straight into MongoDB, so the curator's decision is the first API-side event for them.
+   - `record_decision` (records.py:251) writes one curation_decisions document with previous_state and new_state.
+4. `POST /reviews/batch/create` runs `create_monthly_training_batch`, which calls `record_batch_items` (curation.py:229 → records.py:321):
+   - one training_batch_items document per review;
+   - the raw sequence comes from analysis_results (`_batch_sequences`, records.py:305);
+   - a `supabase_skip_reason` is set when there is no sequence, no proposed_taxon or no deciding curator.
+5. Each `record_*` call:
+   - inserts into MongoDB first with `supabase_mirrored: false`;
+   - then runs `_mirror` (records.py:57), which returns `not_configured` if `SupabaseClient._get()` raises, otherwise runs the write and on any Exception logs a WARNING with exc_info and returns `failed`;
+   - then sets `supabase_mirrored: true` only for rows Supabase accepted.
+6. Every Supabase write first upserts expert_reviews on `review_id` (`_expert_review_uuid`, records.py:98), because review_evidence and curation_decisions foreign-key to `expert_reviews.id` (a uuid).
+7. The batch mirror runs get_or_create_training_batch, then curated_sequences, then training_batch_items for each item, then sets `sequence_count`.
+8. Migration supabase/migrations/20261019000001_review_records.sql (unapplied):
+   - expert_reviews.submitted_by becomes nullable ("system");
+   - the review_evidence check gains `result_snapshot`, and a `payload jsonb` column is added;
+   - training_batch_items.split becomes nullable.
+
+**Q2 Rationale: why this design, and what was rejected?**
+- **Supabase-only writes (rejected).** MongoDB is primary for reviews (expert_reviews is described as a "mirror" in 20260526000001), and the Supabase host in services/api/.env currently does not resolve. Supabase-only writes would record nothing today.
+- **Inline best-effort mirror (chosen).** It copies the existing `_mirror_to_supabase` contract in models/router.py:323-363: written / not_configured / failed, logged and never raised.
+- **Mirror first, then insert into MongoDB (rejected).** That was the WIP ordering (96974d8). It was replaced in d82babf because a hung or cancelled Supabase call would have cost the MongoDB record.
+- **Inventing values to satisfy not-null columns (rejected).** Examples would be a placeholder taxon or a random train/val/test split. Instead the items are not mirrored and carry a recorded skip reason, and split is made nullable because scripts/training/train.py draws its own split at training time.
+- **Dropping tables (rejected).** The audit found all 12 tables read or written, so no drop migration was added.
+
+**Q3 Blast radius: what breaks if this is wrong?**
+- Request paths: POST /reviews, POST /reviews/{id}/evidence, POST /reviews/{id}/decision and POST /reviews/batch/create.
+- A Supabase failure cannot fail these requests: `_mirror` catches Exception. CancelledError is not caught, but the MongoDB record already exists by then.
+- **Latency cost while Supabase is unreachable.** `_with_retry` (supabase_client.py:64) makes 3 attempts with 0.3 s + 0.6 s sleeps, so each failed upsert costs at least 0.9 s plus DNS time. A decision on an auto-queued review does 2 upserts (snapshot, then decision). This is computed from the code, not measured.
+- **Responses** gain `supabase_mirror` (decision) and `supabase_mirror`/`supabase_items_mirrored`/`supabase_items_skipped` (batch). These are additive fields.
+- **Partial batch failure.** If training_batch_items fails after its curated_sequences insert succeeds, that curated_sequences row is orphaned. The item stays `supabase_mirrored: false`.
+- **Collections and indexes.** New MongoDB collections review_evidence, curation_decisions and training_batch_items get unique-id indexes (db/indexes.py).
+- **Triage** still calls `update_review_state`, which is a no-op for a review whose expert_reviews row has not been created yet.
+
+**Q4 Verification: what proves it works?**
+- API suite: `cd services/api && SYNTHVEDA_DATA_ROOT=/home/natsu/dev/synth-veda/synthveda-data /home/natsu/dev/synth-veda/services/api/.venv/bin/python -m pytest tests/ -q` gave 525 passed (512 baseline plus 13 new).
+- Worker suite: 360 passed, 2 failed. Both are the known stale v2-registry tests, and the branch changes no worker files.
+- tests/test_review_records.py fakes Supabase at the postgrest-chain level, so the real SupabaseClient methods run.
+  - Every row is checked against the column set, not-null columns and enum/check values parsed from supabase/migrations/*.sql, with `json.dumps(allow_nan=False)`.
+  - Failure paths: unreachable (httpx.ConnectError raised through `_with_retry`), unconfigured (`_client=None`), a failure part-way through a batch, and NaN in a snapshot.
+  - Ordering: `test_mongo_records_exist_before_supabase_is_called` asserts the MongoDB records exist at the moment each Supabase write is called.
+  - Audit: `test_every_migration_table_is_read_or_written_by_the_api` maps each of the 12 migration tables to a SupabaseClient method that has a caller outside app/db.
+
+**Q5 Defence: "Your mirror silently drops rows."**
+- Nothing is silent. Every failure is a WARNING with a traceback (asserted with caplog, including `rec.exc_info is not None`).
+- The outcome is returned in the HTTP response.
+- Each MongoDB document records `supabase_mirrored`, and `supabase_skip_reason` where it applies, with an index on the flag so a backfill can find the missing rows.
+- A skipped batch item is skipped because the schema demands a real sequence, taxon and curator, and we do not fabricate them.
+- "Why null out NaN?" Strict JSON (and so PostgREST) would reject the whole insert. The nulling happens only in the mirror, and MongoDB keeps the worker's value verbatim.
+- "Is model_eval_metrics still dead?" No. It is written in models/router.py:356 on register/promote (QNA-014).
+
+## QNA-028 — 2026-10-19 — Partner summary, audits and field-log tasks (B16, M1; tracker t-1026-2, t-1028-1)
+
+**Commit:** 5ba29cb (summary), 1648b53 (audits + tasks + summary sections), d03e078 (review fix: empty-scope note vs audits) on sprint/d13-partner-api
+
+**Merged:** `sprint/d13-partner-api` into `LATEST_USHNIK` as `8653d87` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+**Q1 Mechanism: what does the code do, step by step?**
+- GET /partner/summary (services/api/app/partner/router.py:49) resolves the caller's scope from the existing auth role model and calls `build_summary` (services/api/app/partner/summary.py:220).
+- `build_summary` loads uploads and analysis_results in that owner scope and date range. It aggregates totals, time series, route and result-class distributions, novelty and contamination flag counts, and top_taxa (only for sequences whose predicted_taxon is non-null). It also reports review states for the in-scope analysis ids, and environmental coverage per upload through the t-1026-1 environment service (`_environment`, summary.py:436).
+- Field-log tasks (`_tasks`, summary.py:395) are counted only over in-scope analysis ids.
+- Audits (`_audits`, summary.py:412) are counted per owner (`created_by`, summary.py:344). They are deliberately not date-filtered, because they are current state (see the AuditSummary docstring, models.py:113-115).
+- POST and GET /partner/audits are at router.py:121 and router.py:153. Field-log entries gained kind `task` (services/api/app/models/field_log.py:11) with task_status, due_date and assignee.
+- The fix in d03e078 is at summary.py:347-355. When there are no uploads and no analyses but audits.total > 0, the empty-scope note now says which counts are zero and how many audits are reported. It no longer says "every count is zero". The fully empty case keeps that wording.
+
+**Q2 Rationale: why this over the rejected alternative?**
+- Rejected: date-filtering audits so they match the note. That would hide a pending or overdue audit created before date_from, which is what the Industrial page most needs to show.
+- Rejected: dropping the note. The task requires an explicit note on empty data.
+- Chosen: keep audits as current state and make the note describe what is actually zero. Only the text changed; no number changed.
+
+**Q3 Blast radius: what breaks if this is wrong?**
+The change only affects `notes`, a list of strings. No numeric field and no schema changed. The frontend does not yet parse notes; FE work comes in later tasks. The worst case is wrong wording in a note. Before the fix, the note contradicted the audits panel: the reviewer's real-Mongo run showed audits total=1, overdue=1, high=1 next to "every count is zero".
+
+**Q4 Verification: what check proves it?**
+- New test `test_summary_empty_note_does_not_contradict_audits` (services/api/tests/test_partner_audits.py:368): no uploads, no analyses, one scheduled audit due 2020-01-01. It asserts totals are all zero, audits total=1 and overdue=1, no note contains "every count is zero", and a note contains "No uploads or analyses" and "1 audit".
+- Before the fix it failed with notes == ['No uploads or analyses in this scope and date range; every count is zero.']. After the fix it passes.
+- The fully empty DB test (test_partner_summary.py:220) still asserts the original wording.
+- Full suites: API 597 passed, 0 failed. Worker 360 passed, 2 failed. Both worker failures (test_learned_router v2-candidate, test_registry_entries v2-candidates) were already there at base 5870c8b and are fixed by 1f95333 on LATEST_USHNIK. This branch changes no worker file.
+
+**Q5 Defence: "Your summary mixes date-filtered and undated sections. Isn't that inconsistent?"**
+Yes, on purpose, and the response now says so. Uploads, analyses, reviews and tasks describe activity in the window. Audits describe obligations that are still open, and an overdue audit does not stop being overdue because the window starts later. The AuditSummary docstring says this (models.py:113-115). The empty-scope note now states it whenever it matters, so the response never claims zero next to a non-zero section.
+
+**Q6 Results: did anything measured change?**
+No. docs/ml/results/partner_summary_crosscheck_2026-10-19.json (local dev Mongo, scope=all) still shows the summary matching independent counts: 5 uploads, 5 analyses, 26 sequences, 10 novelty flags, 6 contamination flags, 0 low_quality, 16 reviews, sequences_with_taxon=0, build_summary 0.0117 s. The fix only affects scopes with no uploads and no analyses, which this DB is not.
+
+## QNA-029 — 2026-10-19 — FAIR ZIP export + hash-chained chain of custody (M3, M2; tracker t-1027-2)
+
+**Commit:** e83274d on sprint/d14-fair-custody (preceded by 6354275, 9a62580, 0c5bb86, 26450e2; base 5870c8b)
+
+**Merged:** `sprint/d14-fair-custody` into `LATEST_USHNIK` as `2086eb6` on 2026-10-19. Merged-tree suites on `LATEST_USHNIK` `d30b5fc` (all five branches merged, plus `1f95333` stale-test fix and `d30b5fc` custody-fake fix): worker **496 passed**, API **644 passed / 2 skipped** (opt-in live-Mongo custody tests), `npm run build` OK. Playwright not rerun.
+
+Merge note: the merge conflicted with sprint/d11-review-tables in `reviews/router.py`, `db/indexes.py`, `tests/test_db_indexes.py` (both sides kept). After the merge, 3 custody tests failed because their fake collection did not accept Motor's positional projection argument or `insert_many` / `update_many`, which the B9 review-record code calls; fixed in the test fake only (`d30b5fc`).
+
+**Q1 Mechanism: what happens on an append, a custody read and a FAIR export?**
+- Append (services/api/app/custody/chain.py:129-190). Read the chain head (highest seq). Build the event {schema, chain_id, seq=head+1, event_type, recorded_at, actor, subject, payload[, event_key]} with prev_hash = the head's hash (GENESIS_HASH = 64 zeros at chain.py:49). Then hash = sha256(prev_hash || canonical_json(body)) (chain.py:104; canonical JSON with sorted keys at :79), and insert. The unique index (chain_id, seq) (db/indexes.py:152) means that when two writers race, exactly one insert wins. The loser gets DuplicateKeyError (chain.py:175), re-reads the head and retries. With an event_key, a partial unique (chain_id, event_key) index (indexes.py:156) makes the append idempotent.
+- Chain id: one chain per sample, `upload:<upload_id>` (chain.py:117), or `analysis:<id>` when the analysis has no upload.
+- Events: upload_created (POST /uploads, uploads/router.py, best-effort); review_submitted/triaged/evidence_added/decision (reviews/router.py, best-effort); report_exported (json/csv/fair, required: a 503 if it cannot be recorded, before any bytes leave). analysis_completed is derived by the API (custody/events.py:147 ensure_analysis_events) from the analysis_results document: results_sha256 = sha256(canonical_json(results)) (chain.py:108), keyed `analysis_completed:<id>`, so it is appended at most once. The worker writes no custody events.
+- GET /reports/{id}/custody (reports/router.py:384) calls ensure_analysis_events, then load_chain, then verify_chain (chain.py:195). verify_chain checks, per event i: seq == i, chain_id, prev_hash == the stored hash of i-1, and recomputed hash == stored hash. It reports the first break. The response also gives results_integrity (stored results vs. the recorded hash), metadata_integrity and file_integrity (stored bytes re-hashed against checksum_sha256).
+- GET /reports/{id}/export/fair (router.py:400) writes README.md, results.csv, sample_metadata.json (Darwin Core / MIxS, with missing and unmapped fields listed), provenance.json, decision_traces.json (only when the orchestrator contract is present), custody.json and raw/<file>. fair.write_fair_zip (fair.py:541) takes the sha256 of each file over the bytes as written, then writes manifest.json and manifest-sha256.txt. The export is recorded as report_exported carrying the ZIP sha256 and the manifest sha256 before the response streams.
+- Review-round fixes (e83274d): (a) raw/<file> is included only if uploads/access.can_view_upload passes (router.py:427), i.e. owner, admin or company_owner. (b) record_review_event (events.py:207) appends only for an actor who may read the analysis (owner, or a role in _ANALYSIS_READER_ROLES at events.py:65), and records user free text only as `<name>_sha256` (events.py:235-238).
+
+**Q2 Rationale: why derive analysis_completed in the API, and why a unique-index chain rather than a lock or a Merkle log?**
+- The worker (services/worker/app/job_runner.py) is being rewritten by Task A, so it could not be touched. It inserts analysis_results exactly once, at completion, so the document's existence is the completion signal. The cost is that recorded_at is when the API first saw the analysis. The payload therefore carries the worker's own created_at, and the custody response states this in `notes`.
+- The unique (chain_id, seq) index is an atomic compare-and-set that Mongo already provides. It needs no lock service or transaction, and a fork is impossible by construction: two events with the same seq cannot both exist. A Merkle tree would allow efficient inclusion proofs, but one sample's chain holds tens of events, so a linear verify is enough.
+- Raw file vs. report access: the report rule (owner or curator+) is wider than the upload rule (owner, admin, company_owner). The raw bytes belong to the upload, so they follow the upload's rule. Before this branch no endpoint served raw upload bytes at all.
+- Hashing review free text instead of bounding its length: the chain cannot be edited without breaking verification. Any clear text on it could therefore never be erased, whatever its length. A hash still lets you check that the content of the review document has not been changed afterwards.
+
+**Q3 Blast radius: what breaks if this is wrong?**
+- Appends of upload and review events are best-effort. A failure is logged, and a missing upload_created is backfilled as derived=true, so uploads and reviews never fail because of custody. Exports are refused with 503 if their event cannot be written (test_fair_export_refused_when_custody_cannot_be_recorded).
+- If canonicalisation drifted, for example in datetime handling, every stored hash would stop verifying. _as_stored (events.py) normalises datetimes to naive-UTC milliseconds, as BSON returns them. The live-Mongo test (tests/test_custody_mongo_live.py) checks that a BSON round-trip verifies.
+- Changes to existing endpoints: POST /uploads, the review endpoints and the json/csv exports each gain one custody call. Curators now get a FAIR ZIP without raw/ (they never had raw access elsewhere). POST /reviews' response and access rule are unchanged.
+- Known limit: deleting the newest event(s) cannot be detected from the chain alone. head_hash is written into every export (custody_head_hash_in_zip) so that a later comparison can catch it.
+
+**Q4 Verification: which checks prove it?**
+- `cd services/api && /home/natsu/dev/synth-veda/services/api/.venv/bin/python -m pytest tests/ -q`: 543 passed, 2 skipped (live-Mongo, opt-in via SYNTHVEDA_TEST_MONGO_URI), 0 failed. Baseline 512.
+- tests/test_custody_fair.py has 31 tests. They cover the hash formula; a tampered event reported as the first break; tamper with recomputed hash, which breaks the next link; a deleted middle event; concurrent appends that do not fork; a control test showing that without the unique index the chain does fork; analysis_completed idempotent under concurrency; ZIP contents with every manifest sha256 and size re-checked against the bytes; X-Manifest-SHA256 == sha256(manifest.json); the export event's sha256 == sha256 of the response body; and auth (401, 403 for another researcher with nothing appended).
+- Review-round tests. They failed before e83274d (3 failed, 1 passed, the passing one being the admin control) and pass after. test_fair_export_omits_raw_file_for_a_curator: the curator gets 403 on /uploads/upl_cust_001, the FAIR ZIP has no raw/ entry, RAW_FASTA is not in the bytes, and raw_file_included=false. test_fair_export_includes_raw_file_for_an_admin. test_review_by_a_user_without_access_appends_nothing_to_the_chain: usr_other_002's review returns 201, but custody_events stays empty. test_review_submitted_event_hashes_free_text: proposed_taxon_sha256, correction_type_sha256 and sequence_id_sha256 equal hashlib.sha256 of the input, "Jane Doe" does not appear anywhere in the serialized chain, and the chain verifies.
+- Worker: `cd services/worker && /home/natsu/dev/synth-veda/services/worker/.venv/bin/python -m pytest tests/ -q` gives 360 passed, 2 failed. Both failures already fail on base 5870c8b (the post-promotion registry state) and are fixed on LATEST_USHNIK by 1f95333. This branch changes no worker file.
+
+**Q5 Defence: "a hash chain in your own database proves nothing, since the admin can rewrite the whole chain."**
+- That is correct, and the response says so. The chain proves the internal consistency of one sample's history. It does not prove the server is honest. Its outside anchors are the exports: every FAIR ZIP carries custody.json, the head hash at export time and a manifest whose sha256 is recorded on the chain as the next event. A recipient who keeps a ZIP can later show whether the server's chain still extends that head. A rewrite that changes any earlier event changes every later hash, so it cannot match a head that is already held outside.
+- Challenge: "your hashes of review text are guessable." Partly correct. Unsalted sha256 of a short string, such as a taxon name or even a phone number, can be found by dictionary or brute force. The hashes are therefore pseudonymous, not anonymous. A per-review salt kept in the erasable review document would fix this. That is logged as an open issue, not claimed as done.
+- Challenge: "any user can still POST a review on someone else's analysis." Correct, and this predates the branch. Since e83274d such a review writes nothing to the owner's chain. The endpoint's own access rule is logged as an open issue in Task D's area.
