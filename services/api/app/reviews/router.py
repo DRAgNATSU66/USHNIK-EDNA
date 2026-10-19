@@ -17,6 +17,7 @@ from .curation import (
     create_monthly_training_batch,
     freeze_training_batch,
 )
+from .records import ensure_snapshot, record_decision, record_submission
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -114,6 +115,9 @@ async def submit_review(
         evidence_notes=body.evidence_notes,
     )
     await db["reviews"].insert_one(review.model_dump())
+    # B9: the result snapshot (incl. the orchestrator's decision/decision_trace
+    # when present) and the notes as review_evidence; mirrors expert_reviews.
+    await record_submission(db, review.model_dump(), current_user.user_id, body.evidence_notes)
     return review
 
 
@@ -284,17 +288,28 @@ async def post_review_decision(
         }},
     )
 
-    # Mirror accepted/rejected decisions to Supabase (best-effort)
-    try:
-        from ..db.supabase_client import SupabaseClient
-        await SupabaseClient.update_review_state(review_id, new_state, current_user.user_id, body.notes)
-    except Exception:
-        # Best-effort mirror: MongoDB is the source of truth, so don't fail the
-        # decision, but don't hide that Supabase is now out of sync either.
-        logger.warning(
-            "Supabase mirror of review %s -> %s failed; MongoDB updated, Supabase not",
-            review_id, new_state, exc_info=True,
-        )
+    # B9: the decision as a curation_decisions record. Its Supabase mirror
+    # upserts the expert_reviews row with the new state (this replaced an
+    # update_review_state call that updated nothing for a review whose row had
+    # never been written). Best-effort: MongoDB is the source of truth, so a
+    # Supabase failure is logged in records._mirror, not raised.
+    decided = {
+        **doc,
+        "state": new_state,
+        "decided_by": current_user.user_id,
+        "decision_notes": body.notes,
+        "decided_at": now,
+    }
+    await ensure_snapshot(db, decided, current_user.user_id)
+    mirror = await record_decision(
+        db, decided,
+        decision=body.decision,
+        curator_id=current_user.user_id,
+        curator_role=current_user.role,
+        notes=body.notes,
+        previous_state=doc.get("state"),
+        decided_at=now,
+    )
 
     await db["audit_logs"].insert_one({
         "action": "review_decision",
@@ -307,7 +322,7 @@ async def post_review_decision(
         "timestamp": now,
     })
 
-    return {"ok": True, "review_id": review_id, "new_state": new_state}
+    return {"ok": True, "review_id": review_id, "new_state": new_state, "supabase_mirror": mirror}
 
 
 # ---------------------------------------------------------------------------
