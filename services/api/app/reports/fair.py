@@ -431,6 +431,7 @@ def build_readme(
     add("## Contents")
     add("")
     descriptions = {
+        "README.md": "This file.",
         "results.csv": "One row per sequence with route, router version, model version, prediction, "
                        "novelty and contamination scores and reason codes. An empty cell means the value "
                        "was not recorded. decision_* columns appear only when the orchestrator produced a "
