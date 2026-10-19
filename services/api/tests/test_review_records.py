@@ -67,7 +67,7 @@ def _assert_fits(table: str, row: dict) -> None:
     assert set(row) <= spec["cols"], f"{table}: unknown columns {set(row) - spec['cols']}"
     missing = {c for c in spec["required"] if row.get(c) is None}
     assert not missing, f"{table}: not-null columns missing {missing}"
-    json.dumps(row)  # jsonb / PostgREST body must be JSON
+    json.dumps(row, allow_nan=False)  # jsonb / PostgREST body must be strict JSON
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +304,19 @@ async def test_submit_writes_snapshot_and_notes_evidence(client, researcher_toke
     snap_row = next(r for r in rows if r["evidence_type"] == "result_snapshot")
     assert snap_row["payload"]["result"]["decision"]["final_route"] == "fish"
     assert isinstance(snap_row["payload"]["captured_at"], str)
+
+
+@pytest.mark.anyio
+async def test_snapshot_with_nan_mirrors_as_null_and_mongo_keeps_it(client, researcher_token, db, supabase):
+    analysis = json.loads(json.dumps(ANALYSIS))
+    analysis["results"][0]["decision"]["percent_identity"] = float("nan")
+    db["analysis_results"].docs.append(analysis)
+    await _submit(client, researcher_token)
+    snap = next(d for d in db["review_evidence"].docs if d["evidence_type"] == "result_snapshot")
+    assert snap["supabase_mirrored"]
+    assert snap["payload"]["result"]["decision"]["percent_identity"] != snap["payload"]["result"]["decision"]["percent_identity"]  # NaN
+    row = next(r for r in supabase.rows["review_evidence"] if r["evidence_type"] == "result_snapshot")
+    assert row["payload"]["result"]["decision"]["percent_identity"] is None
 
 
 @pytest.mark.anyio

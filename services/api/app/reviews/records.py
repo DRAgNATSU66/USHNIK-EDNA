@@ -19,6 +19,7 @@ updates an existing row via SupabaseClient.update_review_state).
 from __future__ import annotations
 
 import logging
+import math
 import re
 import uuid
 from datetime import datetime, timezone
@@ -228,11 +229,18 @@ async def ensure_snapshot(db: AsyncIOMotorDatabase, review: dict, captured_by: s
 
 
 def _jsonable(value: Any) -> Any:
-    """datetimes to ISO strings, recursively, for a jsonb column."""
+    """
+    datetimes to ISO strings, recursively, for a jsonb column. A NaN/inf float
+    (not valid JSON, so PostgREST would reject the whole insert) becomes null
+    in the mirror only; the MongoDB document keeps the value as the worker
+    wrote it.
+    """
     if isinstance(value, dict):
         return {k: _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(v) for v in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     return _iso(value)
 
 
