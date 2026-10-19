@@ -17,6 +17,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await _field_log_indexes(db)
     await _environment_indexes(db)
     await _partner_audit_indexes(db)
+    await _custody_indexes(db)
 
 
 async def _uploads_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -169,4 +170,22 @@ async def _audit_indexes(db: AsyncIOMotorDatabase) -> None:
         IndexModel([("actor_id", ASCENDING)], name="audit_actor_id"),
         IndexModel([("action", ASCENDING)], name="audit_action"),
         IndexModel([("review_id", ASCENDING)], name="audit_review_id", sparse=True),
+    ])
+
+
+async def _custody_indexes(db: AsyncIOMotorDatabase) -> None:
+    # Hash-chained custody (app/custody/chain.py). (chain_id, seq) unique is
+    # what keeps the chain linear: two writers racing for the same seq cannot
+    # both insert, so the chain never forks. (chain_id, event_key) unique makes
+    # keyed events (upload_created, analysis_completed) append at most once;
+    # partial so unkeyed events (reviews, exports) are not constrained.
+    await db["custody_events"].create_indexes([
+        IndexModel([("chain_id", ASCENDING), ("seq", ASCENDING)], unique=True, name="custody_chain_seq_unique"),
+        IndexModel(
+            [("chain_id", ASCENDING), ("event_key", ASCENDING)],
+            unique=True,
+            name="custody_chain_event_key_unique",
+            partialFilterExpression={"event_key": {"$type": "string"}},
+        ),
+        IndexModel([("subject.analysis_id", ASCENDING)], name="custody_analysis_id", sparse=True),
     ])

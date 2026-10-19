@@ -8,6 +8,8 @@ from ..auth.deps import get_current_user, require_role
 from ..models.user import UserProfile, UserRole
 from ..models.review import ReviewDoc, ReviewState, ReviewDecision, ReviewType, TriagePriority
 from ..db import get_db
+from ..custody import record_review_event, user_actor
+from ..custody.chain import sha256_hex
 
 logger = logging.getLogger(__name__)
 from .curation import (
@@ -118,6 +120,14 @@ async def submit_review(
     # B9: the result snapshot (incl. the orchestrator's decision/decision_trace
     # when present) and the notes as review_evidence; mirrors expert_reviews.
     await record_submission(db, review.model_dump(), current_user.user_id, body.evidence_notes)
+    # Chain of custody (app/custody/events.py): best-effort, never fails the review.
+    await record_review_event(
+        db, "review_submitted", analysis_id=body.analysis_id, review_id=review.review_id,
+        actor=user_actor(current_user),
+        details={"review_type": str(body.review_type)},
+        text_fields={"sequence_id": body.sequence_id, "correction_type": body.correction_type,
+                     "proposed_taxon": body.proposed_taxon},
+    )
     return review
 
 
@@ -221,6 +231,10 @@ async def post_triage(
         "actor_role": current_user.role,
         "timestamp": datetime.now(timezone.utc),
     })
+    await record_review_event(
+        db, "review_triaged", analysis_id=updated.analysis_id, review_id=review_id,
+        actor=user_actor(current_user), details={"priority": str(body.priority)},
+    )
 
     return {"ok": True, "review_id": review_id, "priority": body.priority, "state": ReviewState.triaged}
 
@@ -253,6 +267,13 @@ async def post_evidence(
     )
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
+    # The evidence text is hashed, not copied: the chain cannot be edited later.
+    await record_review_event(
+        db, "review_evidence_added", analysis_id=doc.get("analysis_id"), review_id=review_id,
+        actor=user_actor(current_user),
+        details={"evidence_text_sha256": sha256_hex(body.evidence_text),
+                 "attachment_count": len(body.evidence_attachments)},
+    )
     return updated
 
 
@@ -321,6 +342,12 @@ async def post_review_decision(
         "notes": body.notes,
         "timestamp": now,
     })
+    await record_review_event(
+        db, "review_decision", analysis_id=doc.get("analysis_id"), review_id=review_id,
+        actor=user_actor(current_user),
+        details={"decision": str(body.decision), "new_state": str(new_state),
+                 "previous_state": str(doc.get("state")) if doc.get("state") else None},
+    )
 
     return {"ok": True, "review_id": review_id, "new_state": new_state, "supabase_mirror": mirror}
 

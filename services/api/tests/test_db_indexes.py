@@ -44,6 +44,7 @@ async def test_ensure_indexes_calls_all_collections():
         "environment_contexts",
         "environment_cache",
         "audits",
+        "custody_events",
     }
     assert expected == called_collections, (
         f"Missing collections: {expected - called_collections}"

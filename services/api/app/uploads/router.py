@@ -11,6 +11,7 @@ from ..models.upload import UploadDoc, UploadStatus
 from ..db import get_db
 from ..config import get_settings
 from ..storage import storage_from_settings, upload_key
+from ..custody import record_upload_created_best_effort
 from .access import can_view_upload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -134,6 +135,9 @@ async def create_upload(
 
     db = get_db()
     await db["uploads"].insert_one(doc.model_dump())
+    # First link of the sample's chain of custody (app/custody/). Best-effort:
+    # the upload is already stored; a miss is backfilled later, marked derived.
+    await record_upload_created_best_effort(db, doc.model_dump(), current_user)
 
     # Environmental context (Q5, t-1026-1): with coordinates + collection date,
     # look up public temperature/salinity/DO/pH/currents/wind after the
