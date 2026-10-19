@@ -344,7 +344,14 @@ async def build_summary(
     audits = await _audits(db, {"created_by": owner_filter["user_id"]} if "user_id" in owner_filter else {}, today)
 
     # -- notes ----------------------------------------------------------------
-    if not uploads and not totals.analyses:
+    if not uploads and not totals.analyses and audits.total:
+        # Audits are owner-scoped and not date-filtered, so they can be non-zero here.
+        notes.append(
+            "No uploads or analyses in this scope and date range; upload, analysis, review and task counts "
+            f"are zero. audits is not date-filtered and reports {audits.total} audit"
+            f"{'' if audits.total == 1 else 's'} recorded in this owner scope."
+        )
+    elif not uploads and not totals.analyses:
         notes.append("No uploads or analyses in this scope and date range; every count is zero.")
     elif totals.sequences and not totals.sequences_with_taxon:
         notes.append(

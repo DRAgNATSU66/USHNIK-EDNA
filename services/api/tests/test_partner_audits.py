@@ -365,6 +365,21 @@ async def test_summary_empty_tasks_and_audits(client, researcher_token):
 
 
 @pytest.mark.anyio
+async def test_summary_empty_note_does_not_contradict_audits(client, researcher_token, db):
+    # Audits are not date-filtered, so a scope with no uploads or analyses can
+    # still carry audits; the empty-scope note must not claim every count is zero.
+    db["uploads"].docs.clear()
+    db["analysis_results"].docs.clear()
+    db["audits"].docs.append(_stored("aud_1", OWNER, datetime(2026, 10, 1, 9), due_date="2020-01-01",
+                                     findings=[{"severity": "high", "description": "d"}]))
+    body = (await client.get("/partner/summary", headers=_auth(researcher_token))).json()
+    assert set(body["totals"].values()) == {0}
+    assert body["audits"]["total"] == 1 and body["audits"]["overdue"] == 1
+    assert not any("every count is zero" in n for n in body["notes"]), body["notes"]
+    assert any("No uploads or analyses" in n and "1 audit" in n for n in body["notes"]), body["notes"]
+
+
+@pytest.mark.anyio
 async def test_summary_counts_tasks_and_audits(client, researcher_token, company_owner_token, db):
     # Past / far-future due dates keep "overdue" independent of the run date.
     db["field_log_entries"].docs.extend([
