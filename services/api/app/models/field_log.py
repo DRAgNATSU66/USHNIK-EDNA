@@ -8,12 +8,21 @@ import uuid
 class FieldEntryKind(StrEnum):
     note = "note"        # Field Notes & Anomalies (left column, unthreaded)
     comment = "comment"  # Team Discussion (right column, threaded)
+    task = "task"        # Follow-up with a status, optional due date and assignee (M1)
+
+
+class TaskStatus(StrEnum):
+    open = "open"
+    in_progress = "in_progress"
+    done = "done"
 
 
 # Fields a PATCH may change. kind, reply_to and analysis_id are structural
-# (which column, which thread, which run) and stay as created.
-EditableField = Literal["body", "anchor_sequence_id"]
-EDITABLE_FIELDS: tuple[str, ...] = ("body", "anchor_sequence_id")
+# (which column, which thread, which run) and stay as created. The task_*
+# fields, due_date and assignee exist on kind=task entries only.
+EditableField = Literal["body", "anchor_sequence_id", "task_status", "due_date", "assignee"]
+EDITABLE_FIELDS: tuple[str, ...] = ("body", "anchor_sequence_id", "task_status", "due_date", "assignee")
+TASK_FIELDS: tuple[str, ...] = ("task_status", "due_date", "assignee")
 
 
 class FieldChange(BaseModel):
@@ -50,6 +59,13 @@ class FieldEntryDoc(BaseModel):
     # candidate being discussed) and optional parent for one-level threading.
     anchor_sequence_id: Optional[str] = None
     reply_to: Optional[str] = None
+    # kind=task only (M1); None on notes and comments. due_date is an ISO
+    # date string ("YYYY-MM-DD"): BSON has no date-only type, and a string
+    # keeps FieldChange.old/new comparable. assignee is free text (a person
+    # or a team), not a user_id -- there is no user directory to check it against.
+    task_status: Optional[TaskStatus] = None
+    due_date: Optional[str] = None
+    assignee: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     # B10: set by PATCH. Entries written before B10 have neither field in
     # Mongo and load with these defaults (no edits).
