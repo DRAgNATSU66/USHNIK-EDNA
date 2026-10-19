@@ -270,11 +270,8 @@ class NoveltyProvider:
         for i, (sid, seq) in enumerate(items):
             t0 = time.perf_counter()
             ctx = dict(_context_at(context, i))
-            if route == LOW_QUALITY_ROUTE:
-                out.append(EvidenceRecord(self.name, self.version, str(sid), route, EVIDENCE_SKIPPED,
-                                          reason="low_quality route: cannot be novel"))
-                continue
-            if not ctx.get("head_ok"):
+            # The scorer itself scores the low_quality route (0.0, "resample").
+            if route != LOW_QUALITY_ROUTE and not ctx.get("head_ok"):
                 out.append(EvidenceRecord(self.name, self.version, str(sid), route, EVIDENCE_SKIPPED,
                                           reason=f"no model prediction on {route}: the novelty scorer needs one"))
                 continue
