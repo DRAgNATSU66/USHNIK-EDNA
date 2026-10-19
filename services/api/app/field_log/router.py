@@ -10,10 +10,10 @@ free-text assignee; those fields are refused on notes and comments, and
 PATCH records their changes in the same edit history as body/anchor.
 
 Endpoints:
-  POST  /field-log/entries                          Create a note or comment
+  POST  /field-log/entries                          Create a note, comment or task
   GET   /field-log/entries                          List entries for one analysis
   GET   /field-log/entries/{entry_id}               One entry, with its edit history
-  PATCH /field-log/entries/{entry_id}               Edit body / anchor; appends to history
+  PATCH /field-log/entries/{entry_id}               Edit body / anchor (/ task fields); appends to history
   POST  /field-log/attachments                      Attach a PDF/JPEG/PNG to an analysis
   GET   /field-log/attachments                      List attachments for one analysis
   GET   /field-log/attachments/{attachment_id}/download   The stored bytes
