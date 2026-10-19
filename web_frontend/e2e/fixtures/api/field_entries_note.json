@@ -2,10 +2,12 @@
   {
     "analysis_id": "ana_e2e0000000001",
     "anchor_sequence_id": null,
+    "assignee": null,
     "author_id": "usr_e2e_researcher",
     "author_name": "Rhea Researcher",
     "body": "CTD cast showed an oxygen minimum near 1,200 m.",
     "created_at": "2026-10-10T09:00:00",
+    "due_date": null,
     "edits": [
       {
         "changes": [
@@ -24,6 +26,7 @@
     "entry_id": "fle_e2e_note0001",
     "kind": "note",
     "reply_to": null,
+    "task_status": null,
     "updated_at": "2026-10-10T10:00:00"
   }
 ]
