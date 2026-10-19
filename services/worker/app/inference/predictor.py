@@ -5,7 +5,8 @@ For each sequence:
   1. Look up the best available model in the registry for its route.
   2. If no runnable model found → return stub prediction.
   3. Load model + tokenizer (cached).
-  4. Tokenize sequence → [CLS] embedding.
+  4. Tokenize sequence at the model's training max_length (max_length.py)
+     → [CLS] embedding.
   5. Run classifier head → softmax probabilities.
   6. Return PredictionResult with confidence, result_class, embedding.
 
@@ -23,6 +24,7 @@ from typing import Any
 
 from .heads import HeadUnavailableError, get_cls_embedding, get_head, tokenize_dna
 from .loader import get_or_load, torch_available
+from .max_length import resolve_max_length
 from .models import (
     ROUTE_LABEL_SETS,
     InferenceMode,
@@ -170,8 +172,10 @@ def _run_model(
         if head is None:
             return _stub_prediction(sequence_id, route, entry, "no_label_set")
 
-        # Tokenise.
-        inputs = tokenize_dna(sequence, tokenizer, max_length=512)
+        # Tokenise at the window this model was trained at, read from its
+        # own training record (see max_length.py), not a fixed literal.
+        max_length, _ = resolve_max_length(entry)
+        inputs = tokenize_dna(sequence, tokenizer, max_length=max_length)
 
         # Get [CLS] embedding.
         cls_emb = get_cls_embedding(model, inputs)

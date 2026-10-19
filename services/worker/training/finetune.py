@@ -5,8 +5,10 @@ on services/worker/training/build_dataset.py's output.
 Reuses DNAClassifierHead from app.inference.heads directly — the saved
 head.pt is loadable by the exact same class predictor.py uses at inference
 time, no format drift possible. Tokenization mirrors app.inference.heads.
-tokenize_dna's parameters (max_length=512) so train/inference preprocessing
-matches; it isn't imported as-is because that helper hardcodes torch.no_grad()
+tokenize_dna's parameters (padding="max_length", truncation) so train/inference
+preprocessing matches; --max-length is recorded in metrics.json and inference
+reads it back per model (app/inference/max_length.py). tokenize_dna
+isn't imported as-is because that helper hardcodes torch.no_grad()
 around the forward pass, which would block gradients to the backbone here.
 
 Run from services/worker/:
