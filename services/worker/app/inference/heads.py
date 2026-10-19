@@ -160,10 +160,13 @@ def clear_head_cache() -> None:
 def tokenize_dna(
     sequence: str,
     tokenizer: Any,
-    max_length: int = 512,
+    max_length: int,
 ) -> dict[str, Any]:
     """
     Tokenise a DNA sequence for a HuggingFace model.
+
+    max_length has no default on purpose: it must be the window the model was
+    trained at (predictor.py passes max_length.resolve_max_length's value).
 
     Handles both BPE tokenisers (DNABERT-2) and k-mer tokenisers
     (Nucleotide Transformer) transparently — the tokeniser already knows

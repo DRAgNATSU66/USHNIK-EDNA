@@ -26,6 +26,12 @@ class WorkerSettings(BaseSettings):
     job_timeout_seconds: int = 600
     # Novelty (see DEFAULT_NOVELTY_THRESHOLD above).
     novelty_threshold: float = Field(default=DEFAULT_NOVELTY_THRESHOLD, gt=0.0, lt=1.0)
+    # Tokenisation window for a route head whose own training record names
+    # none (app/inference/max_length.py tries the registry entry, the
+    # checkpoint's metrics.json and its tokenizer.json first). 256 is
+    # training/finetune.py's --max-length default, the value every recorded
+    # head in models/registry was trained at. Env: INFERENCE_DEFAULT_MAX_LENGTH.
+    inference_default_max_length: int = Field(default=256, ge=8, le=8192)
 
     # Upload storage (B7; see app/storage.py). Same fields and defaults as
     # services/api/app/config.py; services/api/tests/test_storage.py checks
