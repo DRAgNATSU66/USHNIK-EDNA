@@ -11,7 +11,7 @@ set:
       into the plan and what share of sequences is planned wide. This is how
       the margin default was chosen; it reads dev only, never test.
 
-  python -m training.eval_orchestrator run --per-route 100 --seed 1019 --out <json>
+  python -m training.eval_orchestrator run [--split test] --per-route 100 --seed 1019 --out <json>
       The full orchestrator with the real served heads (GPU when present) and
       the reference DB (CURRENT), over a seeded sample of N test rows per
       route. The rows go through the job's own stages: a FASTA file ->
@@ -195,9 +195,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     rng = random.Random(args.seed)
     rows: list[dict] = []
     for route in ROUTES:
-        pool = _read(route, "test")
+        pool = _read(route, args.split)
         for i, seq, label in sorted(rng.sample(pool, min(args.per_route, len(pool)))):
-            rows.append({"id": f"{route}:test:{i}", "sequence": seq, "label": label, "true_route": route})
+            rows.append({"id": f"{route}:{args.split}:{i}", "sequence": seq, "label": label, "true_route": route})
     by_id = {r["id"]: r for r in rows}
 
     t0 = time.perf_counter()
@@ -324,7 +324,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         "orchestrator_version": ORCHESTRATOR_VERSION,
         "date": time.strftime("%Y-%m-%d"),
         "command": " ".join(["python -m training.eval_orchestrator"] + sys.argv[1:]),
-        "sample": {"split": "test", "per_route": args.per_route, "seed": args.seed,
+        "sample": {"split": args.split, "per_route": args.per_route, "seed": args.seed,
                    "input_rows": len(rows), "after_qc": len(seqs)},
         "settings": {k: v for k, v in settings.model_dump().items() if k.startswith(("orchestrator_", "reference_"))
                      and "key" not in k},
@@ -365,6 +365,7 @@ def main() -> None:
     p.add_argument("--split", default="dev", choices=("dev",))   # test is never used to tune the planner
     p.add_argument("--out", required=True)
     r = sub.add_parser("run")
+    r.add_argument("--split", default="test", choices=("dev", "test"))   # dev: rule checks; test: the reported run
     r.add_argument("--per-route", type=int, default=100)
     r.add_argument("--seed", type=int, default=1019)
     r.add_argument("--out", required=True)
