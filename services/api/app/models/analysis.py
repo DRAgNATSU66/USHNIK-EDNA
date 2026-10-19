@@ -25,6 +25,22 @@ class SequenceResultClass(StrEnum):
     unknown_needs_online_confirmation = "unknown_needs_online_confirmation"
 
 
+class SequenceDecision(BaseModel):
+    """The worker orchestrator's combined answer for one sequence (decision
+    Q7; services/worker/app/orchestrator/combiner.py). `rule` names the
+    combiner rule that set result_class. Every field can be None: no
+    reference assignment -> no taxon/identity, no head -> no confidence."""
+    final_route: Optional[str] = None
+    result_class: Optional[str] = None
+    predicted_taxon: Optional[str] = None
+    taxon_rank: Optional[str] = None
+    percent_identity: Optional[float] = None
+    reference_db: Optional[str] = None
+    reference_db_version: Optional[str] = None
+    confidence: Optional[float] = None
+    rule: Optional[str] = None
+
+
 class SequenceResult(BaseModel):
     sequence_id: str
     sequence: str
@@ -52,6 +68,14 @@ class SequenceResult(BaseModel):
     # (e.g. head_missing). Written by the worker's _stage_infer; None on old docs.
     inference_mode: Optional[str] = None
     stub_reason: Optional[str] = None
+    # Day 9 orchestrator (decision Q7). `route` above is the final route;
+    # router_route is the router's own top pick. decision_trace is
+    # {orchestrator_version, plan, evidence, combine}, bounded by the worker
+    # (top hits capped, no embeddings; mean 5.4 KB BSON on the held-out
+    # smoke run). All None on results written before the orchestrator.
+    router_route: Optional[str] = None
+    decision: Optional[SequenceDecision] = None
+    decision_trace: Optional[dict[str, Any]] = None
 
 
 class AnalysisSummary(BaseModel):
@@ -70,6 +94,7 @@ class AnalysisResultDoc(BaseModel):
     user_id: Optional[str] = None
     mode: str = "online_full"
     model_version_set: Optional[str] = None
+    orchestrator_version: Optional[str] = None
     summary: Optional[AnalysisSummary] = None
     results: list[SequenceResult] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
