@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when a planner/combiner rule or the trace shape changes: a stored
 # decision is only comparable with decisions of the same version.
-ORCHESTRATOR_VERSION = "orchestrator-1.0.0"
+ORCHESTRATOR_VERSION = "orchestrator-1.1.0"
 
 HUMAN_ROUTE = "human_domestic_contamination"
 

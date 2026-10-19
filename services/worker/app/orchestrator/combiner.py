@@ -9,14 +9,26 @@ written to the decision trace's "combine" list.
   ---------------------------  -----------------------------------------------------------  ------------------------
   low_quality_gate             the QC gate routed it to low_quality                         low_quality
   single_route                 only one route was planned                                   that route
+  grch38_human_route           the human route was planned, its GRCh38 search marked the    human_domestic_contamination
+                               read human (>= REFERENCE_HUMAN_GENOME_IDENTITY over the
+                               coverage floor) and no candidate's assignment is closer
   reference_confirms_router    a candidate has a strong reference hit (assigned, identity   the router's top pick
-                               >= REFERENCE_SPECIES_IDENTITY) and the top pick's hit is
-                               within REFERENCE_TIE_DELTA of the best
+                               >= REFERENCE_SPECIES_IDENTITY) and the top pick's best hit
+                               (assigned or no_consensus) is within REFERENCE_TIE_DELTA
+                               of the best
   reference_overrides_router   ... and another candidate's hit beats the top pick's by      that candidate
                                more than REFERENCE_TIE_DELTA
   reference_hit_outside_router no strong hit; the top pick's reference DB was searched and  the candidate with the
-                               has no assignment, another candidate's has one               best assigned identity
+                               has no assignment, another candidate's has one whose         best assigned identity
+                               lineage places it (implied_route not None)
   router_primary               otherwise (including reference unavailable: heads only)      the router's top pick
+
+   orchestrator-1.1.0 added grch38_human_route, counted a no_consensus top
+   pick's identity in the tie comparison, and required a placeable lineage
+   in reference_hit_outside_router. All three were found by reading the
+   route changes of the orchestrator-1.0.0 held-out smoke run
+   (docs/ml/results/orchestrator_smoke_2026-10-19_orchestrator-1.0.0.json)
+   and checked on a dev sample before the test sample was re-run.
 
    Heads never choose the route: each head was trained only on its own
    route's sequences, so a fish head's 0.9 on a plant read says nothing, and
@@ -128,11 +140,28 @@ def select_route(plan: Plan, heads: dict[str, dict], refs: dict[str, dict], sett
     tie = float(settings.reference_tie_delta)
     order = {r: i for i, r in enumerate(plan.routes)}   # primary first, then router rank
 
+    # GRCh38 is reference evidence for the human route: the human route DB
+    # holds no human nuclear sequence, so a read from the human genome can
+    # miss it and still hit GRCh38 at >= 99 %.
+    hg = ((refs.get(HUMAN_ROUTE) or {}).get("payload") or {}).get("human_genome") or {}
+    if HUMAN_ROUTE in plan.routes and _ok(refs.get(HUMAN_ROUTE)) and hg.get("contamination"):
+        hg_id = float(hg.get("identity") or 0.0)
+        closer = [r for r in plan.routes if r != HUMAN_ROUTE and _assigned(refs.get(r))
+                  and (_identity(refs[r]) or 0.0) > hg_id]
+        if not closer:
+            steps.append(_step("route", "grch38_human_route", HUMAN_ROUTE,
+                               f"GRCh38 hit {hg_id}% over {hg.get('query_coverage')}% of the read "
+                               f"({hg.get('subject')}); no candidate route has a closer assignment"))
+            return HUMAN_ROUTE, steps
+
     strong = [r for r in plan.routes if _assigned(refs.get(r)) and (_identity(refs[r]) or 0) >= species_cut]
     if strong:
         best = max(strong, key=lambda r: (_identity(refs[r]), -order[r]))
         best_id = _identity(refs[best])
-        p_id = _identity(refs[primary]) if _assigned(refs.get(primary)) else None
+        # The top pick's best hit counts whether or not its tied hits agreed
+        # on a taxon (no_consensus still has eligible hits at that identity).
+        p_status = ((refs.get(primary) or {}).get("payload") or {}).get("status")
+        p_id = _identity(refs[primary]) if _ok(refs.get(primary)) and p_status in ("assigned", "no_consensus") else None
         if p_id is not None and p_id >= best_id - tie:
             steps.append(_step("route", "reference_confirms_router", primary,
                                f"{primary} reference identity {p_id}% is within {tie:g} of the best ({best_id}%)"))
@@ -144,7 +173,10 @@ def select_route(plan: Plan, heads: dict[str, dict], refs: dict[str, dict], sett
 
     prim_ref = refs.get(primary)
     if _ok(prim_ref) and (prim_ref.get("payload") or {}).get("status") in REFERENCE_MISS_STATUSES:
-        others = [r for r in plan.routes if r != primary and _assigned(refs.get(r))]
+        # A lineage too coarse to place (e.g. only "Eukaryota") is not
+        # evidence for any route (lineage.implied_route).
+        others = [r for r in plan.routes if r != primary and _assigned(refs.get(r))
+                  and implied_route((refs[r].get("payload") or {}).get("lineage")) is not None]
         if others:
             best = max(others, key=lambda r: (_identity(refs[r]) or 0, -order[r]))
             steps.append(_step("route", "reference_hit_outside_router", best,
