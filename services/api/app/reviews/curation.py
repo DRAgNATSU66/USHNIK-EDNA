@@ -24,6 +24,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from ..config import NOVELTY_THRESHOLD
 from ..models.review import ReviewDoc, ReviewState, ReviewType, TriagePriority
 from ..db.supabase_client import SupabaseClient
+from .records import evidence_docs, record_batch_items, record_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,11 @@ async def add_evidence(
     refreshed = await db["reviews"].find_one({"review_id": review_id})
     if refreshed is None:
         return None
+    # B9: the notes and each attachment as review_evidence records.
+    await record_evidence(
+        db, refreshed,
+        evidence_docs(refreshed, submitted_by, text=evidence_text, attachments=evidence_attachments),
+    )
     return ReviewDoc(**{k: v for k, v in refreshed.items() if k != "_id"})
 
 
@@ -185,9 +191,10 @@ async def create_monthly_training_batch(
     Steps:
       1. Find reviews: state=accepted, correction_type includes the route,
          training_batch_id is None.
-      2. Create or fetch the batch in Supabase.
-      3. Insert a curated_sequence row in Supabase for each accepted review.
-      4. Mark each MongoDB review as included_in_training_batch and stamp the batch_id.
+      2. Record one training_batch_items document per review, mirrored to
+         Supabase training_batches / curated_sequences / training_batch_items
+         (reviews/records.py).
+      3. Mark each MongoDB review as included_in_training_batch and stamp the batch_id.
 
     Returns a summary dict with batch_id and sequence_count.
 
@@ -209,40 +216,21 @@ async def create_monthly_training_batch(
         ],
     }
     cursor = db["reviews"].find(query)
-    review_ids: list[str] = []
-    seq_data_list: list[dict] = []
-
+    reviews: list[dict] = []
     async for doc in cursor:
-        review_ids.append(doc["review_id"])
-        seq_data_list.append({
-            "review_id": doc["review_id"],
-            "analysis_id": doc["analysis_id"],
-            "sequence_id": doc["sequence_id"],
-            "batch_id": batch_id,
-            "correction_type": doc.get("correction_type"),
-            "proposed_taxon": doc.get("proposed_taxon"),
-            "is_novelty": doc.get("is_novelty"),
-            "novelty_score": doc.get("novelty_score"),
-            "decided_by": doc.get("decided_by"),
-        })
+        reviews.append(doc)
+    review_ids = [doc["review_id"] for doc in reviews]
 
     if not review_ids:
         return {"batch_id": batch_id, "sequence_count": 0, "status": "empty"}
 
-    # Supabase batch record (best-effort)
-    batch_status = "assembling"
-    try:
-        await SupabaseClient.get_or_create_training_batch(batch_id, month_year, route, created_by)
-        for sd in seq_data_list:
-            await SupabaseClient.insert_curated_sequence(sd)
-        batch_status = "assembled"
-    except Exception:
-        # Visible to the caller via batch_status; log why.
-        logger.warning(
-            "Supabase write for training batch %s failed; batch assembled locally only",
-            batch_id, exc_info=True,
-        )
-        batch_status = "assembled_local_only"
+    # training_batch_items in MongoDB + Supabase mirror (best-effort; a failure
+    # is logged in records._mirror and visible to the caller via batch_status).
+    items = await record_batch_items(
+        db, batch_id=batch_id, month_year=month_year, route=route,
+        created_by=created_by, reviews=reviews,
+    )
+    batch_status = "assembled" if items["supabase_mirror"] == "written" else "assembled_local_only"
 
     # Stamp each accepted review in MongoDB
     await db["reviews"].update_many(
@@ -270,6 +258,9 @@ async def create_monthly_training_batch(
         "status": batch_status,
         "month_year": month_year,
         "route": route,
+        "supabase_mirror": items["supabase_mirror"],
+        "supabase_items_mirrored": items["items_mirrored"],
+        "supabase_items_skipped": items["items_skipped"],
     }
 
 

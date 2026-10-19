@@ -92,6 +92,25 @@ async def _reviews_indexes(db: AsyncIOMotorDatabase) -> None:
             name="reviews_queue_poll",
         ),
     ])
+    # B9 review records (app/reviews/records.py); supabase_mirrored finds
+    # documents a Supabase backfill still has to write.
+    await db["review_evidence"].create_indexes([
+        IndexModel([("evidence_id", ASCENDING)], unique=True, name="evidence_id_unique"),
+        IndexModel([("review_id", ASCENDING), ("evidence_type", ASCENDING)], name="evidence_review_type"),
+        IndexModel([("supabase_mirrored", ASCENDING)], name="evidence_mirrored"),
+    ])
+    await db["curation_decisions"].create_indexes([
+        IndexModel([("decision_id", ASCENDING)], unique=True, name="decision_id_unique"),
+        IndexModel([("review_id", ASCENDING), ("decided_at", ASCENDING)], name="decisions_review_decided"),
+        IndexModel([("curator_id", ASCENDING)], name="decisions_curator_id"),
+        IndexModel([("supabase_mirrored", ASCENDING)], name="decisions_mirrored"),
+    ])
+    await db["training_batch_items"].create_indexes([
+        IndexModel([("item_id", ASCENDING)], unique=True, name="batch_item_id_unique"),
+        IndexModel([("batch_id", ASCENDING)], name="batch_items_batch_id"),
+        IndexModel([("review_id", ASCENDING)], name="batch_items_review_id"),
+        IndexModel([("supabase_mirrored", ASCENDING)], name="batch_items_mirrored"),
+    ])
 
 
 async def _field_log_indexes(db: AsyncIOMotorDatabase) -> None:

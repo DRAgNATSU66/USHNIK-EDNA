@@ -304,6 +304,7 @@ class TestAddEvidence:
         coll = MagicMock()
         coll.find_one = AsyncMock(side_effect=[existing, updated])
         coll.update_one = AsyncMock()
+        coll.insert_many = AsyncMock()  # B9 review_evidence record
 
         class _Db:
             def __getitem__(self, name):
@@ -403,6 +404,7 @@ class TestCreateMonthlyBatch:
                     coll.find = MagicMock(return_value=_make_async_cursor([]))
                     coll.update_many = AsyncMock()
                     coll.insert_one = AsyncMock()
+                    coll.insert_many = AsyncMock()  # B9 training_batch_items
                 return coll
 
         with patch("app.reviews.curation.SupabaseClient.get_or_create_training_batch", new_callable=AsyncMock), \
@@ -440,9 +442,11 @@ class TestCreateMonthlyBatch:
                 coll.find = MagicMock(return_value=_make_async_cursor(accepted))
                 coll.update_many = AsyncMock()
                 coll.insert_one = AsyncMock()
+                coll.insert_many = AsyncMock()  # B9 training_batch_items
                 return coll
 
-        with patch(
+        # Supabase configured (records._mirror checks _get first) but failing.
+        with patch("app.reviews.records.SupabaseClient._get", return_value=object()), patch(
             "app.reviews.curation.SupabaseClient.get_or_create_training_batch",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Supabase down"),

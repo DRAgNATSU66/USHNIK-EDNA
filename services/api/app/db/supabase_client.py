@@ -2,8 +2,9 @@
 Supabase client wrapper.
 
 Used for Postgres-backed structured data: user_profiles, admin_invite_keys,
-role_assignments, expert_reviews, curation_decisions, curated_sequences,
-training_batches, model_versions, audit_logs.
+role_assignments, expert_reviews, review_evidence, curation_decisions,
+curated_sequences, training_batches, training_batch_items, model_versions,
+model_eval_metrics, audit_logs.
 
 The service-role key is NEVER exposed to frontend. It is only used server-side.
 """
@@ -332,12 +333,17 @@ class SupabaseClient:
 
     @staticmethod
     async def upsert_review(review_data: dict) -> dict:
+        """
+        Insert or update the expert_reviews row keyed by the MongoDB review_id.
+        The returned row's `id` is the uuid review_evidence and
+        curation_decisions reference.
+        """
         client = SupabaseClient._get()
-        res = await (
+        res = await _with_retry(lambda: (
             client.table("expert_reviews")
             .upsert(review_data, on_conflict="review_id")
             .execute()
-        )
+        ))
         return res.data[0] if res.data else {}
 
     @staticmethod
@@ -357,13 +363,29 @@ class SupabaseClient:
         )
 
     # ------------------------------------------------------------------
+    # review_evidence / curation_decisions (B9)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def insert_review_evidence(rows: list[dict]) -> list[dict]:
+        client = SupabaseClient._get()
+        res = await _with_retry(lambda: client.table("review_evidence").insert(rows).execute())
+        return res.data or []
+
+    @staticmethod
+    async def insert_curation_decision(row: dict) -> dict:
+        client = SupabaseClient._get()
+        res = await _with_retry(lambda: client.table("curation_decisions").insert(row).execute())
+        return res.data[0] if res.data else {}
+
+    # ------------------------------------------------------------------
     # curated_sequences
     # ------------------------------------------------------------------
 
     @staticmethod
     async def insert_curated_sequence(seq_data: dict) -> dict:
         client = SupabaseClient._get()
-        res = await client.table("curated_sequences").insert(seq_data).execute()
+        res = await _with_retry(lambda: client.table("curated_sequences").insert(seq_data).execute())
         return res.data[0] if res.data else {}
 
     # ------------------------------------------------------------------
@@ -389,6 +411,22 @@ class SupabaseClient:
             .execute()
         )
         return res.data[0] if res.data else {}
+
+    @staticmethod
+    async def insert_training_batch_item(row: dict) -> dict:
+        client = SupabaseClient._get()
+        res = await _with_retry(lambda: client.table("training_batch_items").insert(row).execute())
+        return res.data[0] if res.data else {}
+
+    @staticmethod
+    async def set_training_batch_sequence_count(batch_id: str, count: int) -> None:
+        client = SupabaseClient._get()
+        await _with_retry(lambda: (
+            client.table("training_batches")
+            .update({"sequence_count": count})
+            .eq("batch_id", batch_id)
+            .execute()
+        ))
 
     @staticmethod
     async def freeze_training_batch(batch_id: str) -> None:
