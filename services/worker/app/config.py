@@ -101,12 +101,16 @@ class WorkerSettings(BaseSettings):
     # router v2 is 0.947 accurate in the high tier, 0.643 in medium (QNA-021).
     orchestrator_confidence_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
     # ... or when top-1 minus top-2 probability is below this. Chosen on the
-    # DEV split (never test; training/eval_orchestrator.py --dev-planner):
-    # with the confidence and weak-route rules on and 3 routes per wide plan,
-    # margin < 0.6 puts the true route into the plan for 457 of 673 dev
-    # router errors at 30.5 % of sequences planned wide; < 0.5: 449 at
-    # 29.9 %; < 0.7: 468 at 32.0 %. Confidence alone cannot do it: 370 of the
-    # 673 dev errors are at >= 0.70 (QNA-021 Q4 measured 368/701 on test).
+    # DEV split, never test (`python -m training.eval_orchestrator planner`,
+    # docs/ml/results/orchestrator_planner_dev_2026-10-19.json; 8,299 dev
+    # sequences past the QC gate, 673 router v2 errors). With 3 routes per
+    # wide plan, the true route is in the plan for: confidence rule alone
+    # 250 errors at 9.9 % planned wide; + weak-route rule 445 at 29.7 %;
+    # + margin < 0.5: 449 at 29.9 %; < 0.6: 457 at 30.5 %; < 0.7: 468 at
+    # 32.0 %; < 0.8: 491 at 35.0 %. 370 of the 673 errors are at >= 0.70
+    # (QNA-021 Q4 measured 368/701 on test). The margin rule adds little
+    # beyond the other two; 0.6 is where its cost per recovered error starts
+    # to climb.
     orchestrator_margin_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
     # ... or when the router's top pick is one of these routes. Router v2
     # per-route test accuracy: human 0.832, misc 0.855, the two weakest
