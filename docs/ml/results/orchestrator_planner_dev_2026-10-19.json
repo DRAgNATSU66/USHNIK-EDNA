@@ -1,0 +1,76 @@
+{
+  "split": "dev",
+  "input_rows": 8677,
+  "after_qc": 8672,
+  "qc_gated_low_quality": 373,
+  "qc_gated_labels": {
+    "low_quality_unusable": 372,
+    "known_species": 1
+  },
+  "sequences": 8299,
+  "router_errors": 673,
+  "router_accuracy": 0.9189,
+  "router_errors_at_or_above_confidence_threshold": 370,
+  "router_seconds": 5.6,
+  "true_route_rank_among_errors": {
+    "2": 385,
+    "3": 139,
+    "4": 48,
+    "5": 63,
+    "6": 38
+  },
+  "errors_by_predicted_route": {
+    "animal_general": 19,
+    "misc_unknown": 290,
+    "human_domestic_contamination": 236,
+    "bacteria_pathogen": 84,
+    "fish": 18,
+    "plant": 26
+  },
+  "settings": {
+    "confidence_threshold": 0.7,
+    "weak_routes": [
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "max_routes": 3
+  },
+  "confidence_rule_only": {
+    "wide_share": 0.0987,
+    "errors_with_true_route_in_plan": 250
+  },
+  "confidence_and_weak_route_only": {
+    "wide_share": 0.2971,
+    "errors_with_true_route_in_plan": 445
+  },
+  "grid_all_rules": {
+    "margin<0.0": {
+      "wide_share": 0.2971,
+      "errors_with_true_route_in_plan": 445
+    },
+    "margin<0.3": {
+      "wide_share": 0.2971,
+      "errors_with_true_route_in_plan": 445
+    },
+    "margin<0.4": {
+      "wide_share": 0.2971,
+      "errors_with_true_route_in_plan": 445
+    },
+    "margin<0.5": {
+      "wide_share": 0.2992,
+      "errors_with_true_route_in_plan": 449
+    },
+    "margin<0.6": {
+      "wide_share": 0.3047,
+      "errors_with_true_route_in_plan": 457
+    },
+    "margin<0.7": {
+      "wide_share": 0.32,
+      "errors_with_true_route_in_plan": 468
+    },
+    "margin<0.8": {
+      "wide_share": 0.3497,
+      "errors_with_true_route_in_plan": 491
+    }
+  }
+}

@@ -101,7 +101,10 @@ class AnalysisResultWithContext(AnalysisResultDoc):
 async def get_analysis(
     analysis_id: str,
     current_user: Annotated[UserProfile, Depends(get_current_user)],
+    include_trace: bool = True,
 ):
+    """include_trace=false drops each result's decision_trace (the decision
+    stays) for clients that list large analyses."""
     db = get_db()
     doc = await db["analysis_results"].find_one({"analysis_id": analysis_id})
     if not doc:
@@ -113,6 +116,10 @@ async def get_analysis(
         UserRole.admin, UserRole.company_owner, UserRole.curator
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    if not include_trace:
+        for r in result.results:
+            r.decision_trace = None
 
     upload = await db["uploads"].find_one({"upload_id": result.upload_id})
     return AnalysisResultWithContext(

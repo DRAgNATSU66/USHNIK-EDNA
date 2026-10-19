@@ -1,0 +1,1190 @@
+{
+  "orchestrator_version": "orchestrator-1.1.0",
+  "date": "2026-10-19",
+  "command": "python -m training.eval_orchestrator run --split dev --per-route 100 --seed 1019 --out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/dev_v110.json --rows-out /tmp/claude-1000/-home-natsu-dev-synth-veda/1f072fbd-532e-4e17-82d9-59775eb9ab3f/scratchpad/orch/dev_v110.jsonl",
+  "sample": {
+    "split": "dev",
+    "per_route": 100,
+    "seed": 1019,
+    "input_rows": 600,
+    "after_qc": 600
+  },
+  "settings": {
+    "reference_db_root": "",
+    "reference_db_version": "",
+    "reference_species_identity": 97.0,
+    "reference_genus_identity": 95.0,
+    "reference_family_identity": 90.0,
+    "reference_min_query_coverage": 80.0,
+    "reference_min_alignment_length": 50,
+    "reference_tie_delta": 0.5,
+    "reference_search_min_identity": 80.0,
+    "reference_max_accepts": 32,
+    "reference_report_hits": 5,
+    "reference_method": "blast",
+    "reference_vsearch_max_udb_gb": 2.5,
+    "reference_blast_task": "megablast",
+    "reference_threads": 4,
+    "reference_timeout_seconds": 1800,
+    "reference_human_genome_identity": 99.0,
+    "reference_human_genome_min_coverage": 80.0,
+    "reference_tools_dir": "",
+    "orchestrator_max_routes": 3,
+    "orchestrator_confidence_threshold": 0.7,
+    "orchestrator_margin_threshold": 0.6,
+    "orchestrator_weak_routes": [
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "orchestrator_reference_expansion": true,
+    "orchestrator_reference_enabled": true,
+    "orchestrator_genus_cap_routes": [
+      "plant"
+    ],
+    "orchestrator_trace_max_hits": 3
+  },
+  "reference_db_version": "v2",
+  "models": {
+    "fish:dnabert2_fish_v2": 101,
+    "plant:dnabert2_plant_v1": 89,
+    "human_domestic_contamination:dnabert2_human_domestic_v2": 99,
+    "misc_unknown:dnabert2_misc_unknown_v2": 73,
+    "animal_general:dnabert2_animal_v2": 99,
+    "bacteria_pathogen:dnabert2_bacteria_v1": 110,
+    "low_quality:low_quality": 29
+  },
+  "timing": {
+    "routing_seconds": 3.33,
+    "orchestrator_seconds": 122.27,
+    "orchestrator_ms_per_sequence": 203.8,
+    "phase_started_at_seconds": {
+      "evidence": 0.01,
+      "scoring": 122.17
+    },
+    "provider_ms_sum": {
+      "route_head": 15823.5,
+      "reference_lookup": 106241.6,
+      "contamination": 15.1,
+      "novelty": 20.0
+    },
+    "reference_batches": [
+      {
+        "route": "fish",
+        "n": 100,
+        "available": true,
+        "reason": "identity permits species but tied hits agree only to family",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 100,
+        "unique_queries": 100,
+        "threads": 4,
+        "search_seconds": 5.01,
+        "peak_rss_mb": 163.6,
+        "elapsed_seconds": 5.03,
+        "per_sequence_seconds": 0.0503
+      },
+      {
+        "route": "misc_unknown",
+        "n": 92,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 92,
+        "unique_queries": 92,
+        "threads": 4,
+        "search_seconds": 1.8,
+        "peak_rss_mb": 155.9,
+        "elapsed_seconds": 1.81,
+        "per_sequence_seconds": 0.0197
+      },
+      {
+        "route": "plant",
+        "n": 88,
+        "available": true,
+        "reason": "identity permits family but tied hits agree only to order",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 88,
+        "unique_queries": 88,
+        "threads": 4,
+        "search_seconds": 3.8,
+        "peak_rss_mb": 92.6,
+        "elapsed_seconds": 3.82,
+        "per_sequence_seconds": 0.0434
+      },
+      {
+        "route": "human_domestic_contamination",
+        "n": 90,
+        "available": true,
+        "reason": "tied hits share no rank",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 90,
+        "unique_queries": 86,
+        "threads": 4,
+        "search_seconds": 1.0,
+        "peak_rss_mb": 81.4,
+        "grch38_seconds": 4.6,
+        "grch38_peak_rss_mb": 999.4,
+        "elapsed_seconds": 5.62,
+        "per_sequence_seconds": 0.0624
+      },
+      {
+        "route": "animal_general",
+        "n": 97,
+        "available": true,
+        "reason": null,
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 97,
+        "unique_queries": 97,
+        "threads": 4,
+        "search_seconds": 4.2,
+        "peak_rss_mb": 272.8,
+        "elapsed_seconds": 4.22,
+        "per_sequence_seconds": 0.0435
+      },
+      {
+        "route": "bacteria_pathogen",
+        "n": 104,
+        "available": true,
+        "reason": "identity permits genus but tied hits agree only to class",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 104,
+        "unique_queries": 104,
+        "threads": 4,
+        "search_seconds": 70.66,
+        "peak_rss_mb": 151.9,
+        "elapsed_seconds": 70.68,
+        "per_sequence_seconds": 0.6796
+      },
+      {
+        "route": "misc_unknown",
+        "n": 79,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 79,
+        "unique_queries": 76,
+        "threads": 4,
+        "search_seconds": 0.8,
+        "peak_rss_mb": 141.1,
+        "elapsed_seconds": 0.8,
+        "per_sequence_seconds": 0.0101
+      },
+      {
+        "route": "plant",
+        "n": 58,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 58,
+        "unique_queries": 56,
+        "threads": 4,
+        "search_seconds": 0.6,
+        "peak_rss_mb": 68.5,
+        "elapsed_seconds": 0.6,
+        "per_sequence_seconds": 0.0103
+      },
+      {
+        "route": "animal_general",
+        "n": 103,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 103,
+        "unique_queries": 103,
+        "threads": 4,
+        "search_seconds": 1.4,
+        "peak_rss_mb": 250.8,
+        "elapsed_seconds": 1.41,
+        "per_sequence_seconds": 0.0137
+      },
+      {
+        "route": "human_domestic_contamination",
+        "n": 78,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 78,
+        "unique_queries": 78,
+        "threads": 4,
+        "search_seconds": 0.6,
+        "peak_rss_mb": 63.4,
+        "grch38_seconds": 0.8,
+        "grch38_peak_rss_mb": 782.9,
+        "elapsed_seconds": 1.4,
+        "per_sequence_seconds": 0.0179
+      },
+      {
+        "route": "fish",
+        "n": 70,
+        "available": true,
+        "reason": null,
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 70,
+        "unique_queries": 67,
+        "threads": 4,
+        "search_seconds": 0.8,
+        "peak_rss_mb": 138.5,
+        "elapsed_seconds": 0.8,
+        "per_sequence_seconds": 0.0114
+      },
+      {
+        "route": "bacteria_pathogen",
+        "n": 73,
+        "available": true,
+        "reason": "no reference hit",
+        "method": "blast",
+        "method_reason": "configured",
+        "batch_size": 73,
+        "unique_queries": 73,
+        "threads": 4,
+        "search_seconds": 10.01,
+        "peak_rss_mb": 130.5,
+        "elapsed_seconds": 10.01,
+        "per_sequence_seconds": 0.1371
+      }
+    ],
+    "stats": {
+      "orchestrator_version": "orchestrator-1.1.0",
+      "sequences": 600,
+      "elapsed_seconds": 122.266,
+      "per_sequence_ms": 203.78
+    }
+  },
+  "memory": {
+    "peak_gpu_allocated_mb": 2294.2,
+    "peak_rss_mb_python": 1796.5,
+    "peak_rss_mb_search_process": 272.8,
+    "peak_rss_mb_grch38": 999.4
+  },
+  "trace_bson_bytes": {
+    "mean": 5335,
+    "max": 8722
+  },
+  "overall": {
+    "n": 600,
+    "labels": {
+      "possible_novelty": 162,
+      "known_species": 293,
+      "possible_contamination": 60,
+      "likely_taxonomic_group": 23,
+      "unknown_needs_online_confirmation": 33,
+      "low_quality_unusable": 29
+    },
+    "routed_low_quality": 29,
+    "plan": {
+      "wide": 242,
+      "wide_share": 0.4033,
+      "routes_planned_mean": 1.768,
+      "rules_fired_router_stage": {
+        "confident_router": 352,
+        "low_confidence": 84,
+        "narrow_margin": 90,
+        "weak_route": 182,
+        "low_quality_gate": 29
+      },
+      "rules_fired_post_reference": {
+        "reference_miss": 144
+      },
+      "true_route_in_plan": 556
+    },
+    "route": {
+      "router_correct": 515,
+      "router_accuracy": 0.8583,
+      "final_correct": 525,
+      "final_accuracy": 0.875,
+      "final_route_changed": 24,
+      "changed_wrong_to_right": 17,
+      "changed_right_to_wrong": 7,
+      "changed_wrong_to_wrong": 0,
+      "route_rule": {
+        "single_route": 329,
+        "router_primary": 124,
+        "reference_confirms_router": 50,
+        "reference_overrides_router": 8,
+        "grch38_human_route": 53,
+        "reference_hit_outside_router": 7,
+        "low_quality_gate": 29
+      }
+    },
+    "head_vs_reference_final_route": {
+      "agree": 293,
+      "disagree": 49,
+      "crosstab_head_class|reference_status": {
+        "known_species | assigned/species": 132,
+        "known_species | assigned/genus": 52,
+        "known_species | assigned/family": 50,
+        "possible_novelty | assigned/family": 34,
+        "possible_novelty | no_hit": 29,
+        "head_skipped | ref_none": 29,
+        "possible_novelty | assigned/species": 25,
+        "unknown_needs_online_confirmation | no_hit": 24,
+        "likely_taxonomic_group | assigned/genus": 23,
+        "known_species | no_hit": 20,
+        "possible_novelty | assigned/genus": 18,
+        "possible_novelty | below_threshold": 18,
+        "possible_contamination | no_hit": 17,
+        "possible_novelty | assigned/class": 13,
+        "likely_taxonomic_group | assigned/species": 13,
+        "possible_contamination | assigned/species": 12,
+        "possible_contamination | no_consensus": 10,
+        "likely_taxonomic_group | assigned/family": 9,
+        "possible_novelty | assigned/superkingdom": 8,
+        "possible_novelty | assigned/order": 7,
+        "unknown_needs_online_confirmation | assigned/species": 7,
+        "known_species | assigned/class": 6,
+        "unknown_needs_online_confirmation | assigned/genus": 6,
+        "likely_taxonomic_group | assigned/class": 5,
+        "known_species | below_threshold": 4,
+        "known_species | assigned/order": 4,
+        "likely_taxonomic_group | below_threshold": 4,
+        "likely_taxonomic_group | assigned/phylum": 4,
+        "possible_contamination | assigned/genus": 3,
+        "unknown_needs_online_confirmation | assigned/family": 3,
+        "unknown_needs_online_confirmation | below_threshold": 2,
+        "likely_taxonomic_group | assigned/superkingdom": 2,
+        "possible_novelty | assigned/phylum": 2,
+        "known_species | assigned/phylum": 1,
+        "known_species | assigned/superkingdom": 1,
+        "unknown_needs_online_confirmation | assigned/order": 1,
+        "likely_taxonomic_group | no_hit": 1,
+        "unknown_needs_online_confirmation | assigned/phylum": 1
+      }
+    },
+    "disagreements": {
+      "router_vs_reference_lineage": 66,
+      "of_which_lineage_implies_true_route": 7,
+      "heads_disagree": 212
+    },
+    "result_class": {
+      "final_correct": 459,
+      "final_accuracy": 0.765,
+      "legacy_router_head_correct": 492,
+      "legacy_router_head_accuracy": 0.82,
+      "final_distribution": {
+        "likely_taxonomic_group": 95,
+        "known_species": 293,
+        "possible_novelty": 97,
+        "possible_contamination": 42,
+        "unknown_needs_online_confirmation": 44,
+        "low_quality_unusable": 29
+      },
+      "confusion_label->final": {
+        "known_species -> known_species": 259,
+        "known_species -> likely_taxonomic_group": 27,
+        "known_species -> possible_contamination": 1,
+        "known_species -> possible_novelty": 2,
+        "known_species -> unknown_needs_online_confirmation": 4,
+        "likely_taxonomic_group -> likely_taxonomic_group": 22,
+        "likely_taxonomic_group -> possible_novelty": 1,
+        "low_quality_unusable -> low_quality_unusable": 29,
+        "possible_contamination -> known_species": 8,
+        "possible_contamination -> possible_contamination": 39,
+        "possible_contamination -> possible_novelty": 3,
+        "possible_contamination -> unknown_needs_online_confirmation": 10,
+        "possible_novelty -> known_species": 25,
+        "possible_novelty -> likely_taxonomic_group": 45,
+        "possible_novelty -> possible_novelty": 86,
+        "possible_novelty -> unknown_needs_online_confirmation": 6,
+        "unknown_needs_online_confirmation -> known_species": 1,
+        "unknown_needs_online_confirmation -> likely_taxonomic_group": 1,
+        "unknown_needs_online_confirmation -> possible_contamination": 2,
+        "unknown_needs_online_confirmation -> possible_novelty": 5,
+        "unknown_needs_online_confirmation -> unknown_needs_online_confirmation": 24
+      },
+      "class_rule": {
+        "novelty_downgraded_by_reference": 34,
+        "head_class": 514,
+        "novelty_suppressed_by_reference": 23,
+        "qc_gate": 29
+      }
+    },
+    "novelty": {
+      "raw_flags_by_label": {
+        "possible_novelty": 134,
+        "known_species": 15,
+        "likely_taxonomic_group": 2,
+        "possible_contamination": 5,
+        "unknown_needs_online_confirmation": 6
+      },
+      "final_flags_by_label": {
+        "possible_novelty": 116,
+        "known_species": 8,
+        "likely_taxonomic_group": 2,
+        "possible_contamination": 4,
+        "unknown_needs_online_confirmation": 5
+      },
+      "suppressed_by_reference_by_label": {
+        "known_species": 7,
+        "possible_novelty": 18,
+        "possible_contamination": 1,
+        "unknown_needs_online_confirmation": 1
+      },
+      "downgraded_by_reference_by_label": {
+        "possible_novelty": 29,
+        "known_species": 5
+      }
+    },
+    "taxon": {
+      "named": 442,
+      "named_by_rank": {
+        "family": 96,
+        "genus": 119,
+        "species": 172,
+        "class": 24,
+        "order": 12,
+        "phylum": 8,
+        "superkingdom": 11
+      },
+      "plant_names_capped_at_genus": 17,
+      "heads_only_no_reference": 0
+    }
+  },
+  "per_route": {
+    "fish": {
+      "n": 100,
+      "labels": {
+        "possible_novelty": 18,
+        "known_species": 82
+      },
+      "routed_low_quality": 0,
+      "plan": {
+        "wide": 9,
+        "wide_share": 0.09,
+        "routes_planned_mean": 1.18,
+        "rules_fired_router_stage": {
+          "confident_router": 91,
+          "low_confidence": 9,
+          "narrow_margin": 9,
+          "weak_route": 1
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 2
+        },
+        "true_route_in_plan": 100
+      },
+      "route": {
+        "router_correct": 99,
+        "router_accuracy": 0.99,
+        "final_correct": 100,
+        "final_accuracy": 1.0,
+        "final_route_changed": 1,
+        "changed_wrong_to_right": 1,
+        "changed_right_to_wrong": 0,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "single_route": 91,
+          "router_primary": 2,
+          "reference_confirms_router": 6,
+          "reference_overrides_router": 1
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 68,
+        "disagree": 11,
+        "crosstab_head_class|reference_status": {
+          "known_species | assigned/species": 40,
+          "known_species | assigned/genus": 19,
+          "possible_novelty | assigned/species": 10,
+          "known_species | assigned/family": 8,
+          "possible_novelty | assigned/class": 6,
+          "possible_novelty | assigned/family": 4,
+          "possible_novelty | assigned/genus": 3,
+          "likely_taxonomic_group | assigned/species": 3,
+          "likely_taxonomic_group | assigned/class": 2,
+          "likely_taxonomic_group | assigned/genus": 2,
+          "possible_novelty | assigned/order": 1,
+          "known_species | below_threshold": 1,
+          "known_species | assigned/class": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 2,
+        "of_which_lineage_implies_true_route": 1,
+        "heads_disagree": 5
+      },
+      "result_class": {
+        "final_correct": 75,
+        "final_accuracy": 0.75,
+        "legacy_router_head_correct": 86,
+        "legacy_router_head_accuracy": 0.86,
+        "final_distribution": {
+          "likely_taxonomic_group": 18,
+          "known_species": 79,
+          "possible_novelty": 3
+        },
+        "confusion_label->final": {
+          "known_species -> known_species": 73,
+          "known_species -> likely_taxonomic_group": 8,
+          "known_species -> possible_novelty": 1,
+          "possible_novelty -> known_species": 6,
+          "possible_novelty -> likely_taxonomic_group": 10,
+          "possible_novelty -> possible_novelty": 2
+        },
+        "class_rule": {
+          "novelty_downgraded_by_reference": 11,
+          "head_class": 79,
+          "novelty_suppressed_by_reference": 10
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_novelty": 17,
+          "known_species": 7
+        },
+        "final_flags_by_label": {
+          "possible_novelty": 11,
+          "known_species": 3
+        },
+        "suppressed_by_reference_by_label": {
+          "known_species": 4,
+          "possible_novelty": 6
+        },
+        "downgraded_by_reference_by_label": {
+          "possible_novelty": 9,
+          "known_species": 2
+        }
+      },
+      "taxon": {
+        "named": 99,
+        "named_by_rank": {
+          "family": 12,
+          "genus": 24,
+          "species": 53,
+          "class": 9,
+          "order": 1
+        },
+        "plant_names_capped_at_genus": 0,
+        "heads_only_no_reference": 0
+      }
+    },
+    "plant": {
+      "n": 100,
+      "labels": {
+        "possible_novelty": 14,
+        "known_species": 78,
+        "possible_contamination": 8
+      },
+      "routed_low_quality": 0,
+      "plan": {
+        "wide": 20,
+        "wide_share": 0.2,
+        "routes_planned_mean": 1.36,
+        "rules_fired_router_stage": {
+          "confident_router": 84,
+          "low_confidence": 8,
+          "narrow_margin": 9,
+          "weak_route": 12
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 13
+        },
+        "true_route_in_plan": 90
+      },
+      "route": {
+        "router_correct": 88,
+        "router_accuracy": 0.88,
+        "final_correct": 89,
+        "final_accuracy": 0.89,
+        "final_route_changed": 1,
+        "changed_wrong_to_right": 1,
+        "changed_right_to_wrong": 0,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "single_route": 80,
+          "reference_overrides_router": 1,
+          "router_primary": 12,
+          "reference_confirms_router": 3,
+          "grch38_human_route": 4
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 73,
+        "disagree": 8,
+        "crosstab_head_class|reference_status": {
+          "known_species | assigned/family": 33,
+          "known_species | assigned/species": 21,
+          "known_species | assigned/genus": 13,
+          "possible_novelty | assigned/genus": 5,
+          "known_species | no_hit": 4,
+          "possible_novelty | assigned/family": 3,
+          "known_species | assigned/class": 3,
+          "unknown_needs_online_confirmation | no_hit": 3,
+          "possible_novelty | assigned/order": 2,
+          "possible_novelty | assigned/class": 2,
+          "known_species | below_threshold": 2,
+          "known_species | assigned/order": 2,
+          "possible_novelty | assigned/species": 2,
+          "likely_taxonomic_group | assigned/class": 1,
+          "possible_contamination | no_consensus": 1,
+          "likely_taxonomic_group | assigned/family": 1,
+          "possible_contamination | no_hit": 1,
+          "possible_novelty | no_hit": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 7,
+        "of_which_lineage_implies_true_route": 1,
+        "heads_disagree": 16
+      },
+      "result_class": {
+        "final_correct": 77,
+        "final_accuracy": 0.77,
+        "legacy_router_head_correct": 83,
+        "legacy_router_head_accuracy": 0.83,
+        "final_distribution": {
+          "possible_novelty": 5,
+          "known_species": 78,
+          "likely_taxonomic_group": 12,
+          "possible_contamination": 2,
+          "unknown_needs_online_confirmation": 3
+        },
+        "confusion_label->final": {
+          "known_species -> known_species": 70,
+          "known_species -> likely_taxonomic_group": 5,
+          "known_species -> unknown_needs_online_confirmation": 3,
+          "possible_contamination -> known_species": 6,
+          "possible_contamination -> possible_contamination": 2,
+          "possible_novelty -> known_species": 2,
+          "possible_novelty -> likely_taxonomic_group": 7,
+          "possible_novelty -> possible_novelty": 5
+        },
+        "class_rule": {
+          "head_class": 90,
+          "novelty_downgraded_by_reference": 10
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_novelty": 12,
+          "known_species": 3
+        },
+        "final_flags_by_label": {
+          "possible_novelty": 12,
+          "known_species": 3
+        },
+        "suppressed_by_reference_by_label": {},
+        "downgraded_by_reference_by_label": {
+          "known_species": 3,
+          "possible_novelty": 7
+        }
+      },
+      "taxon": {
+        "named": 88,
+        "named_by_rank": {
+          "order": 4,
+          "family": 37,
+          "genus": 35,
+          "class": 6,
+          "species": 6
+        },
+        "plant_names_capped_at_genus": 17,
+        "heads_only_no_reference": 0
+      }
+    },
+    "animal_general": {
+      "n": 100,
+      "labels": {
+        "possible_novelty": 43,
+        "known_species": 54,
+        "likely_taxonomic_group": 3
+      },
+      "routed_low_quality": 0,
+      "plan": {
+        "wide": 33,
+        "wide_share": 0.33,
+        "routes_planned_mean": 1.54,
+        "rules_fired_router_stage": {
+          "confident_router": 79,
+          "low_confidence": 18,
+          "narrow_margin": 20,
+          "weak_route": 3
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 21
+        },
+        "true_route_in_plan": 100
+      },
+      "route": {
+        "router_correct": 96,
+        "router_accuracy": 0.96,
+        "final_correct": 98,
+        "final_accuracy": 0.98,
+        "final_route_changed": 6,
+        "changed_wrong_to_right": 4,
+        "changed_right_to_wrong": 2,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "single_route": 67,
+          "reference_hit_outside_router": 2,
+          "router_primary": 18,
+          "reference_confirms_router": 9,
+          "reference_overrides_router": 4
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 52,
+        "disagree": 10,
+        "crosstab_head_class|reference_status": {
+          "known_species | assigned/species": 29,
+          "possible_novelty | assigned/family": 13,
+          "possible_novelty | assigned/species": 9,
+          "possible_novelty | below_threshold": 8,
+          "known_species | assigned/family": 7,
+          "known_species | assigned/genus": 7,
+          "possible_novelty | assigned/genus": 6,
+          "likely_taxonomic_group | assigned/species": 6,
+          "likely_taxonomic_group | below_threshold": 4,
+          "likely_taxonomic_group | assigned/genus": 2,
+          "likely_taxonomic_group | assigned/family": 2,
+          "possible_novelty | assigned/order": 2,
+          "known_species | assigned/phylum": 1,
+          "unknown_needs_online_confirmation | below_threshold": 1,
+          "possible_novelty | assigned/class": 1,
+          "known_species | below_threshold": 1,
+          "unknown_needs_online_confirmation | no_hit": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 6,
+        "of_which_lineage_implies_true_route": 4,
+        "heads_disagree": 26
+      },
+      "result_class": {
+        "final_correct": 69,
+        "final_accuracy": 0.69,
+        "legacy_router_head_correct": 83,
+        "legacy_router_head_accuracy": 0.83,
+        "final_distribution": {
+          "known_species": 54,
+          "likely_taxonomic_group": 20,
+          "possible_novelty": 24,
+          "unknown_needs_online_confirmation": 2
+        },
+        "confusion_label->final": {
+          "known_species -> known_species": 43,
+          "known_species -> likely_taxonomic_group": 9,
+          "known_species -> possible_novelty": 1,
+          "known_species -> unknown_needs_online_confirmation": 1,
+          "likely_taxonomic_group -> likely_taxonomic_group": 3,
+          "possible_novelty -> known_species": 11,
+          "possible_novelty -> likely_taxonomic_group": 8,
+          "possible_novelty -> possible_novelty": 23,
+          "possible_novelty -> unknown_needs_online_confirmation": 1
+        },
+        "class_rule": {
+          "novelty_suppressed_by_reference": 9,
+          "head_class": 85,
+          "novelty_downgraded_by_reference": 6
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_novelty": 39,
+          "likely_taxonomic_group": 1,
+          "known_species": 4
+        },
+        "final_flags_by_label": {
+          "possible_novelty": 30,
+          "likely_taxonomic_group": 1,
+          "known_species": 2
+        },
+        "suppressed_by_reference_by_label": {
+          "possible_novelty": 9,
+          "known_species": 2
+        },
+        "downgraded_by_reference_by_label": {
+          "possible_novelty": 6
+        }
+      },
+      "taxon": {
+        "named": 85,
+        "named_by_rank": {
+          "species": 44,
+          "genus": 15,
+          "family": 22,
+          "order": 2,
+          "phylum": 1,
+          "class": 1
+        },
+        "plant_names_capped_at_genus": 0,
+        "heads_only_no_reference": 0
+      }
+    },
+    "bacteria_pathogen": {
+      "n": 100,
+      "labels": {
+        "possible_novelty": 49,
+        "known_species": 29,
+        "likely_taxonomic_group": 20,
+        "possible_contamination": 2
+      },
+      "routed_low_quality": 0,
+      "plan": {
+        "wide": 13,
+        "wide_share": 0.13,
+        "routes_planned_mean": 1.2,
+        "rules_fired_router_stage": {
+          "confident_router": 93,
+          "low_confidence": 4,
+          "narrow_margin": 4,
+          "weak_route": 5
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 9
+        },
+        "true_route_in_plan": 100
+      },
+      "route": {
+        "router_correct": 95,
+        "router_accuracy": 0.95,
+        "final_correct": 96,
+        "final_accuracy": 0.96,
+        "final_route_changed": 1,
+        "changed_wrong_to_right": 1,
+        "changed_right_to_wrong": 0,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "single_route": 87,
+          "reference_hit_outside_router": 1,
+          "router_primary": 10,
+          "grch38_human_route": 2
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 37,
+        "disagree": 3,
+        "crosstab_head_class|reference_status": {
+          "likely_taxonomic_group | assigned/genus": 18,
+          "known_species | assigned/genus": 13,
+          "possible_novelty | assigned/family": 9,
+          "known_species | assigned/species": 9,
+          "possible_novelty | assigned/superkingdom": 7,
+          "possible_novelty | below_threshold": 5,
+          "possible_novelty | assigned/class": 4,
+          "possible_novelty | assigned/genus": 4,
+          "likely_taxonomic_group | assigned/phylum": 4,
+          "likely_taxonomic_group | assigned/family": 4,
+          "likely_taxonomic_group | assigned/species": 3,
+          "possible_novelty | assigned/species": 3,
+          "possible_novelty | no_hit": 3,
+          "known_species | assigned/class": 2,
+          "known_species | assigned/family": 2,
+          "likely_taxonomic_group | assigned/superkingdom": 2,
+          "possible_novelty | assigned/phylum": 2,
+          "likely_taxonomic_group | assigned/class": 2,
+          "known_species | assigned/order": 2,
+          "known_species | assigned/superkingdom": 1,
+          "possible_novelty | assigned/order": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 3,
+        "of_which_lineage_implies_true_route": 1,
+        "heads_disagree": 7
+      },
+      "result_class": {
+        "final_correct": 73,
+        "final_accuracy": 0.73,
+        "legacy_router_head_correct": 80,
+        "legacy_router_head_accuracy": 0.8,
+        "final_distribution": {
+          "possible_novelty": 31,
+          "known_species": 32,
+          "likely_taxonomic_group": 37
+        },
+        "confusion_label->final": {
+          "known_species -> known_species": 24,
+          "known_species -> likely_taxonomic_group": 5,
+          "likely_taxonomic_group -> likely_taxonomic_group": 19,
+          "likely_taxonomic_group -> possible_novelty": 1,
+          "possible_contamination -> known_species": 2,
+          "possible_novelty -> known_species": 6,
+          "possible_novelty -> likely_taxonomic_group": 13,
+          "possible_novelty -> possible_novelty": 30
+        },
+        "class_rule": {
+          "head_class": 93,
+          "novelty_downgraded_by_reference": 4,
+          "novelty_suppressed_by_reference": 3
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_novelty": 37,
+          "known_species": 1,
+          "likely_taxonomic_group": 1
+        },
+        "final_flags_by_label": {
+          "possible_novelty": 34,
+          "likely_taxonomic_group": 1
+        },
+        "suppressed_by_reference_by_label": {
+          "possible_novelty": 3,
+          "known_species": 1
+        },
+        "downgraded_by_reference_by_label": {
+          "possible_novelty": 4
+        }
+      },
+      "taxon": {
+        "named": 92,
+        "named_by_rank": {
+          "class": 8,
+          "genus": 35,
+          "superkingdom": 10,
+          "family": 15,
+          "species": 15,
+          "phylum": 6,
+          "order": 3
+        },
+        "plant_names_capped_at_genus": 0,
+        "heads_only_no_reference": 0
+      }
+    },
+    "human_domestic_contamination": {
+      "n": 100,
+      "labels": {
+        "possible_contamination": 50,
+        "known_species": 50
+      },
+      "routed_low_quality": 0,
+      "plan": {
+        "wide": 100,
+        "wide_share": 1.0,
+        "routes_planned_mean": 3,
+        "rules_fired_router_stage": {
+          "low_confidence": 23,
+          "narrow_margin": 24,
+          "weak_route": 99
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 52
+        },
+        "true_route_in_plan": 99
+      },
+      "route": {
+        "router_correct": 77,
+        "router_accuracy": 0.77,
+        "final_correct": 87,
+        "final_accuracy": 0.87,
+        "final_route_changed": 10,
+        "changed_wrong_to_right": 10,
+        "changed_right_to_wrong": 0,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "reference_confirms_router": 15,
+          "router_primary": 37,
+          "grch38_human_route": 47,
+          "reference_overrides_router": 1
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 36,
+        "disagree": 16,
+        "crosstab_head_class|reference_status": {
+          "known_species | assigned/species": 33,
+          "known_species | no_hit": 16,
+          "possible_contamination | no_hit": 15,
+          "possible_contamination | assigned/species": 12,
+          "unknown_needs_online_confirmation | no_hit": 9,
+          "possible_contamination | no_consensus": 8,
+          "possible_novelty | no_hit": 3,
+          "possible_contamination | assigned/genus": 3,
+          "unknown_needs_online_confirmation | assigned/species": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 43,
+        "of_which_lineage_implies_true_route": 0,
+        "heads_disagree": 94
+      },
+      "result_class": {
+        "final_correct": 86,
+        "final_accuracy": 0.86,
+        "legacy_router_head_correct": 76,
+        "legacy_router_head_accuracy": 0.76,
+        "final_distribution": {
+          "possible_contamination": 38,
+          "unknown_needs_online_confirmation": 10,
+          "known_species": 49,
+          "possible_novelty": 3
+        },
+        "confusion_label->final": {
+          "known_species -> known_species": 49,
+          "known_species -> possible_contamination": 1,
+          "possible_contamination -> possible_contamination": 37,
+          "possible_contamination -> possible_novelty": 3,
+          "possible_contamination -> unknown_needs_online_confirmation": 10
+        },
+        "class_rule": {
+          "head_class": 100
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_contamination": 5
+        },
+        "final_flags_by_label": {
+          "possible_contamination": 4
+        },
+        "suppressed_by_reference_by_label": {
+          "possible_contamination": 1
+        },
+        "downgraded_by_reference_by_label": {}
+      },
+      "taxon": {
+        "named": 49,
+        "named_by_rank": {
+          "species": 46,
+          "genus": 3
+        },
+        "plant_names_capped_at_genus": 0,
+        "heads_only_no_reference": 0
+      }
+    },
+    "misc_unknown": {
+      "n": 100,
+      "labels": {
+        "possible_novelty": 38,
+        "unknown_needs_online_confirmation": 33,
+        "low_quality_unusable": 29
+      },
+      "routed_low_quality": 29,
+      "plan": {
+        "wide": 67,
+        "wide_share": 0.67,
+        "routes_planned_mean": 2.33,
+        "rules_fired_router_stage": {
+          "low_confidence": 22,
+          "narrow_margin": 24,
+          "weak_route": 62,
+          "low_quality_gate": 29,
+          "confident_router": 5
+        },
+        "rules_fired_post_reference": {
+          "reference_miss": 47
+        },
+        "true_route_in_plan": 67
+      },
+      "route": {
+        "router_correct": 60,
+        "router_accuracy": 0.6,
+        "final_correct": 55,
+        "final_accuracy": 0.55,
+        "final_route_changed": 5,
+        "changed_wrong_to_right": 0,
+        "changed_right_to_wrong": 5,
+        "changed_wrong_to_wrong": 0,
+        "route_rule": {
+          "router_primary": 45,
+          "reference_confirms_router": 17,
+          "low_quality_gate": 29,
+          "single_route": 4,
+          "reference_hit_outside_router": 4,
+          "reference_overrides_router": 1
+        }
+      },
+      "head_vs_reference_final_route": {
+        "agree": 27,
+        "disagree": 1,
+        "crosstab_head_class|reference_status": {
+          "head_skipped | ref_none": 29,
+          "possible_novelty | no_hit": 22,
+          "unknown_needs_online_confirmation | no_hit": 11,
+          "unknown_needs_online_confirmation | assigned/species": 6,
+          "unknown_needs_online_confirmation | assigned/genus": 6,
+          "possible_novelty | assigned/family": 5,
+          "possible_novelty | below_threshold": 5,
+          "unknown_needs_online_confirmation | assigned/family": 3,
+          "likely_taxonomic_group | assigned/family": 2,
+          "unknown_needs_online_confirmation | assigned/order": 1,
+          "unknown_needs_online_confirmation | below_threshold": 1,
+          "possible_contamination | no_consensus": 1,
+          "possible_novelty | assigned/order": 1,
+          "possible_novelty | assigned/species": 1,
+          "possible_contamination | no_hit": 1,
+          "likely_taxonomic_group | no_hit": 1,
+          "likely_taxonomic_group | assigned/species": 1,
+          "possible_novelty | assigned/superkingdom": 1,
+          "unknown_needs_online_confirmation | assigned/phylum": 1,
+          "likely_taxonomic_group | assigned/genus": 1
+        }
+      },
+      "disagreements": {
+        "router_vs_reference_lineage": 5,
+        "of_which_lineage_implies_true_route": 0,
+        "heads_disagree": 64
+      },
+      "result_class": {
+        "final_correct": 79,
+        "final_accuracy": 0.79,
+        "legacy_router_head_correct": 84,
+        "legacy_router_head_accuracy": 0.84,
+        "final_distribution": {
+          "possible_novelty": 31,
+          "unknown_needs_online_confirmation": 29,
+          "low_quality_unusable": 29,
+          "likely_taxonomic_group": 8,
+          "possible_contamination": 2,
+          "known_species": 1
+        },
+        "confusion_label->final": {
+          "low_quality_unusable -> low_quality_unusable": 29,
+          "possible_novelty -> likely_taxonomic_group": 7,
+          "possible_novelty -> possible_novelty": 26,
+          "possible_novelty -> unknown_needs_online_confirmation": 5,
+          "unknown_needs_online_confirmation -> known_species": 1,
+          "unknown_needs_online_confirmation -> likely_taxonomic_group": 1,
+          "unknown_needs_online_confirmation -> possible_contamination": 2,
+          "unknown_needs_online_confirmation -> possible_novelty": 5,
+          "unknown_needs_online_confirmation -> unknown_needs_online_confirmation": 24
+        },
+        "class_rule": {
+          "head_class": 67,
+          "qc_gate": 29,
+          "novelty_downgraded_by_reference": 3,
+          "novelty_suppressed_by_reference": 1
+        }
+      },
+      "novelty": {
+        "raw_flags_by_label": {
+          "possible_novelty": 29,
+          "unknown_needs_online_confirmation": 6
+        },
+        "final_flags_by_label": {
+          "possible_novelty": 29,
+          "unknown_needs_online_confirmation": 5
+        },
+        "suppressed_by_reference_by_label": {
+          "unknown_needs_online_confirmation": 1
+        },
+        "downgraded_by_reference_by_label": {
+          "possible_novelty": 3
+        }
+      },
+      "taxon": {
+        "named": 29,
+        "named_by_rank": {
+          "species": 8,
+          "family": 10,
+          "order": 2,
+          "genus": 7,
+          "superkingdom": 1,
+          "phylum": 1
+        },
+        "plant_names_capped_at_genus": 0,
+        "heads_only_no_reference": 0
+      }
+    }
+  }
+}
