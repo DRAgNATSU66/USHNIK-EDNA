@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..config import NOVELTY_THRESHOLD
+from ..models.analysis import resolve_taxon_fields
 from .models import (
     AnalysisReport,
     BiodiversitySummary,
@@ -29,10 +30,14 @@ from .models import (
     ModelVersionEntry,
     PossibleNoveltyEntry,
     QCSummary,
+    RankRichness,
+    ReferenceDbUsage,
     ReviewStatusSummary,
     RouteDistributionEntry,
     SampleMetadata,
+    TaxaSummary,
     TaxonomicAssignmentEntry,
+    TopTaxonEntry,
     REPORT_DISCLAIMER,
 )
 from ..models.upload import OPTIONAL_METADATA_FIELDS
@@ -46,6 +51,9 @@ _CONTAMINATION_THRESHOLD = 0.50
 # flag or a confidence low enough to be effectively unclassified.
 _TIER_GREEN_MIN = 0.80
 _TIER_RED_MAX = 0.50
+# Rows in TaxaSummary.top_taxa; per-sequence calls are in taxonomic_assignments.
+TOP_TAXA_LIMIT = 20
+_LOW_QUALITY_ROUTE = "low_quality"
 
 
 # Distinguishes "caller did not pass an upload" (legacy call sites) from
@@ -96,6 +104,7 @@ def build_report(
     novelty = _build_novelty_table(results)
     contamination = _build_contamination_warnings(results)
     biodiversity = _build_biodiversity(results)
+    taxa = _build_taxa(results, analysis_doc.get("orchestrator_version"))
     model_versions = _build_model_versions(results)
     review_status = _build_review_status(reviews)
 
@@ -108,6 +117,7 @@ def build_report(
         possible_novelty=novelty,
         contamination_warnings=contamination,
         biodiversity=biodiversity,
+        taxa=taxa,
         model_versions_used=model_versions,
         review_status=review_status,
         context=context,
@@ -204,11 +214,11 @@ def _build_known_species(results: list[dict]) -> list[KnownSpeciesEntry]:
         if r.get("result_class") == "known_species":
             entries.append(KnownSpeciesEntry(
                 sequence_id=r.get("sequence_id", "unknown"),
-                predicted_taxon=r.get("predicted_taxon"),
                 route=r.get("route", "misc_unknown"),
                 confidence=round(float(r.get("confidence", 0.0)), 4),
                 model_version_used=r.get("model_version_used"),
                 reason_codes=r.get("reason_codes", []),
+                **resolve_taxon_fields(r),
             ))
     return entries
 
@@ -237,7 +247,8 @@ def _build_taxonomic_assignments(results: list[dict]) -> list[TaxonomicAssignmen
         entries.append(TaxonomicAssignmentEntry(
             sequence_id=r.get("sequence_id", "unknown"),
             route=r.get("route", "misc_unknown"),
-            predicted_taxon=r.get("predicted_taxon"),
+            result_class=r.get("result_class"),
+            **resolve_taxon_fields(r),
             confidence=confidence,
             confidence_tier=_confidence_tier(confidence, contamination_flagged),
             length=int(r.get("length", 0)),
@@ -330,6 +341,155 @@ def _build_biodiversity(results: list[dict]) -> BiodiversitySummary:
     )
 
 
+TAXA_DEFINITIONS: dict[str, str] = {
+    "taxon": (
+        "Per sequence: results[].decision.predicted_taxon at results[].decision.taxon_rank, the "
+        "orchestrator's combined answer (after the plant genus cap). Sequences without a decision "
+        "(written before the orchestrator) are not counted; a decision with a null taxon counts "
+        "as without taxon."
+    ),
+    "fraction_with_taxon": (
+        "sequences_with_taxon / sequences_with_decision. Low-quality sequences are in the "
+        "denominator (they never get a taxon) and listed under without_taxon_reasons."
+    ),
+    "without_taxon_reasons": (
+        "For each decided sequence with no taxon: 'low_quality' when decision.final_route is "
+        "low_quality, otherwise the rule of the taxon step in decision_trace.combine "
+        "(':' + its outcome when that is a status string, e.g. no_reference_assignment:below_threshold), "
+        "or 'not_recorded' when the trace has no taxon step."
+    ),
+    "richness_by_rank": (
+        "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank. "
+        "Ranks are never mixed or summed into one richness: a genus-level call and a species of that "
+        "genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'."
+    ),
+    "top_taxa": (
+        f"(taxon, rank) groups by sequence count, ties by name, first {TOP_TAXA_LIMIT}. "
+        "mean/min/max_percent_identity are over the group's sequences whose decision carries a "
+        "percent_identity (arithmetic mean, 2 dp); taxon_groups counts every group before the cut "
+        "(a row count, not a richness estimate)."
+    ),
+    "reference_dbs": (
+        "Distinct (decision.reference_db, decision.reference_db_version) pairs, counted per sequence; "
+        "a decision names the reference DB whenever the lookup ran, assigned or not."
+    ),
+}
+
+
+def _without_taxon_reason(r: dict, decision: dict) -> str:
+    if decision.get("final_route") == _LOW_QUALITY_ROUTE:
+        return "low_quality"
+    trace = r.get("decision_trace")
+    combine = trace.get("combine") if isinstance(trace, dict) else None
+    for step in combine if isinstance(combine, list) else []:
+        if isinstance(step, dict) and step.get("step") == "taxon":
+            rule = str(step.get("rule") or "unnamed_rule")
+            outcome = step.get("outcome")
+            return f"{rule}:{outcome}" if isinstance(outcome, str) and outcome else rule
+    return "not_recorded"
+
+
+def _ref_label(d: dict) -> str:
+    return (f"{d.get('reference_db') or 'reference DB not recorded'} "
+            f"{d.get('reference_db_version') or 'version not recorded'}")
+
+
+def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSummary:
+    """
+    Taxon richness by rank, top taxa and reference DB usage (t-1023-1), from
+    results[].decision only. Analyses without any decision are unavailable
+    with a reason; their counts are None, never 0. See TAXA_DEFINITIONS.
+    """
+    total = len(results)
+    decided = [(r, r["decision"]) for r in results if isinstance(r.get("decision"), dict)]
+    if not decided:
+        if total == 0:
+            reason = "The analysis has no sequences."
+        else:
+            reason = (
+                "No sequence carries an orchestrator decision: this analysis predates the orchestrator, "
+                "so taxon rank, percent identity and reference DB were never recorded. "
+                "Re-run the analysis to get taxa."
+            )
+            legacy_named = sum(1 for r in results if r.get("predicted_taxon"))
+            if legacy_named:
+                reason += (f" {legacy_named} of {total} sequences carry a legacy predicted_taxon without "
+                           "a rank; it is shown per sequence but not aggregated.")
+        return TaxaSummary(
+            available=False, unavailable_reason=reason, orchestrator_version=orchestrator_version,
+            total_sequences=total, sequences_with_decision=0, top_taxa_limit=TOP_TAXA_LIMIT,
+            definitions=TAXA_DEFINITIONS,
+        )
+
+    without_reasons: dict[str, int] = {}
+    groups: dict[tuple[str, str | None], list[dict]] = {}
+    refs: dict[tuple[str | None, str | None], list[int]] = {}
+    for r, dec in decided:
+        taxon = dec.get("predicted_taxon")
+        db, ver = dec.get("reference_db"), dec.get("reference_db_version")
+        if db or ver:
+            counts = refs.setdefault((db, ver), [0, 0])
+            counts[0] += 1
+            counts[1] += 1 if taxon else 0
+        if not taxon:
+            reason = _without_taxon_reason(r, dec)
+            without_reasons[reason] = without_reasons.get(reason, 0) + 1
+            continue
+        groups.setdefault((taxon, dec.get("taxon_rank")), []).append(dec)
+
+    with_taxon = sum(len(g) for g in groups.values())
+    n_decided = len(decided)
+
+    by_rank: dict[str, list[int]] = {}
+    for (_taxon, rank), decs in groups.items():
+        counts = by_rank.setdefault(rank or "unranked", [0, 0])
+        counts[0] += 1
+        counts[1] += len(decs)
+    richness = [
+        RankRichness(rank=rank, distinct_taxa=d, sequences=n)
+        for rank, (d, n) in sorted(by_rank.items(), key=lambda x: (-x[1][0], x[0]))
+    ]
+
+    ranked = sorted(groups.items(), key=lambda x: (-len(x[1]), x[0][0], x[0][1] or ""))
+    top: list[TopTaxonEntry] = []
+    for (taxon, rank), decs in ranked[:TOP_TAXA_LIMIT]:
+        ids = [float(d["percent_identity"]) for d in decs if d.get("percent_identity") is not None]
+        top.append(TopTaxonEntry(
+            taxon=taxon,
+            taxon_rank=rank,
+            sequences=len(decs),
+            fraction_of_assigned=round(len(decs) / with_taxon, 4),
+            mean_percent_identity=round(sum(ids) / len(ids), 2) if ids else None,
+            min_percent_identity=min(ids) if ids else None,
+            max_percent_identity=max(ids) if ids else None,
+            sequences_with_identity=len(ids),
+            routes=sorted({d["final_route"] for d in decs if d.get("final_route")}),
+            reference_db_versions=sorted({
+                _ref_label(d) for d in decs if d.get("reference_db") or d.get("reference_db_version")
+            }),
+        ))
+
+    return TaxaSummary(
+        available=True,
+        orchestrator_version=orchestrator_version,
+        total_sequences=total,
+        sequences_with_decision=n_decided,
+        sequences_with_taxon=with_taxon,
+        sequences_without_taxon=n_decided - with_taxon,
+        fraction_with_taxon=round(with_taxon / n_decided, 4),
+        without_taxon_reasons=dict(sorted(without_reasons.items(), key=lambda x: (-x[1], x[0]))),
+        richness_by_rank=richness,
+        top_taxa=top,
+        top_taxa_limit=TOP_TAXA_LIMIT,
+        taxon_groups=len(groups),
+        reference_dbs=[
+            ReferenceDbUsage(reference_db=db, reference_db_version=ver, sequences=n, sequences_with_taxon=t)
+            for (db, ver), (n, t) in sorted(refs.items(), key=lambda x: (x[0][0] or "", x[0][1] or ""))
+        ],
+        definitions=TAXA_DEFINITIONS,
+    )
+
+
 def _build_model_versions(results: list[dict]) -> list[ModelVersionEntry]:
     # Aggregate: (model_version_used, route) → count
     version_route_counts: dict[tuple[str, str], int] = {}
@@ -387,6 +547,8 @@ _CSV_COLUMNS = [
     "sequence_id", "route", "category", "predicted_taxon", "confidence",
     "novelty_score", "novelty_level", "contamination_score", "contamination_type",
     "model_version_used", "reason_codes",
+    # t-1023-1, appended so existing column positions are unchanged.
+    "taxon_rank", "percent_identity", "reference_db", "reference_db_version",
 ]
 
 
@@ -413,6 +575,10 @@ def build_report_csv(report: AnalysisReport) -> str:
         r["confidence"] = e.confidence
         r["model_version_used"] = e.model_version_used or ""
         r["reason_codes"] = "; ".join(e.reason_codes)
+        r["taxon_rank"] = e.taxon_rank or ""
+        r["percent_identity"] = "" if e.percent_identity is None else e.percent_identity
+        r["reference_db"] = e.reference_db or ""
+        r["reference_db_version"] = e.reference_db_version or ""
 
     for e in report.possible_novelty:
         r = _row(e.sequence_id)
