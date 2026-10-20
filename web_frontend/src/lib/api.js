@@ -309,3 +309,27 @@ export const syncExpedition = (expedition_id, syncData) =>
 // ---------------------------------------------------------------------------
 
 export const healthCheck = () => request("GET", "/health");
+
+// ---------------------------------------------------------------------------
+// Partner reports: Legislative page (t-1027-3)
+// ---------------------------------------------------------------------------
+
+/** Counts + time series over uploads/analyses/reviews in scope ({scope, user_id, date_from, date_to, interval}). */
+export const getPartnerSummary = (params) =>
+  request("GET", "/partner/summary", { params });
+
+/** Uploads with coordinates aggregated into a cell_deg grid ({scope, date_from, date_to, cell_deg}). */
+export const getPartnerHotspots = (params) =>
+  request("GET", "/partner/hotspots", { params });
+
+/** Analyses with novelty/contamination flags or open urgent reviews ({scope, date_from, date_to, limit}). */
+export const getPartnerAlerts = (params) =>
+  request("GET", "/partner/alerts", { params });
+
+/** Hash-chained chain of custody for an analysis's sample, verified on the server. */
+export const getReportCustody = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/custody`);
+
+/** FAIR ZIP (results, metadata, provenance, custody). Returns a raw Response — call .blob(). Recorded on the custody chain. */
+export const exportReportFair = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/fair`);

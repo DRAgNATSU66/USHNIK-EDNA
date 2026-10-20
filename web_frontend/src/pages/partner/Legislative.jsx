@@ -1,166 +1,157 @@
-import { useState, Fragment } from "react";
-import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, Popup, Polyline } from "react-leaflet";
+import { useEffect, useState, Fragment } from "react";
+import { Link } from "react-router-dom";
+import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import { tokens } from "../../components/shared/tokens";
-import MockTag from "../../components/shared/MockTag";
+import { useAuth } from "../../contexts/AuthContext";
+import {
+  getPartnerAlerts,
+  getPartnerHotspots,
+  getPartnerSummary,
+  getReportCustody,
+  exportReportFair,
+} from "../../lib/api";
 import { liquidGlass } from "../../styles/liquidGlass";
 import { revealStyle } from "../../styles/reveal";
+
+// Legislative partner report (t-1027-3, M2). Every number on this page comes
+// from the API on load: GET /partner/hotspots (grid-aggregated uploads),
+// GET /partner/alerts (analyses with real flags / open urgent reviews),
+// GET /partner/summary (time series for the flag-rate indicators), and, per
+// alert, GET /reports/{id}/custody + the FAIR ZIP export. Panels that had no
+// data source behind them (economic exposure, habitat decline, illustrative
+// current-flow lines, a fixed Bay of Bengal hotspot list) were removed.
 
 // Same per-page scale convention as Academia.jsx -- keeps card padding, radii
 // and type sizes on the same ratio across every Partner Report screen.
 const SCALE = 1.18;
 const s = (n) => Math.round(n * SCALE * 10) / 10;
 
-const SEVERITY = {
-  Critical: tokens.danger,
-  High: tokens.warningAlt,
-  Medium: tokens.success,
-  Low: tokens.accentBlue,
+const ALL_DATA_ROLES = ["admin", "company_owner"];
+const CELL_SIZES = [0.25, 0.5, 1, 2, 5];
+const ALERT_LIMIT = 100;
+
+// Cell / alert tone. Only two states carry a rule from the API: an open
+// urgent review (triage_priority urgent) and at least one novelty or
+// contamination flag. Nothing else is ranked.
+const TONE = {
+  urgent: { color: tokens.danger, label: "Open urgent review" },
+  flagged: { color: tokens.warningAlt, label: "Novelty or contamination flag" },
+  clear: { color: tokens.accentBlue, label: "Sampled, no flags" },
 };
 
-const ALERTS = [
-  {
-    id: 1,
-    title: "Protected Species — Sector 3",
-    sev: "Critical",
-    desc: "IUCN Red List species DNA detected within active construction zone.",
-    action: "Temporary halt of dredging in Sector 3 pending field survey and secondary sampling.",
-    boundary: false,
-  },
-  {
-    id: 2,
-    title: "Invasive Species — Sector 7",
-    sev: "High",
-    desc: "Invasive bivalve DNA signature rising across two consecutive samples.",
-    action: "Field survey and sample removal; increase monitoring frequency to weekly.",
-    boundary: true,
-  },
-  {
-    id: 3,
-    title: "Coastal Stabilization Risk — Estuary N",
-    sev: "Medium",
-    desc: "Inferred from mangrove/seagrass indicator taxa decline (not a direct physical measurement).",
-    action: "Commission indicator-taxa resampling before permitting review.",
-    boundary: false,
-  },
-  {
-    id: 4,
-    title: "Invasive Species — Outer Shelf",
-    sev: "Low",
-    desc: "Trace invasive copepod DNA at detection threshold; single sample only.",
-    action: "No action required; retest at next scheduled collection.",
-    boundary: false,
-  },
-];
-
-const ECON = [
-  { k: "PROJECT DELAY EXPOSURE", v: "₹4.2 Cr", basis: "Modeled estimate — biodiversity baseline + regional precedent" },
-  { k: "COMPLIANCE FINE EXPOSURE", v: "₹1.8 Cr", basis: "Modeled from regional regulatory schedule" },
-  { k: "MITIGATION COST RANGE", v: "₹0.3–0.6 Cr", basis: "Modeled estimate — contractor rate card, ±40%" },
-];
-
-// Illustrative coordinates in the Bay of Bengal / Andaman Sea -- these plot
-// on a real basemap (so panning/zooming lands somewhere geographically
-// coherent) but, like the rest of this page, are not real detection sites.
-const HOTSPOTS = [
-  { name: "Sector 3", sev: "Critical", lat: 15.6, lng: 82.3, desc: "IUCN Red List species DNA detected within an active construction zone." },
-  { name: "Sector 7", sev: "High", lat: 18.4, lng: 89.7, desc: "Invasive bivalve DNA signature rising across two consecutive samples." },
-  { name: "Estuary N", sev: "Medium", lat: 21.6, lng: 88.2, desc: "Mangrove/seagrass indicator taxa in decline." },
-  { name: "Outer Shelf", sev: "Low", lat: 12.4, lng: 93.6, desc: "Trace invasive copepod DNA at detection threshold." },
-];
-
-// Illustrative current-flow paths (not measured oceanographic data -- there's
-// no live current feed behind this deployment any more than there's a real
-// hotspot feed) -- but the *shape* follows the real winter (northeast
-// monsoon, Dec-Feb) Indian Ocean circulation, not an arbitrary curve. The
-// map's default view centers on the Bay of Bengal (this report's hotspots),
-// but it's the same zoomable/pannable map, so the full basin -- Arabian Sea
-// through the Bay of Bengal -- is drawn; zooming out (minZoom=3) or panning
-// west reveals the rest. Each path is ordered start-to-end in its real flow
-// direction, which is what the dash animation's direction is keyed to.
-// The basin gyres are drawn as coastal boundary currents above, but a real
-// gyre is also a closed circulating loop in the open basin interior (the
-// circular-arrow schematic in oceanographic diagrams) -- distinct from any
-// one coastal current. This traces that interior loop as an ellipse, swept
-// just short of a full 360deg so it still reads as a directed path with a
-// start and end rather than a closed shape.
-function gyreLoop(centerLat, centerLng, latRadius, lngRadius, steps = 16, sweepDeg = 330) {
-  const points = [];
-  for (let i = 0; i <= steps; i++) {
-    const rad = ((sweepDeg * i) / steps) * (Math.PI / 180);
-    points.push([centerLat + latRadius * Math.cos(rad), centerLng + lngRadius * Math.sin(rad)]);
-  }
-  return points;
+function cellTone(c) {
+  if (c.open_urgent_reviews > 0) return "urgent";
+  if (c.novelty_flags + c.contamination_flags > 0) return "flagged";
+  return "clear";
 }
 
-const CURRENT_PATHS = [
-  // -- Bay of Bengal Gyre (clockwise) --
-  // East India Coastal Current -- southward along the Indian coast, then a
-  // smooth arc (many small angular steps, not a 2-point dip-and-reverse)
-  // around Sri Lanka's east coast (island's east side runs up to ~81.9E)
-  // down past Dondra Head (the southern tip, ~5.92N/80.6E)
-  [[20.5, 87.2], [19, 86.3], [17.7, 84.9], [15.9, 83.5], [13.9, 81.8], [12, 81.1], [10.1, 80.9], [9.8, 82.05], [9, 82.89], [7.9, 83.2], [6.8, 82.89], [6, 82.05], [5.7, 80.9]],
-  // Winter Monsoon Current -- westward across the base of the bay, staying
-  // well south of Sri Lanka's southern tip the whole way, not just at the end
-  [[7.5, 93.5], [7.2, 89], [6.6, 85], [6.1, 82.5], [5.7, 80.9]],
-  // Return branch -- northward up the Andaman Sea, kept a full degree or
-  // more offshore of the Ayeyarwady delta bulge (Cape Negrais juts out to
-  // ~94.2E at 16N) rather than tracking close along the coastline
-  [[7.5, 93.8], [9.5, 93.9], [11.8, 94], [14, 93.6], [15.8, 92.7], [17.3, 91.6], [18.8, 90.6], [20, 89.5], [20.4, 87.6]],
-  // Interior basin circulation -- clockwise (winter), kept clear of the
-  // Indian coast to the west and the Andaman chain to the east
-  gyreLoop(11.5, 89.5, 3.6, 3),
-  // -- Arabian Sea Gyre (clockwise) --
-  // West India Coastal Current -- northward along the Indian coast, kept
-  // offshore of Kerala/Konkan/Gujarat
-  [[8.3, 76], [10.5, 75.3], [13, 74], [15.5, 73], [17.8, 72.3], [19.5, 71.7], [21, 69.8], [21.7, 68]],
-  // North branch -- westward across the Arabian Sea, bowed south to stay
-  // well clear of the Yemen coast (Al Mahrah reaches ~54E) before
-  // approaching the Horn of Africa from due east of Cape Guardafui
-  [[21.7, 68], [19, 63], [17, 59], [15, 56], [13, 53.5], [11.5, 51.8]],
-  // Somali Current -- southward along the Somali coast, offset consistently
-  // offshore of the real coastline (Cape Guardafui 11.8N/51.3E, Eyl
-  // 7.98N/49.8E, Hobyo 5.35N/48.5E, Mogadishu 2.04N/45.3E, Kismayo
-  // -0.36N/42.6E) rather than drifting inland between waypoints
-  [[11.5, 51.8], [10, 50.9], [8, 50.1], [6, 49], [4.5, 47.7], [3, 46.4], [1.5, 45]],
-  // Interior basin circulation -- clockwise (winter), centered in open
-  // water clear of both the Indian and Arabian coastlines
-  gyreLoop(14, 62, 3.5, 3.5),
-  // -- Basin-scale equatorial band --
-  // North Equatorial Current -- westward, south of Sri Lanka, ending
-  // offshore near the Somali coast (not run all the way inland to it)
-  [[6, 80], [6, 73], [6, 67], [6, 61], [5.8, 55], [5.5, 50.2]],
-  // South Equatorial Current -- westward, Sumatra to Madagascar
-  [[-8, 96], [-8.2, 90], [-8.5, 84], [-9, 78], [-9.3, 72], [-9.6, 66], [-10, 60], [-10, 55], [-11.5, 51.5]],
-  // East Madagascar Current -- southward along the *outer* east coast
-  // (Sambava 14.27S/50.2E, Toamasina 18.15S/49.4E, Manakara 22.13S/48E,
-  // Tolagnaro 25.03S/47E), offset east of each so it runs offshore rather
-  // than along the coastline itself
-  [[-12, 51.3], [-14.3, 51], [-18.15, 50.2], [-22.13, 48.8], [-25, 47.8], [-26.3, 46.8]],
-];
+const REASON_LABEL = {
+  open_urgent_review: "open urgent review",
+  contamination_flags: "contamination flags",
+  novelty_flags: "novelty flags",
+};
 
-// Named water bodies -- geographic labels, not illustrative/mock data, so
-// they don't need the same "not measured" caveat as the hotspots/currents.
-// The CARTO basemap already renders its own native label for the Andaman
-// Sea at this zoom (visible without any overlay), so it's deliberately
-// left out here to avoid a duplicate label in a mismatched style; Bay of
-// Bengal and Indian Ocean aren't in the tileset's default label set at
-// this zoom, so those two are added, styled to match the basemap's own
-// sea-label typography (see .sv-map-waterlabel).
-const WATER_BODIES = [
-  { name: "Bay of Bengal", lat: 14.8, lng: 87.3 },
-  { name: "Indian Ocean", lat: 5.6, lng: 84.5 },
-];
+// API datetimes are UTC; stored naive ones come back without an offset.
+function asDate(iso) {
+  if (!iso) return null;
+  const d = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
-// Meters, not pixels (Leaflet's Circle, not CircleMarker) -- a radius of
-// approximation is a real geographic extent, so it has to grow and shrink
-// on screen the way any map annotation does when you zoom, or it reads as
-// inconsistent (the ring visibly "shrinking" as you zoom in and the
-// basemap's real features grow around it). The center-dot epicenter below
-// is the opposite case: a point has no extent to represent, so it stays a
-// fixed small size in pixels at every zoom level instead.
-const HOTSPOT_RADIUS_M = { Critical: 22000, High: 16000, Medium: 11000, Low: 7000 };
+function fmtDate(iso) {
+  const d = asDate(iso);
+  return d ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "—";
+}
+
+function fmtDateTime(iso) {
+  const d = asDate(iso);
+  return d ? `${d.toISOString().slice(0, 16).replace("T", " ")} UTC` : "—";
+}
+
+function fmtCoord(v, pos, neg) {
+  return `${Math.abs(v).toFixed(2)}°${v >= 0 ? pos : neg}`;
+}
+
+function short(hash) {
+  return hash ? `${hash.slice(0, 10)}…${hash.slice(-8)}` : "—";
+}
+
+// ---------------------------------------------------------------------------
+// Downloads (client-side CSV of exactly what the API returned; server-side
+// FAIR ZIP / custody JSON)
+// ---------------------------------------------------------------------------
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const str = String(v);
+  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function toCsv(columns, rows) {
+  return [columns.join(","), ...rows.map((r) => columns.map((c) => csvCell(r[c])).join(","))].join("\n") + "\n";
+}
+
+function stamp(iso) {
+  return (iso || new Date().toISOString()).slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
+}
+
+function exportCellsCsv(hotspots) {
+  const columns = [
+    "cell_id", "cell_deg", "lat_min", "lat_max", "lng_min", "lng_max", "uploads", "analyses", "sequences",
+    "sequences_with_taxon", "distinct_taxa", "novelty_flags", "contamination_flags", "open_reviews",
+    "open_urgent_reviews", "top_taxa", "location_labels", "first_collected_at", "last_collected_at", "generated_at",
+  ];
+  const rows = hotspots.cells.map((c) => ({
+    ...c,
+    cell_deg: hotspots.cell_deg,
+    top_taxa: c.top_taxa.map((t) => `${t.taxon} (${t.sequences})`).join("; "),
+    location_labels: c.location_labels.join("; "),
+    generated_at: hotspots.generated_at,
+  }));
+  saveBlob(new Blob([toCsv(columns, rows)], { type: "text/csv" }), `synthveda_hotspots_${stamp(hotspots.generated_at)}.csv`);
+}
+
+function exportAlertsCsv(alerts) {
+  const columns = [
+    "analysis_id", "upload_id", "priority", "reasons", "location_label", "latitude", "longitude", "collected_at",
+    "analysis_created_at", "sequences", "novelty_flags", "contamination_flags", "contamination_types",
+    "open_reviews", "open_urgent_reviews", "original_filename", "generated_at",
+  ];
+  const rows = alerts.alerts.map((a) => ({
+    ...a,
+    reasons: a.reasons.join("; "),
+    contamination_types: Object.entries(a.contamination_types).map(([k, v]) => `${k}:${v}`).join("; "),
+    generated_at: alerts.generated_at,
+  }));
+  saveBlob(new Blob([toCsv(columns, rows)], { type: "text/csv" }), `synthveda_alerts_${stamp(alerts.generated_at)}.csv`);
+}
+
+// ---------------------------------------------------------------------------
+// Map
+// ---------------------------------------------------------------------------
+
+function FitToCells({ cells }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!cells.length) return;
+    const pts = cells.flatMap((c) => [[c.lat_min, c.lng_min], [c.lat_max, c.lng_max]]);
+    map.fitBounds(pts, { padding: [28, 28], maxZoom: 7 });
+  }, [map, cells]);
+  return null;
+}
 
 function MapLegend() {
   return (
@@ -182,172 +173,142 @@ function MapLegend() {
         pointerEvents: "none",
       }}
     >
-      <span style={{ fontWeight: 600, marginBottom: 2 }}>Hotspot key</span>
-      {Object.entries(SEVERITY).map(([label, color]) => (
-        <span key={label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 2, background: color }} /> {label}
+      <span style={{ fontWeight: 600, marginBottom: 2 }}>Grid cell key</span>
+      {Object.entries(TONE).map(([k, t]) => (
+        <span key={k} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: t.color }} /> {t.label}
         </span>
       ))}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Real interactive Bay of Bengal map (Leaflet, CartoDB dark basemap) -- pan
-// and zoom against actual geography rather than a static illustration.
-// isolation:"isolate" on the wrapper is load-bearing: Leaflet's own panes and
-// controls carry z-index up to 1000, and without a wrapper that establishes
-// its own stacking context, that would fight the MapLegend overlay (and
-// potentially the app's own fixed-position sidebar/modals) instead of
-// staying contained to the map. Rendered fresh in both the inline card and
-// the fullscreen modal rather than moved between them, which sidesteps
-// Leaflet's stale-container-size problem (map.invalidateSize()) entirely --
-// each instance measures its own final container on mount.
-// ---------------------------------------------------------------------------
-function HotspotMap({ height = 340 }) {
+function CellPopup({ c, cellDeg }) {
   return (
-    <div style={{ position: "relative", width: "100%", height, isolation: "isolate" }}>
-      {/* attributionControl={false}: drops the "Leaflet | OpenStreetMap
-          contributors | CARTO" badge from both the inline card and the
-          fullscreen modal (one shared component, so this fixes both at
-          once). Per explicit request -- worth knowing CARTO's free
-          no-API-key basemap and OSM's data normally expect attribution to
-          stay visible as a condition of free use, so this is a call worth
-          revisiting before this ever ships somewhere public. */}
-      <MapContainer className="sv-legis-map" center={[16, 88]} zoom={5} minZoom={3} maxZoom={10} scrollWheelZoom attributionControl={false} style={{ width: "100%", height: "100%", background: "#0A1526" }}>
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={19}
-        />
-        {WATER_BODIES.map((w) => (
-          <CircleMarker key={w.name} center={[w.lat, w.lng]} radius={0} interactive={false} pathOptions={{ stroke: false, fill: false }}>
-            <Tooltip className="sv-map-waterlabel" direction="center" permanent>
-              {w.name}
-            </Tooltip>
-          </CircleMarker>
-        ))}
-        {/* Current flow -- rendered before the hotspots so it paints behind
-            them in the shared overlay pane. A steadily flowing dashed line
-            marks each path; the origin and destination each get a static
-            glow halo plus two staggered water-ripple rings expanding
-            outward and fading, like a pebble dropped in water. */}
-        {CURRENT_PATHS.map((path, i) => {
-          const origin = path[0];
-          const dest = path[path.length - 1];
-          return (
-            <Fragment key={`flow${i}`}>
-              <Polyline positions={path} pathOptions={{ className: "sv-current-flow", color: tokens.accentCyan, weight: 1.6, opacity: 0.8 }} />
-              {[origin, dest].map((pt, j) => (
-                <Fragment key={j}>
-                  <CircleMarker center={pt} radius={4} interactive={false} pathOptions={{ className: "sv-current-node-ripple", color: tokens.accentCyan, weight: 0.75, fill: false }} />
-                  <CircleMarker center={pt} radius={4} interactive={false} pathOptions={{ className: "sv-current-node-ripple sv-current-node-ripple--b", color: tokens.accentCyan, weight: 0.75, fill: false }} />
-                </Fragment>
-              ))}
-            </Fragment>
-          );
-        })}
-        {HOTSPOTS.map((z, i) => (
-          <Fragment key={z.name}>
-            {/* Outer ring: radius of approximation, in real meters -- hollow
-                (no fill), so it reads as an uncertainty zone rather than a
-                filled area, and it genuinely grows/shrinks with zoom like
-                any other map geometry. Carries the tooltip/popup; the
-                center dot below is purely decorative and non-interactive
-                so clicks never double-fire. `sv-scale-in-N` staggers each
-                hotspot's entrance (react-leaflet's pathOptions only maps to
-                Leaflet's own style properties, not arbitrary CSS like
-                animation-delay, so the stagger has to come from a per-index
-                class rather than an inline style). */}
-            <Circle
-              center={[z.lat, z.lng]}
-              radius={HOTSPOT_RADIUS_M[z.sev]}
-              pathOptions={{ color: SEVERITY[z.sev], weight: 2, fillOpacity: 0, className: `sv-scale-in sv-scale-in-${i}` }}
-            >
-              <Tooltip className="sv-map-tooltip" direction="top" offset={[0, -14]} opacity={1} permanent>
-                {z.name}
-              </Tooltip>
-              <Popup className="sv-map-popup">
-                <strong>{z.name}</strong> · {z.sev}
-                <br />
-                {z.desc}
-              </Popup>
-            </Circle>
-            {/* Center dot: the epicenter -- the actual detection point the
-                ring's approximation radius is drawn around. */}
-            <CircleMarker
-              center={[z.lat, z.lng]}
-              radius={3}
-              interactive={false}
-              pathOptions={{ color: SEVERITY[z.sev], weight: 0, fillColor: SEVERITY[z.sev], fillOpacity: 1, className: `sv-scale-in sv-scale-in-${i}` }}
-            />
-          </Fragment>
-        ))}
-      </MapContainer>
-      <MapLegend />
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 210 }}>
+      <strong>
+        Cell {fmtCoord(c.lat_min, "N", "S")}–{fmtCoord(c.lat_max, "N", "S")}, {fmtCoord(c.lng_min, "E", "W")}–{fmtCoord(c.lng_max, "E", "W")}
+      </strong>
+      <span>{cellDeg}° grid · {c.location_labels.length ? c.location_labels.join(", ") : "no location label"}</span>
+      <span>{c.uploads} upload(s) · {c.analyses} analysis(es) · {c.sequences} sequences</span>
+      <span>Novelty flags: {c.novelty_flags} · Contamination flags: {c.contamination_flags}</span>
+      <span>Open reviews: {c.open_reviews} ({c.open_urgent_reviews} urgent)</span>
+      <span>Distinct taxa: {c.distinct_taxa}{c.top_taxa.length ? ` — ${c.top_taxa.map((t) => `${t.taxon} (${t.sequences})`).join(", ")}` : ""}</span>
+      <span>Collected: {c.first_collected_at ? `${fmtDate(c.first_collected_at)} – ${fmtDate(c.last_collected_at)}` : "date not recorded"}</span>
     </div>
   );
 }
 
-function IndicatorTrendSVG() {
-  const vals = [30, 34, 31, 38, 42, 40, 46, 44, 50, 53, 51, 56];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const X = (i) => 34 + i * 46;
-  const Y = (v) => 130 - v * 1.7;
-  const d = vals.map((v, i) => (i ? "L" : "M") + X(i) + " " + Y(v)).join(" ");
-  const area = `${d} L${X(11)} 140 L${X(0)} 140 Z`;
-  const gridValues = [0, 10, 20, 30, 40, 50, 60];
-  const gridX = [X(0) - 23, ...months.map((_, i) => X(i)), X(11) + 23].flatMap((x, i, arr) =>
-    i < arr.length - 1 ? [x, (x + arr[i + 1]) / 2] : [x]
-  );
+// isolation:"isolate" on the wrapper is load-bearing: Leaflet's own panes and
+// controls carry z-index up to 1000, and without a wrapper that establishes
+// its own stacking context that would fight the legend overlay and the
+// app's fixed sidebar/modals. Rendered fresh in both the inline card and the
+// fullscreen modal (each instance measures its own container on mount).
+function HotspotMap({ hotspots, height = 340 }) {
+  const cells = hotspots?.cells || [];
   return (
-    <svg viewBox="0 0 570 150" style={{ width: "100%", height: "auto", display: "block" }}>
-      {gridValues.map((v) => (
-        <line key={v} x1={20} y1={Y(v)} x2={556} y2={Y(v)} stroke="#3D4F6E" strokeWidth={1} strokeOpacity={0.9} />
-      ))}
-      {gridX.map((x, i) => (
-        <line key={i} x1={x} y1={Y(0)} x2={x} y2={Y(60)} stroke="#3D4F6E" strokeWidth={1} strokeOpacity={i % 2 ? 0.35 : 0.55} />
-      ))}
-      <path d={area} className="sv-fade-in-late" fill="rgba(59,158,255,0.10)" />
-      <path d={d} pathLength={1} className="sv-draw-path" fill="none" stroke={tokens.accentBlue} strokeWidth={2} strokeLinecap="round" />
-      {vals.map((v, i) => <circle key={i} cx={X(i)} cy={Y(v)} r={2.6} className="sv-fade-in-late" fill={tokens.accentCyan} />)}
-      {months.map((m, i) => <text key={m} x={X(i)} y={148} fill={tokens.pending} fontSize={9} textAnchor="middle">{m}</text>)}
-    </svg>
+    <div style={{ position: "relative", width: "100%", height, isolation: "isolate" }}>
+      {/* attributionControl={false} was an explicit earlier request; CARTO's
+          free basemap and OSM data normally expect attribution, so revisit
+          before this ships publicly. */}
+      <MapContainer className="sv-legis-map" center={[10, 80]} zoom={2} minZoom={2} maxZoom={10} worldCopyJump scrollWheelZoom attributionControl={false} style={{ width: "100%", height: "100%", background: "#0A1526" }}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" subdomains="abcd" maxZoom={19} />
+        <FitToCells cells={cells} />
+        {cells.map((c, i) => {
+          const tone = TONE[cellTone(c)];
+          return (
+            <Fragment key={c.cell_id}>
+              <Rectangle
+                bounds={[[c.lat_min, c.lng_min], [c.lat_max, c.lng_max]]}
+                pathOptions={{ color: tone.color, weight: 1.5, fillColor: tone.color, fillOpacity: 0.18, className: `sv-scale-in sv-scale-in-${Math.min(i, 9)}` }}
+              >
+                <Popup className="sv-map-popup">
+                  <CellPopup c={c} cellDeg={hotspots.cell_deg} />
+                </Popup>
+              </Rectangle>
+              {/* Fixed-size center dot so a cell stays visible when zoomed out. */}
+              <CircleMarker
+                center={[c.center_lat, c.center_lng]}
+                radius={3.5}
+                interactive={false}
+                pathOptions={{ color: tone.color, weight: 0, fillColor: tone.color, fillOpacity: 1 }}
+              />
+            </Fragment>
+          );
+        })}
+      </MapContainer>
+      <MapLegend />
+      {hotspots && !cells.length && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 1400, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <span style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(8,14,26,0.9)", border: "1px solid #1C2E4C", fontSize: 13, color: tokens.wordmark }}>
+            No uploads with coordinates in this scope
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
-function TaxaDeclineSVG() {
-  const data = [
-    ["Coral", 18, tokens.danger],
-    ["Seagrass", 12, tokens.warningAlt],
-    ["Mangrove", 9, tokens.success],
-    ["Kelp", 4, tokens.accentBlue],
+// ---------------------------------------------------------------------------
+// Flag-rate indicators (no species list needed)
+// ---------------------------------------------------------------------------
+
+function FlagRateSVG({ series }) {
+  const W = 570, H = 170, L = 40, R = 556, T = 12, B = 132;
+  const pts = series.map((p) => ({
+    label: p.period_start,
+    seq: p.sequences,
+    nov: p.sequences ? p.novelty_flags / p.sequences : null,
+    con: p.sequences ? p.contamination_flags / p.sequences : null,
+  }));
+  const maxRate = Math.max(0.1, ...pts.flatMap((p) => [p.nov ?? 0, p.con ?? 0]));
+  const top = Math.ceil(maxRate * 10) / 10;
+  const X = (i) => (pts.length === 1 ? (L + R) / 2 : L + (i * (R - L)) / (pts.length - 1));
+  const Y = (v) => B - (v / top) * (B - T);
+  // Periods with no sequences break the line (no rate exists there).
+  const path = (key) =>
+    pts.reduce((d, p, i) => {
+      if (p[key] == null) return d;
+      const prev = i > 0 && pts[i - 1][key] != null;
+      return `${d}${prev ? "L" : "M"}${X(i).toFixed(1)} ${Y(p[key]).toFixed(1)} `;
+    }, "");
+  const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => f * top);
+  const labelEvery = Math.max(1, Math.ceil(pts.length / 8));
+  const lines = [
+    ["nov", tokens.accentCyan],
+    ["con", tokens.warning],
   ];
   return (
-    <svg viewBox="0 0 570 150" style={{ width: "100%", height: "auto", display: "block" }}>
-      {data.map(([n, v, c], i) => {
-        const y = 14 + i * 33;
-        return (
-          <g key={n}>
-            <text x={0} y={y + 12} fill={tokens.wordmark} fontSize={11}>{n}</text>
-            <rect x={80} y={y} width={440} height={16} rx={3} fill="#0A1526" />
-            <rect x={80} y={y} width={(440 * v) / 20} height={16} rx={3} className="sv-grow-x" style={{ animationDelay: `${i * 0.1}s` }} fill={c} opacity={0.75} />
-            <text x={530} y={y + 12} className="sv-fade-in-late" style={{ animationDelay: `${i * 0.1 + 0.5}s` }} fill={tokens.sectionSubtext} fontSize={10.5}>−{v}%</text>
-          </g>
-        );
-      })}
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Novelty and contamination flag rate per period">
+      {grid.map((v) => (
+        <g key={v}>
+          <line x1={L} y1={Y(v)} x2={R} y2={Y(v)} stroke="#3D4F6E" strokeWidth={1} strokeOpacity={0.6} />
+          <text x={L - 6} y={Y(v) + 3} fill={tokens.pending} fontSize={9} textAnchor="end">{Math.round(v * 100)}%</text>
+        </g>
+      ))}
+      {lines.map(([key, color]) => (
+        <Fragment key={key}>
+          <path d={path(key)} pathLength={1} className="sv-draw-path" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />
+          {pts.map((p, i) => (p[key] == null ? null : <circle key={i} cx={X(i)} cy={Y(p[key])} r={2.6} className="sv-fade-in-late" fill={color} />))}
+        </Fragment>
+      ))}
+      {pts.map((p, i) =>
+        i % labelEvery === 0 || i === pts.length - 1 ? (
+          <text key={p.label} x={X(i)} y={B + 16} fill={tokens.pending} fontSize={9} textAnchor="middle">{fmtDate(p.label)}</text>
+        ) : null
+      )}
+      {pts.map((p, i) =>
+        i % labelEvery === 0 || i === pts.length - 1 ? (
+          <text key={`n${p.label}`} x={X(i)} y={B + 30} fill={tokens.sectionSubtext} fontSize={8.5} textAnchor="middle">n={p.seq}</text>
+        ) : null
+      )}
     </svg>
   );
 }
 
-function CheckCircleIcon({ size = 12, color = "currentColor" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
-      <circle cx={7} cy={7} r={5.5} stroke={color} strokeWidth={1.3} />
-      <path d="M4.5 7l1.8 1.8L9.5 5.5" stroke={color} strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const pageStyle = {
   position: "relative",
@@ -377,20 +338,17 @@ const cardBase = {
 };
 
 const panelLabelStyle = { fontSize: s(11), fontWeight: 600, letterSpacing: "0.08em", color: tokens.wordmark };
+const captionStyle = { fontSize: s(10.5), color: tokens.pending, lineHeight: 1.5 };
+const emptyStyle = { padding: `${s(14)}px ${s(16)}px`, borderRadius: s(6), border: "1px dashed #1C2E4C", fontSize: s(12), lineHeight: 1.55, color: tokens.sectionSubtext };
 
-// The map's own accent frame -- the "electric blue" glow language already
-// used for focus rings and glowing chrome elsewhere in the app (OxygenGauge's
-// drop-shadow, .sv-upload-field:focus's ring) rather than the plain dark
-// #101D33 border every other panel uses, so the map itself reads as part of
-// this tool rather than a generic embedded widget.
+// The map's own accent frame -- the "electric blue" glow language used for
+// focus rings and glowing chrome elsewhere in the app.
 const mapFrameStyle = {
   border: "1px solid rgba(59,158,255,0.45)",
   boxShadow: "0 0 0 1px rgba(59,158,255,0.12), 0 0 32px rgba(59,158,255,0.22)",
 };
 
-// Buttons use the app's shared liquid-glass material (styles/liquidGlass.js)
-// rather than the flat gradient the original design mockup specified --
-// keeps every raised control across the app reading as one system.
+// Buttons use the app's shared liquid-glass material (styles/liquidGlass.js).
 const ghostBtnStyle = {
   padding: `${s(7)}px ${s(14)}px`,
   borderRadius: 999,
@@ -410,43 +368,193 @@ const ghostBtnStyle = {
   }),
 };
 
-// Same material, disabled semantics: these correspond to exports this
-// deployment has no file to generate (no live regional feed behind the
-// map/alerts/economics), so they're visually inert rather than faking a
-// download that doesn't exist.
-const inertBtnStyle = { ...ghostBtnStyle, opacity: 0.5, cursor: "default" };
+const disabledBtnStyle = { ...ghostBtnStyle, opacity: 0.5, cursor: "default" };
 
-const primaryBtnStyle = {
-  padding: `${s(8)}px ${s(18)}px`,
-  borderRadius: 999,
+const selectStyle = {
+  padding: `${s(5)}px ${s(10)}px`,
+  borderRadius: s(6),
+  border: "1px solid #1C2E4C",
+  background: "#080F1C",
+  color: tokens.wordmark,
   fontFamily: "inherit",
-  fontSize: s(12),
-  fontWeight: 600,
-  color: "#FFFFFF",
-  textShadow: "0 1px 2px rgba(8,50,140,0.4)",
-  cursor: "pointer",
-  ...liquidGlass({
-    top: "rgba(120,185,255,0.95)",
-    bottom: "rgba(20,110,255,0.88)",
-    border: "rgba(255,255,255,0.40)",
-    highlight: "rgba(255,255,255,0.55)",
-    innerShadow: "rgba(10,60,170,0.35)",
-    outerShadow: "0 10px 26px rgba(20,110,255,0.42)",
-    blur: 16,
-  }),
+  fontSize: s(11.5),
 };
 
-export default function Legislative() {
-  const [mapOpen, setMapOpen] = useState(false);
-  const [alertId, setAlertId] = useState(null);
-  const [feas, setFeas] = useState("idle"); // idle | running | done
+function Definition({ label, text }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ fontSize: s(10.5), fontWeight: 600, color: tokens.wordmark }}>{label}</span>
+      <span style={captionStyle}>{text}</span>
+    </div>
+  );
+}
 
-  const runFeasibility = () => {
-    setFeas("running");
-    setTimeout(() => setFeas("done"), 1400);
+function ReasonChip({ children, color }) {
+  return (
+    <span style={{ fontSize: s(10.5), padding: "1px 8px", borderRadius: 999, border: `1px solid ${color}55`, color, whiteSpace: "nowrap" }}>
+      {children}
+    </span>
+  );
+}
+
+function alertTitle(a) {
+  return a.location_label || a.original_filename || a.upload_id || a.analysis_id;
+}
+
+// ---------------------------------------------------------------------------
+// Chain of custody (GET /reports/{id}/custody) for one alert
+// ---------------------------------------------------------------------------
+
+const INTEGRITY_TEXT = {
+  results: {
+    match: ["Stored results match the hash recorded at completion", "success"],
+    mismatch: ["Stored results differ from the hash recorded at completion", "danger"],
+    not_recorded: ["No results hash recorded yet", "pending"],
+  },
+  metadata: {
+    unchanged: ["Sample metadata unchanged since recorded", "success"],
+    changed_since_recorded: ["Sample metadata changed since recorded (may be a later correction)", "warning"],
+    not_recorded: ["No metadata hash recorded", "pending"],
+    upload_not_found: ["Upload record not found", "danger"],
+  },
+  file: {
+    verified: ["Uploaded file re-hashed: matches the checksum taken at upload", "success"],
+    mismatch: ["Uploaded file no longer matches its upload checksum", "danger"],
+    unverifiable: ["File read, but no upload checksum exists to compare (pre-checksum upload)", "warning"],
+    unavailable: ["Uploaded file could not be checked", "pending"],
+    not_checked: ["File not checked", "pending"],
+  },
+};
+
+function IntegrityLine({ kind, status, reason }) {
+  const [text, tone] = INTEGRITY_TEXT[kind][status] || [`${kind}: ${status}`, "pending"];
+  return (
+    <span style={{ color: tokens[tone] ?? tokens.pending }}>
+      {text}{reason ? ` — ${reason}` : ""}
+    </span>
+  );
+}
+
+function CustodyPanel({ analysisId }) {
+  const [state, setState] = useState({ loading: true, data: null, error: "" });
+  const [busy, setBusy] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    setState({ loading: true, data: null, error: "" });
+    getReportCustody(analysisId)
+      .then((data) => live && setState({ loading: false, data, error: "" }))
+      .catch((e) => live && setState({ loading: false, data: null, error: e.message || "Custody could not be loaded." }));
+    return () => {
+      live = false;
+    };
+  }, [analysisId]);
+
+  const downloadCustody = () => {
+    saveBlob(
+      new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" }),
+      `synthveda_custody_${analysisId}.json`
+    );
   };
 
-  const activeAlert = ALERTS.find((a) => a.id === alertId);
+  const downloadFair = async () => {
+    setBusy("fair");
+    try {
+      const resp = await exportReportFair(analysisId);
+      saveBlob(await resp.blob(), `synthveda_fair_${analysisId}.zip`);
+    } catch (e) {
+      setState((st) => ({ ...st, error: `FAIR export failed: ${e.message}` }));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const d = state.data;
+  const v = d?.verification;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: s(8), padding: `${s(14)}px ${s(16)}px`, borderRadius: s(6), border: "1px solid #101D33", background: "rgba(8,14,26,0.5)" }}>
+      <span style={{ ...panelLabelStyle, fontSize: s(10.5) }}>CHAIN OF CUSTODY</span>
+      {state.loading && <span style={captionStyle}>Verifying chain of custody…</span>}
+      {state.error && <span style={{ fontSize: s(11.5), color: tokens.danger }}>{state.error}</span>}
+      {d && (
+        <div style={{ display: "flex", flexDirection: "column", gap: s(5), fontSize: s(11.5), fontFamily: "ui-monospace,monospace", color: tokens.wordmark }}>
+          {d.upload && (
+            <>
+              <span>source: {d.upload.original_filename || "—"}</span>
+              <span>uploaded: {fmtDateTime(d.upload.uploaded_at)} · by user {d.upload.uploaded_by || "—"}</span>
+              <span style={{ wordBreak: "break-all" }}>upload sha-256: {short(d.upload.checksum_sha256)}</span>
+            </>
+          )}
+          <span style={{ color: v.valid ? tokens.success : tokens.danger }}>
+            {v.valid
+              ? `Chain intact — ${v.length} event(s), every hash recomputed`
+              : `Chain broken at event ${v.first_break?.seq}: ${v.first_break?.reason}`}
+          </span>
+          <span style={{ wordBreak: "break-all" }}>head hash: {short(v.head_hash)} · checked {fmtDateTime(v.checked_at)}</span>
+          <IntegrityLine kind="results" status={d.results_integrity.status} />
+          <IntegrityLine kind="metadata" status={d.metadata_integrity.status} />
+          <IntegrityLine kind="file" status={d.file_integrity.status} reason={d.file_integrity.status === "verified" ? null : d.file_integrity.reason} />
+        </div>
+      )}
+      <div style={{ display: "flex", gap: s(8), flexWrap: "wrap" }}>
+        <button onClick={downloadCustody} disabled={!d} style={d ? ghostBtnStyle : disabledBtnStyle}>Download custody JSON</button>
+        <button onClick={downloadFair} disabled={busy === "fair"} style={busy === "fair" ? disabledBtnStyle : ghostBtnStyle}>
+          {busy === "fair" ? "Preparing FAIR ZIP…" : "Download FAIR ZIP"}
+        </button>
+      </div>
+      <span style={captionStyle}>Every FAIR export is itself recorded on this sample's custody chain before the file is sent.</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+// One API panel: refetches whenever `key` (the serialised request params)
+// changes; a stale response from an earlier key is dropped.
+function usePanel(load, key) {
+  const [state, setState] = useState({ loading: true, data: null, error: "" });
+  useEffect(() => {
+    let live = true;
+    setState((st) => ({ ...st, loading: true, error: "" }));
+    load()
+      .then((data) => live && setState({ loading: false, data, error: "" }))
+      .catch((e) => live && setState({ loading: false, data: null, error: e.message || "Failed to load." }));
+    return () => {
+      live = false;
+    };
+    // `load` is a fresh closure every render; `key` carries its inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return state;
+}
+
+export default function Legislative() {
+  const { user } = useAuth();
+  const privileged = ALL_DATA_ROLES.includes(user?.role);
+  const [scope, setScope] = useState("mine");
+  const [cellDeg, setCellDeg] = useState(1);
+  const [trendInterval, setTrendInterval] = useState("week");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [alertId, setAlertId] = useState(null);
+  const [showDefs, setShowDefs] = useState(false);
+
+  const scopeParam = privileged && scope === "all" ? "all" : undefined;
+  const hotspots = usePanel(() => getPartnerHotspots({ scope: scopeParam, cell_deg: cellDeg }), `${scopeParam}|${cellDeg}`);
+  const alerts = usePanel(() => getPartnerAlerts({ scope: scopeParam, limit: ALERT_LIMIT }), `${scopeParam}`);
+  const summary = usePanel(
+    () => getPartnerSummary({ scope: scopeParam, interval: trendInterval, top_taxa: 1 }),
+    `${scopeParam}|${trendInterval}`
+  );
+
+  const hs = hotspots.data;
+  const al = alerts.data;
+  const series = summary.data?.time_series || [];
+  const totals = summary.data?.totals;
+  const activeAlert = al?.alerts.find((a) => a.analysis_id === alertId);
+  const scopeLabel = scopeParam === "all" ? "all users' uploads" : "your uploads";
+  const periodsWithSequences = series.filter((p) => p.sequences > 0).length;
 
   return (
     <div style={pageStyle}>
@@ -458,91 +566,147 @@ export default function Legislative() {
           <div style={{ fontSize: s(12), letterSpacing: "0.08em", color: tokens.labelText }}>PARTNER REPORT › LEGISLATIVE</div>
           <h1 style={{ margin: 0, fontSize: s(27), fontWeight: 600, letterSpacing: "-0.01em" }}>eDNA Biodiversity Analyzer</h1>
           <p style={{ margin: 0, fontSize: s(14), color: tokens.sectionSubtext }}>Policymaker · Regional biodiversity &amp; policy</p>
+          {privileged && (
+            <label style={{ display: "flex", alignItems: "center", gap: s(8), fontSize: s(12), color: tokens.sectionSubtext, marginTop: s(4) }}>
+              Scope
+              <select aria-label="Scope" value={scope} onChange={(e) => setScope(e.target.value)} style={selectStyle}>
+                <option value="mine">My uploads</option>
+                <option value="all">All users</option>
+              </select>
+            </label>
+          )}
         </div>
 
         {/* Map + alerts */}
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: s(18), alignItems: "start" }}>
           <div style={{ ...cardBase, ...revealStyle(0) }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(12), flexWrap: "wrap" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>BIODIVERSITY HOTSPOT MAP · BAY OF BENGAL <MockTag /></span>
-              <div style={{ display: "flex", gap: s(8) }}>
+              <span style={panelLabelStyle}>SAMPLING HOTSPOT MAP · {cellDeg}° GRID</span>
+              <div style={{ display: "flex", gap: s(8), alignItems: "center" }}>
+                <select aria-label="Grid cell size" value={cellDeg} onChange={(e) => setCellDeg(Number(e.target.value))} style={selectStyle}>
+                  {CELL_SIZES.map((d) => <option key={d} value={d}>{d}° cells</option>)}
+                </select>
                 <button onClick={() => setMapOpen(true)} style={ghostBtnStyle}>Open Map</button>
-                <button style={inertBtnStyle} title="No live regional feed connected yet">Export Region CSV</button>
+                <button onClick={() => hs && exportCellsCsv(hs)} disabled={!hs?.cells.length} style={hs?.cells.length ? ghostBtnStyle : disabledBtnStyle}>
+                  Export Cells CSV
+                </button>
               </div>
             </div>
             <div style={{ position: "relative", borderRadius: s(6), overflow: "hidden", ...mapFrameStyle }}>
-              <HotspotMap height={s(340)} />
+              <HotspotMap hotspots={hs} height={s(340)} />
             </div>
-            <span style={{ fontSize: s(11), color: tokens.pending }}>Zones show drift-diffused detection areas, not exact positions. Flow lines illustrate current direction, not measured data. Pan and zoom the map, or click a marker for detail.</span>
+            {hotspots.error && <span style={{ fontSize: s(12), color: tokens.danger }}>Hotspots could not be loaded: {hotspots.error}</span>}
+            {hs && (
+              <span style={captionStyle} data-testid="hotspot-coverage">
+                {hs.cells.length} cell(s) from {hs.coverage.uploads_with_coordinates} of {hs.coverage.uploads_in_scope} upload(s) in scope
+                {hs.coverage.uploads_without_coordinates ? ` · ${hs.coverage.uploads_without_coordinates} without coordinates (not mapped)` : ""}.
+                {" "}Each upload is placed in the {hs.cell_deg}° × {hs.cell_deg}° latitude/longitude cell containing its recorded coordinates; a cell is an aggregation unit, not a detection radius or drift model. Click a cell for its counts and taxa.
+              </span>
+            )}
+            {hs?.notes.filter((n) => !n.startsWith("No uploads")).map((n) => <span key={n} style={captionStyle}>{n}</span>)}
           </div>
 
-          <div style={cardBase}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>ACTIVE ALERTS <MockTag /></span>
-            {ALERTS.map((a) => (
-              <div
-                key={a.id}
-                onClick={() => setAlertId(a.id)}
-                style={{ display: "flex", flexDirection: "column", gap: s(5), padding: `${s(12)}px ${s(14)}px`, borderRadius: s(6), cursor: "pointer", border: "1px solid #101D33", borderLeft: `3px solid ${SEVERITY[a.sev]}`, background: "rgba(8,14,26,0.55)" }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(8) }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: s(8), fontSize: s(13), fontWeight: 600 }}>
-                    <span style={{ width: s(8), height: s(8), borderRadius: "50%", background: SEVERITY[a.sev], boxShadow: `0 0 8px ${SEVERITY[a.sev]}88` }} />
-                    {a.title}
-                  </span>
-                  <span style={{ fontSize: s(10.5), fontWeight: 600, color: SEVERITY[a.sev] }}>{a.sev}</span>
-                </div>
-                <span style={{ fontSize: s(12), lineHeight: 1.5, color: tokens.sectionSubtext }}>{a.desc}</span>
-                <span style={{ fontSize: s(10.5), color: tokens.pending }}>Detected — genetic trace consistent with presence within the last ~7–14 days</span>
-                {a.boundary && (
-                  <span style={{ fontSize: s(10.5), color: tokens.warning }}>⚠ Near maritime boundary — origin uncertain due to current drift (spatial uncertainty only)</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Trends */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: s(18) }}>
           <div style={{ ...cardBase, ...revealStyle(1) }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>INDICATOR SPECIES TREND <MockTag /></span>
-              <span style={{ fontSize: s(12), fontWeight: 600, color: tokens.success }}>+8% YTD</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(8), flexWrap: "wrap" }}>
+              <span style={panelLabelStyle}>ALERTS{al ? ` · ${al.total}` : ""}{al?.urgent ? ` (${al.urgent} URGENT)` : ""}</span>
+              <div style={{ display: "flex", gap: s(8) }}>
+                <button onClick={() => setShowDefs((v) => !v)} style={ghostBtnStyle} aria-expanded={showDefs}>
+                  {showDefs ? "Hide definitions" : "How alerts are defined"}
+                </button>
+                <button onClick={() => al && exportAlertsCsv(al)} disabled={!al?.alerts.length} style={al?.alerts.length ? ghostBtnStyle : disabledBtnStyle}>
+                  Export CSV
+                </button>
+              </div>
             </div>
-            <span style={{ fontSize: s(10.5), color: tokens.pending }}>Target species DNA presence · as of 15 Aug 2026</span>
-            <IndicatorTrendSVG />
-          </div>
-          <div style={{ ...cardBase, ...revealStyle(2) }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>HABITAT-ASSOCIATED TAXA DECLINE <MockTag /></span>
-            <span style={{ fontSize: s(10.5), color: tokens.pending, lineHeight: 1.5 }}>Decline in DNA signatures associated with vulnerable ecosystems — an early-warning proxy, not a direct habitat measurement · as of 15 Aug 2026</span>
-            <TaxaDeclineSVG />
+            {showDefs && al && (
+              <div style={{ display: "flex", flexDirection: "column", gap: s(8), padding: `${s(10)}px ${s(12)}px`, borderRadius: s(6), border: "1px solid #101D33", background: "rgba(8,14,26,0.5)" }}>
+                <Definition label="Alert" text={al.definitions.alert} />
+                <Definition label="Priority" text={al.definitions.priority} />
+                <Definition label="Novelty flag" text={al.definitions.novelty_flag} />
+                <Definition label="Contamination flag" text={al.definitions.contamination_flag} />
+              </div>
+            )}
+            {alerts.loading && !al && <span style={captionStyle}>Loading alerts…</span>}
+            {alerts.error && <span style={{ fontSize: s(12), color: tokens.danger }}>Alerts could not be loaded: {alerts.error}</span>}
+            {al && !al.alerts.length && <div style={emptyStyle}>{al.notes[0] || "No alerts in this scope."}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: s(10), maxHeight: s(470), overflowY: "auto" }}>
+              {al?.alerts.map((a) => {
+                const color = a.priority === "urgent" ? TONE.urgent.color : TONE.flagged.color;
+                return (
+                  <button
+                    key={a.analysis_id}
+                    onClick={() => setAlertId(a.analysis_id)}
+                    style={{ all: "unset", display: "flex", flexDirection: "column", gap: s(5), padding: `${s(12)}px ${s(14)}px`, borderRadius: s(6), cursor: "pointer", border: "1px solid #101D33", borderLeft: `3px solid ${color}`, background: "rgba(8,14,26,0.55)" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(8) }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: s(8), fontSize: s(13), fontWeight: 600, color: tokens.textPrimary }}>
+                        <span style={{ width: s(8), height: s(8), borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}88`, flexShrink: 0 }} />
+                        {alertTitle(a)}
+                      </span>
+                      <span style={{ fontSize: s(10.5), fontWeight: 600, color }}>{a.priority === "urgent" ? "Urgent" : "Flagged"}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: s(6), flexWrap: "wrap" }}>
+                      {a.open_urgent_reviews > 0 && <ReasonChip color={TONE.urgent.color}>{a.open_urgent_reviews} open urgent review(s)</ReasonChip>}
+                      {a.contamination_flags > 0 && <ReasonChip color={tokens.warning}>{a.contamination_flags} contamination flag(s)</ReasonChip>}
+                      {a.novelty_flags > 0 && <ReasonChip color={tokens.accentCyan}>{a.novelty_flags} novelty flag(s)</ReasonChip>}
+                    </div>
+                    <span style={captionStyle}>
+                      {a.sequences} sequences · analysed {fmtDate(a.analysis_created_at)}
+                      {a.collected_at ? ` · collected ${fmtDate(a.collected_at)}` : ""}
+                      {a.latitude != null ? ` · ${fmtCoord(a.latitude, "N", "S")}, ${fmtCoord(a.longitude, "E", "W")}` : " · no coordinates"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {al?.truncated && <span style={captionStyle}>{al.notes.find((n) => n.startsWith("alerts lists"))}</span>}
           </div>
         </div>
 
-        {/* Economic risk */}
-        <div style={cardBase}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(12), flexWrap: "wrap" }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>ECONOMIC RISK &amp; COMPLIANCE EXPOSURE <MockTag /></span>
-            <div style={{ display: "flex", gap: s(8) }}>
-              <button onClick={runFeasibility} style={primaryBtnStyle}>
-                {feas === "running" ? "Running…" : feas === "done" ? "Feasibility ✓ Re-run" : "Run Feasibility"}
-              </button>
-              <button style={inertBtnStyle} title="No live regional feed connected yet">Export Report</button>
-              <button style={inertBtnStyle} title="No live regional feed connected yet">Export CSV</button>
+        {/* Indicators */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: s(18) }}>
+          <div style={{ ...cardBase, ...revealStyle(2) }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(8), flexWrap: "wrap" }}>
+              <span style={panelLabelStyle}>FLAG-RATE INDICATORS</span>
+              <select aria-label="Trend period" value={trendInterval} onChange={(e) => setTrendInterval(e.target.value)} style={selectStyle}>
+                <option value="week">Weekly</option>
+                <option value="month">Monthly</option>
+              </select>
             </div>
+            <span style={captionStyle}>
+              Rule (needs no species list): for each {trendInterval === "week" ? "ISO week" : "month"} (UTC, by analysis date), novelty-flag rate = novelty-flagged sequences ÷ sequences analysed, and contamination-flag rate = contamination-flagged sequences ÷ sequences analysed. Periods with no analysed sequences have no rate and break the line; n = sequences analysed.
+            </span>
+            {summary.error && <span style={{ fontSize: s(12), color: tokens.danger }}>Trend could not be loaded: {summary.error}</span>}
+            {summary.data && periodsWithSequences === 0 && <div style={emptyStyle}>No analysed sequences in this scope yet, so there is no rate to plot.</div>}
+            {summary.data && periodsWithSequences > 0 && (
+              <>
+                <div style={{ display: "flex", gap: s(16), fontSize: s(11), color: tokens.sectionSubtext }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 2, background: tokens.accentCyan }} /> Novelty-flag rate</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 2, background: tokens.warning }} /> Contamination-flag rate</span>
+                </div>
+                <FlagRateSVG series={series} />
+                {totals && (
+                  <span style={captionStyle}>
+                    All periods: {totals.novelty_flags} novelty and {totals.contamination_flags} contamination flags over {totals.sequences} sequences in {totals.analyses} analyses.
+                  </span>
+                )}
+              </>
+            )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: s(14) }}>
-            {ECON.map((e) => (
-              <div key={e.k} style={{ display: "flex", flexDirection: "column", gap: s(6), padding: `${s(15)}px ${s(17)}px`, borderRadius: s(6), border: "1px solid #101D33", background: "rgba(8,14,26,0.5)" }}>
-                <span style={{ fontSize: s(10.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>{e.k}</span>
-                <span style={{ fontSize: s(21), fontWeight: 600, letterSpacing: "-0.01em" }}>{e.v}</span>
-                <span style={{ fontSize: s(10.5), color: tokens.sectionSubtext, alignSelf: "flex-start" }}>{e.basis}</span>
-              </div>
-            ))}
+          <div style={{ ...cardBase, ...revealStyle(3) }}>
+            <span style={panelLabelStyle}>INDICATOR SPECIES TREND</span>
+            <div style={emptyStyle} data-testid="indicator-species-pending">
+              Indicator-species list pending. No list of indicator species has been supplied for this deployment yet, so no
+              indicator-species trend is computed. Once the list is provided, this panel will track how often those taxa are
+              detected per period; no species are assumed in the meantime.
+            </div>
           </div>
         </div>
 
         <div style={{ display: "flex", justifyContent: "center", padding: `${s(8)}px 0 2px`, borderTop: "1px solid #0C1526" }}>
-          <span style={{ fontSize: s(11), color: tokens.pending }}>Reference DB: MarineGenomeDB v4.2 · SILVA 16S v138.2 · Pipeline: v2.8.1 · Matched 15 Aug 2026, 09:41 UTC</span>
+          <span style={{ fontSize: s(11), color: tokens.pending }}>
+            Counted from the database on load{hs ? ` at ${fmtDateTime(hs.generated_at)}` : ""} · scope: {scopeLabel} · CSV exports contain exactly the rows shown
+          </span>
         </div>
       </div>
 
@@ -552,14 +716,11 @@ export default function Legislative() {
           <div onClick={() => setMapOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(2,4,9,0.75)", backdropFilter: "blur(4px)", zIndex: 40 }} />
           <div style={{ position: "fixed", inset: "5%", zIndex: 41, display: "flex", flexDirection: "column", gap: s(14), padding: `${s(22)}px ${s(26)}px`, borderRadius: s(12), border: "1px solid #1C2E4C", background: "#050912", boxShadow: "0 40px 120px rgba(0,0,0,0.7)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: s(13), fontWeight: 600, letterSpacing: "0.08em", color: tokens.wordmark }}>BIODIVERSITY HOTSPOT MAP · FULLSCREEN</span>
-              <div style={{ display: "flex", gap: s(8) }}>
-                <button style={inertBtnStyle} title="No live regional feed connected yet">Export PNG</button>
-                <button onClick={() => setMapOpen(false)} style={ghostBtnStyle}>Close ✕</button>
-              </div>
+              <span style={{ fontSize: s(13), fontWeight: 600, letterSpacing: "0.08em", color: tokens.wordmark }}>SAMPLING HOTSPOT MAP · {cellDeg}° GRID · FULLSCREEN</span>
+              <button onClick={() => setMapOpen(false)} style={ghostBtnStyle}>Close ✕</button>
             </div>
             <div style={{ flex: 1, minHeight: 0, borderRadius: s(6), overflow: "hidden", ...mapFrameStyle, display: "flex" }}>
-              <HotspotMap height="100%" />
+              <HotspotMap hotspots={hs} height="100%" />
             </div>
           </div>
         </>
@@ -569,33 +730,46 @@ export default function Legislative() {
       {activeAlert && (
         <>
           <div onClick={() => setAlertId(null)} style={{ position: "fixed", inset: 0, background: "rgba(2,4,9,0.7)", backdropFilter: "blur(4px)", zIndex: 40 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: s(560), maxWidth: "92vw", zIndex: 41, display: "flex", flexDirection: "column", gap: s(16), padding: `${s(24)}px ${s(28)}px`, borderRadius: s(12), border: "1px solid #1C2E4C", background: "#050912", boxShadow: "0 40px 120px rgba(0,0,0,0.7)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div role="dialog" aria-label={`Alert: ${alertTitle(activeAlert)}`} style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: s(600), maxWidth: "92vw", maxHeight: "90vh", overflowY: "auto", zIndex: 41, display: "flex", flexDirection: "column", gap: s(14), padding: `${s(24)}px ${s(28)}px`, borderRadius: s(12), border: "1px solid #1C2E4C", background: "#050912", boxShadow: "0 40px 120px rgba(0,0,0,0.7)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(10) }}>
               <span style={{ display: "flex", alignItems: "center", gap: s(10), fontSize: s(16), fontWeight: 600 }}>
-                <span style={{ width: s(10), height: s(10), borderRadius: "50%", background: SEVERITY[activeAlert.sev], boxShadow: `0 0 10px ${SEVERITY[activeAlert.sev]}88` }} />
-                {activeAlert.title}
+                <span style={{ width: s(10), height: s(10), borderRadius: "50%", background: activeAlert.priority === "urgent" ? TONE.urgent.color : TONE.flagged.color }} />
+                {alertTitle(activeAlert)}
               </span>
-              <button onClick={() => setAlertId(null)} style={{ width: s(30), height: s(30), borderRadius: s(8), border: "1px solid #17253D", background: "#080F1C", color: tokens.wordmark, fontSize: s(14), cursor: "pointer" }}>✕</button>
+              <button onClick={() => setAlertId(null)} aria-label="Close alert" style={{ width: s(30), height: s(30), borderRadius: s(8), border: "1px solid #17253D", background: "#080F1C", color: tokens.wordmark, fontSize: s(14), cursor: "pointer" }}>✕</button>
             </div>
-            <p style={{ margin: 0, fontSize: s(13), lineHeight: 1.65, color: tokens.wordmark }}>
-              {activeAlert.desc} {activeAlert.boundary && "Hotspot sits near a maritime boundary; origin is spatially uncertain due to current drift — this is not a jurisdictional determination."}
-            </p>
-            <span style={{ fontSize: s(11), color: tokens.pending }}>Detected — genetic trace consistent with presence within the last ~7–14 days.</span>
-            <div style={{ padding: `${s(12)}px ${s(15)}px`, borderRadius: s(6), border: "1px solid rgba(59,158,255,0.25)", background: "rgba(20,110,255,0.07)", fontSize: s(12.5), color: "#9FC6F5" }}>
-              <span style={{ fontWeight: 600, color: "#6FBAFF" }}>Suggested action:</span> {activeAlert.action}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: s(10) }}>
+              {[
+                ["SEQUENCES", activeAlert.sequences],
+                ["NOVELTY FLAGS", activeAlert.novelty_flags],
+                ["CONTAMINATION FLAGS", activeAlert.contamination_flags],
+                ["OPEN REVIEWS", activeAlert.open_reviews],
+                ["OPEN URGENT", activeAlert.open_urgent_reviews],
+                ["PRIORITY", activeAlert.priority === "urgent" ? "Urgent" : "Flagged"],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", flexDirection: "column", gap: 3, padding: `${s(9)}px ${s(11)}px`, borderRadius: s(6), border: "1px solid #101D33", background: "rgba(8,14,26,0.5)" }}>
+                  <span style={{ fontSize: s(9.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>{k}</span>
+                  <span style={{ fontSize: s(17), fontWeight: 600 }}>{v}</span>
+                </div>
+              ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: s(8), padding: `${s(14)}px ${s(16)}px`, borderRadius: s(6), border: "1px solid #101D33", background: "rgba(8,14,26,0.5)" }}>
-              <span style={{ ...panelLabelStyle, fontSize: s(10.5), display: "flex", gap: 6 }}>CRYPTOGRAPHIC CHAIN OF CUSTODY <MockTag /></span>
-              <div style={{ display: "flex", flexDirection: "column", gap: s(5), fontSize: s(11.5), fontFamily: "ui-monospace,monospace", color: tokens.wordmark }}>
-                <span>source: stn14_bay-of-bengal_0812.fasta</span>
-                <span>uploaded by: M. Fernandes · 2026-08-12 10:02 UTC</span>
-                <span style={{ wordBreak: "break-all" }}>sha-256: 9f3a…c41e77b2</span>
-                <span style={{ display: "flex", alignItems: "center", gap: s(7), color: tokens.success }}>
-                  <CheckCircleIcon size={s(12)} color={tokens.success} /> Hash verified — file unaltered since upload
-                </span>
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: s(4), fontSize: s(12), color: tokens.wordmark, lineHeight: 1.55 }}>
+              <span>Why listed: {activeAlert.reasons.map((r) => REASON_LABEL[r] || r).join(", ")}.</span>
+              {Object.keys(activeAlert.contamination_types).length > 0 && (
+                <span>Contamination types: {Object.entries(activeAlert.contamination_types).map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(", ")}.</span>
+              )}
+              {Object.keys(activeAlert.open_reviews_by_type).length > 0 && (
+                <span>Open reviews: {Object.entries(activeAlert.open_reviews_by_type).map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(", ")}.</span>
+              )}
+              <span style={captionStyle}>
+                Analysis {activeAlert.analysis_id} · analysed {fmtDateTime(activeAlert.analysis_created_at)}
+                {activeAlert.collected_at ? ` · collected ${fmtDateTime(activeAlert.collected_at)}` : " · collection date not recorded"}
+                {activeAlert.latitude != null ? ` · ${fmtCoord(activeAlert.latitude, "N", "S")}, ${fmtCoord(activeAlert.longitude, "E", "W")}` : " · no coordinates recorded"}
+                {!activeAlert.upload_found ? " · upload record no longer exists" : ""}
+              </span>
+              <Link to={`/analysis/${activeAlert.analysis_id}`} style={{ color: "#6FBAFF", fontSize: s(12) }}>Open the full analysis →</Link>
             </div>
-            <button style={{ ...inertBtnStyle, alignSelf: "flex-start" }} title="No live regional feed connected yet">Generate Alert PDF</button>
+            <CustodyPanel analysisId={activeAlert.analysis_id} />
           </div>
         </>
       )}
