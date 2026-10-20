@@ -1,21 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
-import { tokens } from "../../components/shared/tokens";
-import MockTag from "../../components/shared/MockTag";
+import { tokens, pillStyle } from "../../components/shared/tokens";
 import { WarningTriangleIcon } from "../../components/shared/icons";
-import { getReport, listReports, exportReportJson, exportReportCsv } from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
+import {
+  getReport,
+  listReports,
+  exportReportJson,
+  exportReportCsv,
+  exportReportFair,
+  getEnvironmentContext,
+  getPartnerSummary,
+  getPartnerCooccurrence,
+  getPartnerRhythms,
+} from "../../lib/api";
 import { useNoveltyThreshold } from "../../lib/noveltyThreshold";
+import { parseApiDateTime } from "../../lib/sampleMetadata";
 import jellyfishArt from "../../assets/jellyfish.png";
 import { revealStyle } from "../../styles/reveal";
 
-// Deterministic pseudo-random source (same trick used across the app's other
-// generative visuals) so decorative art and the co-occurrence network redraw
-// identically every time instead of reshuffling on each render.
-function rnd(i) {
-  const x = Math.sin(i * 127.1) * 43758.5453;
-  return x - Math.floor(x);
-}
+// Every panel on this page reads a real API response (t-1027-1, M3):
+//   environment   GET /environment/uploads/{upload_id}  (+ coverage from GET /partner/summary)
+//   co-occurrence GET /partner/cooccurrence              (top-50 taxon pairs per sample)
+//   rhythms       GET /partner/rhythms                   (uploads/detections by UTC hour, weekday)
+//   export        GET /reports/{id}/export/{json,csv,fair}
+// Panels the deployment has no data source for (toxicity, hydrophone,
+// multi-omics overlay, acoustic backscatter) were removed rather than shown
+// with sample data.
 
 // Single scale factor applied to every size on this page (container width,
 // card padding, gauges, font sizes) -- keeps every ratio identical to the
@@ -26,48 +38,47 @@ const s = (n) => Math.round(n * SCALE * 10) / 10;
 
 const NET_COLORS = [tokens.accentBlue, tokens.accentCyan, "#146EFF", tokens.purple];
 
-// ---------------------------------------------------------------------------
-// Decorative hero art -- the low-poly jellyfish behind the sampling station
-// card's copy. This is the supplied artwork rather than generated geometry: a
-// procedural mesh can approximate the look but never match a specific piece of
-// art, and this panel is meant to match the design exactly. Purely visual, not
-// a data representation, so it carries no MOCK tag (same as an icon wouldn't).
-// ---------------------------------------------------------------------------
+// Order offered in the co-occurrence rank picker (deepest first); the API
+// also accepts "any" = every taxon at whatever rank it was recorded.
+const RANK_ORDER = ["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"];
 
-function OxygenGauge({ pct }) {
-  const N = 44, cx = 80, cy = 80, r = 58;
-  const E = [];
-  for (let i = 0; i < N; i++) {
-    const a = -Math.PI / 2 + (i / N) * 2 * Math.PI;
-    const on = i / N <= pct / 100;
-    const x1 = cx + Math.cos(a) * (r - 7), y1 = cy + Math.sin(a) * (r - 7);
-    const x2 = cx + Math.cos(a) * (r + (on ? 4 : 1)), y2 = cy + Math.sin(a) * (r + (on ? 4 : 1));
-    const tickOpacity = on ? 0.55 + 0.45 * (i / N) : 1;
-    E.push(
-      <line
-        key={i}
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        className="sv-fade-in-late"
-        style={{ "--sv-fade-to": tickOpacity, animationDelay: `${(i / N) * 0.6}s`, animationDuration: "0.2s" }}
-        stroke={on ? tokens.accentBlue : "#14233C"}
-        strokeWidth={on ? 3.4 : 2.4}
-        strokeLinecap="round"
-      />
-    );
-  }
-  return (
-    <svg width={s(140)} height={s(140)} viewBox="0 0 160 160" style={{ filter: "drop-shadow(0 0 12px rgba(59,158,255,0.35))" }}>
-      {E}
-      <circle cx={cx} cy={cy} r={r - 16} fill="none" stroke="#101D33" strokeWidth={1} />
-      <text x={cx} y={cy + 2} fill={tokens.accentCyan} fontSize={27} fontWeight={600} textAnchor="middle">{pct}%</text>
-      <text x={cx} y={cy + 20} fill={tokens.pending} fontSize={8.5} textAnchor="middle" letterSpacing={1}>O2 SATURATION</text>
-    </svg>
-  );
+const ENV_VARIABLES = [
+  { key: "temperature", label: "TEMPERATURE" },
+  { key: "salinity", label: "SALINITY" },
+  { key: "dissolved_oxygen", label: "DISSOLVED OXYGEN" },
+  { key: "ph", label: "pH" },
+  { key: "current", label: "CURRENT SPEED" },
+  { key: "wind", label: "WIND SPEED · 10 m" },
+];
+
+const ENV_STATUS_TONE = { complete: "success", partial: "warning", pending: "pending", failed: "danger", not_applicable: "pending" };
+
+function fmtDateTime(v) {
+  const d = parseApiDateTime(v);
+  return d ? d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }) : "—";
 }
 
-// Semi-circular range gauge -- reused for real salinity readings (the mockup
-// used this shape for pH, which we don't collect; salinity_ppt is a real
-// upload field, so this instance is honest, unlike the oxygen gauge above).
+function fmtNum(v, digits = 2) {
+  if (v == null || Number.isNaN(Number(v))) return "—";
+  const n = Number(v);
+  return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(digits);
+}
+
+// Filename from the API's Content-Disposition (exposed by CORS in
+// services/api/app/main.py), so the saved file keeps the server's timestamped name.
+function filenameFrom(resp, fallback) {
+  const cd = resp.headers?.get?.("content-disposition") || "";
+  const m = cd.match(/filename="?([^";]+)"?/i);
+  return m ? m[1] : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Decorative hero art -- the low-poly jellyfish behind the sampling station
+// card's copy. Purely visual, not a data representation.
+// ---------------------------------------------------------------------------
+
+// Semi-circular range gauge for a real reading (salinity, pH). The arc's
+// min/max are a fixed display scale, printed under the arc.
 function RangeGauge({ value, min, max, unit }) {
   const cx = 90, cy = 84, r = 56;
   const hasValue = value != null;
@@ -88,40 +99,12 @@ function RangeGauge({ value, min, max, unit }) {
     );
   };
   return (
-    // Extra vertical room (viewBox height 132 vs the arc's ~140-unit span)
-    // keeps the value text and the min/max foot labels from crowding each
-    // other -- they collided when both sat close to the feet line.
-    <svg viewBox="0 0 180 132" style={{ width: "100%", maxWidth: s(210), margin: "0 auto", display: "block" }}>
+    <svg viewBox="0 0 180 132" style={{ width: "100%", maxWidth: s(190), margin: "0 auto", display: "block" }}>
       {arc(0, 1, "#14233C", 15)}
       {hasValue && arc(0, frac, tokens.accentBlue, 15, true)}
-      <text className="sv-fade-in-late" x={cx} y={cy - 20} fill={hasValue ? tokens.textPrimary : tokens.pending} fontSize={25} fontWeight={600} textAnchor="middle">{hasValue ? value.toFixed(1) : "—"}</text>
+      <text className="sv-fade-in-late" x={cx} y={cy - 20} fill={hasValue ? tokens.textPrimary : tokens.pending} fontSize={25} fontWeight={600} textAnchor="middle">{hasValue ? Number(value).toFixed(2) : "—"}</text>
       <text x={cx - r} y={cy + 26} fill={tokens.pending} fontSize={9} textAnchor="middle">{min}{unit}</text>
       <text x={cx + r} y={cy + 26} fill={tokens.pending} fontSize={9} textAnchor="middle">{max}{unit}</text>
-    </svg>
-  );
-}
-
-// Small sine-wave glyph for the surface/midwater/seabed depth-tier legend --
-// dim gray for the two tiers not being read, bright cyan for the active one.
-// q/t quadratic-bezier chain -- each t repeats the previous curve's control
-// point reflected through its endpoint, which is what keeps the three humps
-// smooth and even. The old cubic path (c ... s ... s ...) fought itself at
-// each join and read as jagged; this is a real sine, not an approximation.
-function WaveIcon({ active }) {
-  // viewBox is cropped to the wave's actual vertical extent (peaks/troughs
-  // sit at y=5/15 around the y=10 baseline) rather than the full 20px box
-  // the reference used -- that box's empty top/bottom margin was what made
-  // the three stacked rows read as too spaced out.
-  return (
-    <svg width={58} height={14} viewBox="0 3 58 14" fill="none">
-      <path
-        d="M4 10 q7 -5 14 0 t14 0 t14 0"
-        stroke={active ? tokens.accentCyan : tokens.accentBlue}
-        strokeWidth={active ? 2.2 : 1.5}
-        strokeLinecap="round"
-        opacity={active ? 1 : 0.3}
-        style={active ? { filter: "drop-shadow(0 0 4px rgba(127,212,255,0.9))" } : undefined}
-      />
     </svg>
   );
 }
@@ -136,10 +119,13 @@ function ThermoIcon() {
   );
 }
 
-// Smooth trend line -- reused for the mock pollutant/wind/current cards.
-function TrendSVG({ vals, labels, lo, hi }) {
-  const W = 460, H = 150, x0 = 34, x1 = W - 14, yT = 18, yB = H - 30;
-  const X = (i) => x0 + (i * (x1 - x0)) / (vals.length - 1);
+// Smooth trend line over a provider's by-day series (wind, current).
+function TrendSVG({ points, unit }) {
+  const vals = points.map((p) => p.value);
+  const hi = Math.max(...vals) * 1.15 || 1;
+  const lo = 0;
+  const W = 460, H = 150, x0 = 40, x1 = W - 14, yT = 18, yB = H - 30;
+  const X = (i) => x0 + (i * (x1 - x0)) / Math.max(1, vals.length - 1);
   const Y = (v) => yB - ((v - lo) / (hi - lo)) * (yB - yT);
   let d = "";
   for (let i = 0; i < vals.length; i++) {
@@ -148,203 +134,115 @@ function TrendSVG({ vals, labels, lo, hi }) {
     d += ` C${xc} ${Y(vals[i - 1]).toFixed(1)} ${xc} ${Y(vals[i]).toFixed(1)} ${X(i)} ${Y(vals[i]).toFixed(1)}`;
   }
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label={`Daily mean by date, ${unit}`}>
       {[hi, (hi + lo) / 2, lo].map((v, i) => {
         const y = yT + (i * (yB - yT)) / 2;
         return (
           <g key={i}>
             <line x1={x0} y1={y} x2={x1} y2={y} stroke="#14233C" strokeWidth={1} />
-            <text x={x0 - 8} y={y + 3.5} fill={tokens.pending} fontSize={9.5} textAnchor="end">{v}</text>
+            <text x={x0 - 8} y={y + 3.5} fill={tokens.pending} fontSize={9.5} textAnchor="end">{v.toFixed(v < 1 ? 2 : 1)}</text>
           </g>
         );
       })}
       <path d={d} pathLength={1} className="sv-draw-path" fill="none" stroke={tokens.wordmark} strokeWidth={2} strokeLinecap="round" />
-      {labels.map((m, i) => <text key={m} className="sv-fade-in-late" x={X((i * (vals.length - 1)) / (labels.length - 1))} y={H - 8} fill={tokens.pending} fontSize={9.5} textAnchor="middle">{m}</text>)}
+      {points.map((p, i) => (
+        <g key={p.date}>
+          <circle cx={X(i)} cy={Y(p.value)} r={2.4} fill={tokens.accentCyan} className="sv-fade-in-late"><title>{`${p.date}: ${p.value} ${unit}`}</title></circle>
+          <text className="sv-fade-in-late" x={X(i)} y={H - 8} fill={tokens.pending} fontSize={9.5} textAnchor="middle">{p.date.slice(5)}</text>
+        </g>
+      ))}
     </svg>
   );
 }
 
-function WavesSVG() {
-  const W = 1100, H = 240, cy = H / 2;
-  const series = [
-    { c: tokens.accentCyan, amp: 1.0, w: 2 },
-    { c: tokens.accentBlue, amp: 0.74, w: 1.6 },
-    { c: "#146EFF", amp: 0.5, w: 1.4 },
-    { c: tokens.purple, amp: 0.3, w: 1.2 },
-  ];
-  const env = (x) => {
-    const t = (x / W) * 3 * Math.PI;
-    return Math.abs(Math.sin(t)) * (x < W / 3 ? 92 : x < (2 * W) / 3 ? 66 : 44);
-  };
-  const E = [<line key="mid" x1={0} y1={cy} x2={W} y2={cy} stroke="#14233C" strokeWidth={1} />];
-  [W / 3, (2 * W) / 3].forEach((x, i) => E.push(<line key={`g${i}`} x1={x} y1={14} x2={x} y2={H - 22} stroke="#0C1526" strokeWidth={1} />));
-  series.forEach((s, si) => {
-    let up = "", dn = "";
-    for (let x = 0; x <= W; x += 8) {
-      const a = env(x) * s.amp;
-      up += (x ? " L" : "M") + x + " " + (cy - a).toFixed(1);
-      dn += (x ? " L" : "M") + x + " " + (cy + a).toFixed(1);
-    }
-    E.push(<path key={`u${si}`} d={up} pathLength={1} className="sv-draw-path" style={{ animationDelay: `${si * 0.1}s` }} fill="none" stroke={s.c} strokeWidth={s.w} opacity={0.9} />);
-    E.push(<path key={`d${si}`} d={dn} pathLength={1} className="sv-draw-path" style={{ animationDelay: `${si * 0.1 + 0.05}s` }} fill="none" stroke={s.c} strokeWidth={s.w} opacity={0.55} />);
-  });
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  months.forEach((m, i) => E.push(<text key={m} x={46 + (i * (W - 80)) / 11} y={H - 6} fill={tokens.pending} fontSize={10} textAnchor="middle">{m}</text>));
-  return <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>{E}</svg>;
+// Stacked bars for one rhythm axis (24 hours or 7 weekdays).
+function RhythmBars({ bins, metric }) {
+  const W = 540, H = 170, x0 = 30, x1 = W - 8, yT = 14, yB = H - 26;
+  const totals = bins.map((b) => (metric === "uploads" ? b.uploads : b.detections));
+  const max = Math.max(1, ...totals);
+  const slot = (x1 - x0) / bins.length;
+  const bw = Math.max(2, slot * 0.68);
+  const Y = (v) => yB - (v / max) * (yB - yT);
+  const every = bins.length > 12 ? 3 : 1;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      {(max >= 2 ? [0, Math.round(max / 2), max] : [0, max]).map((v, i) => (
+        <g key={i}>
+          <line x1={x0} y1={Y(v)} x2={x1} y2={Y(v)} stroke="#14233C" strokeWidth={1} />
+          <text x={x0 - 6} y={Y(v) + 3.5} fill={tokens.pending} fontSize={9.5} textAnchor="end">{v}</text>
+        </g>
+      ))}
+      {bins.map((b, i) => {
+        const x = x0 + i * slot + (slot - bw) / 2;
+        const segs = metric === "uploads"
+          ? [{ v: b.uploads_collected_at, c: tokens.accentCyan }, { v: b.uploads_upload_time, c: tokens.purple }]
+          : [{ v: b.detections, c: tokens.success }];
+        let base = yB;
+        const tip = metric === "uploads"
+          ? `${b.label} UTC: ${b.uploads} upload${b.uploads === 1 ? "" : "s"} (${b.uploads_collected_at} by collection time, ${b.uploads_upload_time} by upload time)`
+          : `${b.label} UTC: ${b.detections} detection${b.detections === 1 ? "" : "s"}`;
+        return (
+          <g key={b.bin}>
+            <title>{tip}</title>
+            {segs.map((sg, j) => {
+              if (!sg.v) return null;
+              const h = (sg.v / max) * (yB - yT);
+              base -= h;
+              return <rect key={j} x={x} y={base} width={bw} height={h} rx={1.5} fill={sg.c} opacity={0.85} className="sv-fade-in-late" />;
+            })}
+            {i % every === 0 && <text x={x + bw / 2} y={H - 8} fill={tokens.pending} fontSize={9.5} textAnchor="middle">{b.label}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
-function SonicSVG() {
-  const W = 540, H = 170, x0 = 34, x1 = W - 10, yT = 16, yB = 138;
-  const yOf = (v) => yB - (v / 20) * (yB - yT);
-  const f = (x, a1, f1, p1, a2, f2, p2, base) => base + a1 * Math.sin(x / f1 + p1) + a2 * Math.sin(x / f2 + p2) + 2 * Math.sin(x / 7 + p1 * 2);
-  const mk = (a1, f1, p1, a2, f2, p2, base) => {
-    let d = "";
-    for (let x = x0; x <= x1; x += 4) {
-      const v = Math.max(0.5, Math.min(19.5, f(x, a1, f1, p1, a2, f2, p2, base)));
-      d += (d ? " L" : "M") + x + " " + yOf(v).toFixed(1);
-    }
-    return d;
-  };
-  const E = [];
-  [0, 10, 20].forEach((v) => {
-    E.push(<line key={`g${v}`} x1={x0} y1={yOf(v)} x2={x1} y2={yOf(v)} stroke="#14233C" strokeWidth={1} />);
-    E.push(<text key={`gl${v}`} x={x0 - 8} y={yOf(v) + 3.5} fill={tokens.pending} fontSize={10} textAnchor="end">{v}</text>);
+// Circular layout of the taxa named in the returned pairs. Edge width ∝
+// samples together; opacity ∝ Jaccard. No positions are randomised.
+function CooccurrenceGraph({ pairs, nodes }) {
+  const W = 760, H = 420, cx = W / 2, cy = H / 2;
+  const n = nodes.length;
+  const rx = n > 1 ? W / 2 - 150 : 0, ry = n > 1 ? H / 2 - 40 : 0;
+  const key = (t, r) => `${t}\u0000${r}`;
+  const pos = new Map();
+  nodes.forEach((nd, i) => {
+    const a = -Math.PI / 2 + (i / Math.max(1, n)) * 2 * Math.PI;
+    pos.set(key(nd.taxon, nd.rank), { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry, a });
   });
-  E.push(<path key="l1" d={mk(6.2, 26, 0.8, 3.4, 11, 2.1, 10)} pathLength={1} className="sv-draw-path" style={{ animationDelay: "0s" }} fill="none" stroke={tokens.accentCyan} strokeWidth={1.8} strokeLinecap="round" opacity={0.85} />);
-  E.push(<path key="l2" d={mk(5.0, 34, 3.6, 2.8, 15, 0.4, 11)} pathLength={1} className="sv-draw-path" style={{ animationDelay: "0.12s" }} fill="none" stroke={tokens.accentBlue} strokeWidth={1.8} strokeLinecap="round" />);
-  E.push(<path key="l3" d={mk(4.2, 21, 5.2, 2.4, 9, 4.0, 9)} pathLength={1} className="sv-draw-path" style={{ animationDelay: "0.24s" }} fill="none" stroke={tokens.purple} strokeWidth={1.6} strokeLinecap="round" opacity={0.9} />);
-  ["Mon", "Tue", "Wed"].forEach((m, i) => E.push(<text key={m} x={x0 + (i * (x1 - x0)) / 2} y={H - 12} fill={tokens.pending} fontSize={10.5} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"}>{m}</text>));
-  return <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>{E}</svg>;
-}
-
-function DvmSVG() {
-  const W = 540, H = 150, x0 = 34, x1 = W - 12, yT = 14, yB = H - 26;
-  const Y = (v) => yB - (v / 100) * (yB - yT);
-  const f = (h) => {
-    const dusk = 88 * Math.exp(-Math.pow((h - 18.5) / 1.9, 2));
-    const dawn = 58 * Math.exp(-Math.pow((h - 5.5) / 1.7, 2));
-    const night = 20 * (h < 6 || h > 20 ? 1 : 0.3);
-    const noise = 4 * Math.sin(h * 3.1) + 3 * Math.sin(h * 7.3 + 1);
-    return Math.max(2, Math.min(98, dusk + dawn + night * 0.4 + 8 + noise));
-  };
-  let line = "", area = "";
-  for (let h = 0; h <= 24; h += 0.25) {
-    const x = x0 + (h / 24) * (x1 - x0), y = Y(f(h)).toFixed(1);
-    line += (line ? " L" : "M") + x.toFixed(1) + " " + y;
-    area += (area ? " L" : `M${x0} ${yB} L`) + x.toFixed(1) + " " + y;
-  }
-  area += ` L${x1} ${yB} Z`;
-  const E = [];
-  [0, 50, 100].forEach((v) => {
-    E.push(<line key={`g${v}`} x1={x0} y1={Y(v)} x2={x1} y2={Y(v)} stroke="#14233C" strokeWidth={1} />);
-    E.push(<text key={`gl${v}`} x={x0 - 7} y={Y(v) + 3.5} fill={tokens.pending} fontSize={9.5} textAnchor="end">{v}</text>);
-  });
-  E.push(<path key="a" d={area} className="sv-fade-in-late" fill="rgba(95,217,169,0.10)" stroke="none" />);
-  E.push(<path key="l" d={line} pathLength={1} className="sv-draw-path" fill="none" stroke={tokens.success} strokeWidth={1.8} strokeLinejoin="round" />);
-  const mark = (h, label) => {
-    const x = x0 + (h / 24) * (x1 - x0);
-    E.push(<circle key={`p${h}`} cx={x} cy={Y(f(h))} r={2.6} className="sv-fade-in-late" fill={tokens.accentCyan} />);
-    E.push(<text key={`pt${h}`} x={x} y={Y(f(h)) - 7} className="sv-fade-in-late" fill={tokens.accentCyan} fontSize={8.5} textAnchor="middle">{label}</text>);
-  };
-  mark(5.5, "dawn ascent");
-  mark(18.5, "dusk ascent · DVM peak");
-  ["00:00", "06:00", "12:00", "18:00", "24:00"].forEach((t, i) => E.push(<text key={t} x={x0 + (i * (x1 - x0)) / 4} y={H - 8} fill={tokens.pending} fontSize={10} textAnchor="middle">{t}</text>));
-  return <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>{E}</svg>;
-}
-
-function buildNetwork() {
-  const nodes = [];
-  for (let i = 0; i < 140; i++) nodes.push({ x: rnd(i), y: rnd(i + 200), ab: Math.pow(rnd(i + 400), 2.2) * 100, c: NET_COLORS[Math.floor(rnd(i + 600) * 4)] });
-  const edges = [];
-  for (let i = 0; i < 140; i++) {
-    for (let j = i + 1; j < 140; j++) {
-      const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
-      if (d < 0.09 && rnd(i * 7 + j) > 0.45) edges.push([i, j, rnd(i + j * 3) > 0.24]);
-    }
-  }
-  return { nodes, edges };
-}
-
-// Seconds per ripple cycle -- matches the pacing of the other radiating-ring
-// treatment on the Legislative map's current-flow markers, kept here as a
-// plain per-frame canvas draw (no CSS animations possible on canvas pixels).
-const RIPPLE_PERIOD = 2.8;
-
-// Entrance sweep: nodes pop in left-to-right rather than all appearing at
-// once, since canvas content can't use the CSS panel-reveal/draw-path
-// treatment the SVG charts use elsewhere on this page. REVEAL_SWEEP is how
-// long the sweep takes to cross the whole width (by normalized x); each
-// individual node then takes REVEAL_POP seconds to grow in once reached.
-const REVEAL_SWEEP = 0.9;
-const REVEAL_POP = 0.35;
-function revealFor(x, elapsed) {
-  return Math.max(0, Math.min(1, (elapsed - x * REVEAL_SWEEP) / REVEAL_POP));
-}
-
-function drawNetwork(canvas, nodes, edges, threshold, time = 0, revealElapsed = Infinity) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const W = canvas.clientWidth || 800, H = 340;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(20,35,60,0.55)";
-  ctx.lineWidth = 1;
-  for (let x = 40; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 40; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const vis = nodes.map((n) => n.ab >= threshold);
-  const px = (n) => [20 + n.x * (W - 40), 18 + n.y * (H - 36)];
-  edges.forEach(([i, j, pos]) => {
-    if (!vis[i] || !vis[j]) return;
-    const revEdge = Math.min(revealFor(nodes[i].x, revealElapsed), revealFor(nodes[j].x, revealElapsed));
-    if (revEdge <= 0) return;
-    const [x1, y1] = px(nodes[i]);
-    const [x2, y2] = px(nodes[j]);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    if (pos) { ctx.setLineDash([]); ctx.strokeStyle = "rgba(59,158,255,0.30)"; }
-    else { ctx.setLineDash([4, 4]); ctx.strokeStyle = "rgba(255,123,123,0.38)"; }
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = revEdge;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  });
-  ctx.setLineDash([]);
-  nodes.forEach((n, i) => {
-    if (!vis[i]) return;
-    const revNode = revealFor(n.x, revealElapsed);
-    if (revNode <= 0) return;
-    const [x, y] = px(n);
-    const r = (1.6 + Math.sqrt(n.ab) * 0.5) * revNode;
-    // Radar/water-ripple ring radiating outward from the node and fading,
-    // like the origin/destination markers on the Legislative currents map --
-    // phase-offset per node (deterministic, not Math.random) so the whole
-    // network doesn't flash in unison.
-    const cycle = ((time / RIPPLE_PERIOD + rnd(i + 900)) % 1 + 1) % 1;
-    ctx.beginPath();
-    ctx.arc(x, y, r + cycle * r * 4.5, 0, Math.PI * 2);
-    ctx.strokeStyle = n.c;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.45 * (1 - cycle) * revNode;
-    ctx.stroke();
-    ctx.globalAlpha = revNode;
-    ctx.shadowColor = n.c;
-    ctx.shadowBlur = 7;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = n.c;
-    ctx.lineWidth = 1.1;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x, y, Math.max(0.8, r * 0.32), 0, Math.PI * 2);
-    ctx.fillStyle = n.c;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-  });
-  return vis.filter(Boolean).length;
+  const maxTogether = Math.max(1, ...pairs.map((p) => p.samples_together));
+  const maxSamples = Math.max(1, ...nodes.map((nd) => nd.samples));
+  const showLabels = n <= 30;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", borderRadius: 6, border: "1px solid #101D33", background: "#04070E" }} role="img" aria-label="Taxon co-occurrence network">
+      {pairs.map((p, i) => {
+        const a = pos.get(key(p.taxon_a, p.rank_a)), b = pos.get(key(p.taxon_b, p.rank_b));
+        if (!a || !b) return null;
+        return (
+          <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tokens.accentBlue} strokeWidth={0.8 + 3.2 * (p.samples_together / maxTogether)} opacity={0.2 + 0.6 * p.jaccard} className="sv-fade-in-late">
+            <title>{`${p.taxon_a} + ${p.taxon_b}: together in ${p.samples_together} sample(s); Jaccard ${p.jaccard}`}</title>
+          </line>
+        );
+      })}
+      {nodes.map((nd, i) => {
+        const p = pos.get(key(nd.taxon, nd.rank));
+        const r = 3 + 6 * Math.sqrt(nd.samples / maxSamples);
+        const c = NET_COLORS[i % NET_COLORS.length];
+        const right = Math.cos(p.a) >= 0;
+        const label = nd.taxon.length > 26 ? `${nd.taxon.slice(0, 25)}…` : nd.taxon;
+        return (
+          <g key={key(nd.taxon, nd.rank)} className="sv-fade-in-late">
+            <title>{`${nd.taxon} (${nd.rank}): in ${nd.samples} sample(s), ${nd.sequences} sequence(s)`}</title>
+            <circle cx={p.x} cy={p.y} r={r} fill="#04070E" stroke={c} strokeWidth={1.4} style={{ filter: `drop-shadow(0 0 4px ${c})` }} />
+            <circle cx={p.x} cy={p.y} r={Math.max(1, r * 0.35)} fill={c} />
+            {showLabels && (
+              <text x={p.x + (right ? r + 5 : -r - 5)} y={p.y + 3.5} fill={tokens.sectionSubtext} fontSize={10.5} fontStyle={nd.rank === "species" || nd.rank === "genus" ? "italic" : "normal"} textAnchor={right ? "start" : "end"}>{label}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 const pageStyle = {
@@ -375,10 +273,124 @@ const cardBase = {
 };
 
 const panelLabelStyle = { fontSize: s(11), fontWeight: 600, letterSpacing: "0.08em", color: tokens.wordmark };
+const noteStyle = { fontSize: s(10.5), lineHeight: 1.55, color: tokens.pending };
+const smallBtn = { padding: `${s(4)}px ${s(11)}px`, border: `1px solid ${tokens.sectionBorder}`, borderRadius: s(10), background: "#080F1C", fontFamily: "inherit", fontSize: s(11), fontWeight: 500, color: tokens.wordmark, cursor: "pointer" };
+const exportBtn = (active, dim) => ({ padding: `${s(8)}px ${s(18)}px`, border: "1px solid rgba(160,205,255,0.55)", borderRadius: s(12), background: "linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%)", boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38)", fontFamily: "inherit", fontSize: s(12), fontWeight: 600, color: "#FFFFFF", textShadow: "0 1px 2px rgba(8,50,140,0.4)", cursor: active ? "default" : "pointer", opacity: dim ? 0.5 : 1 });
+
+function Segmented({ options, value, onChange, label }) {
+  return (
+    <div role="group" aria-label={label} style={{ display: "inline-flex", border: `1px solid ${tokens.sectionBorder}`, borderRadius: 999, overflow: "hidden" }}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          style={{ padding: `${s(3)}px ${s(11)}px`, border: "none", background: value === o.value ? "rgba(59,158,255,0.18)" : "transparent", color: value === o.value ? tokens.accentCyan : tokens.sectionSubtext, fontFamily: "inherit", fontSize: s(10.5), fontWeight: 600, cursor: "pointer" }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PanelError({ text }) {
+  return <span role="alert" style={{ fontSize: s(11.5), color: tokens.danger }}>{text}</span>;
+}
+
+function Notes({ notes }) {
+  if (!notes?.length) return null;
+  return (
+    <ul style={{ margin: 0, paddingLeft: s(16), display: "flex", flexDirection: "column", gap: 3 }}>
+      {notes.map((n) => <li key={n} style={noteStyle}>{n}</li>)}
+    </ul>
+  );
+}
+
+// Where one environmental value came from, in one line.
+function SourceLine({ v }) {
+  if (v.status === "user_provided") {
+    const pub = v.public;
+    return (
+      <span style={noteStyle}>
+        Entered on the upload ({v.user_value?.field}).
+        {pub ? ` Public value alongside: ${fmtNum(pub.value)} ${pub.unit} from ${pub.source}.` : v.public_reason ? ` Public value: ${v.public_reason}` : ""}
+      </span>
+    );
+  }
+  const p = v.public;
+  if (!p) return <span style={noteStyle}>{v.reason || "Not available."}</span>;
+  const gp = p.grid_point || {};
+  const where = `${fmtNum(gp.latitude, 3)}, ${fmtNum(gp.longitude, 3)}${gp.depth_m != null ? ` · ${fmtNum(gp.depth_m, 1)} m` : ""}`;
+  return (
+    <span style={noteStyle}>
+      {p.source} · {p.dataset_id} ({p.kind}) · cell {where}
+      {gp.distance_km != null ? ` (${fmtNum(gp.distance_km, 1)} km away)` : ""} · time step {String(gp.time || "").slice(0, 16).replace("T", " ")} UTC · retrieved {fmtDateTime(p.retrieved_at)}
+    </span>
+  );
+}
+
+function EnvVariableCard({ spec, v, index }) {
+  const has = v && v.value != null;
+  const unit = v?.unit || "";
+  const dirDeg = v?.public?.details?.direction_deg;
+  const dirConv = v?.public?.details?.direction_convention;
+  const series = (v?.public?.series || [])
+    .map((p) => ({ date: p.date, value: p.speed ?? p.mean }))
+    .filter((p) => p.value != null && p.date);
+  const profile = v?.public?.details?.profile;
+  return (
+    <div data-testid={`env-${spec.key}`} style={{ ...cardBase, ...revealStyle(index), justifyContent: "space-between" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={panelLabelStyle}>{spec.label}</span>
+        {v && (
+          <span style={pillStyle(v.status === "ok" ? "accent" : v.status === "user_provided" ? "success" : "pending")}>
+            {v.status === "ok" ? "PUBLIC MODEL" : v.status === "user_provided" ? "USER-ENTERED" : "UNAVAILABLE"}
+          </span>
+        )}
+      </div>
+      {spec.key === "salinity" && has && <RangeGauge value={v.value} min={30} max={40} unit="" />}
+      {spec.key === "ph" && has && <RangeGauge value={v.value} min={7} max={9} unit="" />}
+      {spec.key !== "salinity" && spec.key !== "ph" && has && (
+        <div style={{ display: "flex", alignItems: "center", gap: s(10) }}>
+          {spec.key === "temperature" && <ThermoIcon />}
+          <span style={{ fontSize: s(38), fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1 }}>{fmtNum(v.value)}</span>
+          <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>
+            {unit}
+            {dirDeg != null ? ` · ${Math.round(dirDeg)}° ${dirConv ? `(${dirConv})` : ""}` : ""}
+          </span>
+        </div>
+      )}
+      {(spec.key === "salinity" || spec.key === "ph") && has && (
+        <span style={{ ...noteStyle, textAlign: "center" }}>{unit} · gauge scale {spec.key === "ph" ? "7–9" : "30–40"}</span>
+      )}
+      {!has && <span style={{ fontSize: s(28), fontWeight: 600, color: tokens.pending }}>—</span>}
+      {Array.isArray(profile) && profile.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {profile.map((lv) => (
+            <span key={lv.level} style={{ fontSize: s(10.5), color: lv.value != null ? tokens.sectionSubtext : tokens.pending }}>
+              {lv.level.replace("_", " ")}: {lv.value != null ? `${fmtNum(lv.value)} °C at ${fmtNum(lv.depth_m, 1)} m` : `no value${lv.reason ? ` (${lv.reason})` : ""}`}
+            </span>
+          ))}
+        </div>
+      )}
+      {series.length > 1 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: s(9.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>DAILY MEAN, {series.length} DAYS TO COLLECTION DATE ({unit})</span>
+          <TrendSVG points={series} unit={unit} />
+        </div>
+      )}
+      {v ? <SourceLine v={v} /> : <span style={noteStyle}>Not returned by the environment service.</span>}
+    </div>
+  );
+}
 
 export default function Academia() {
   const [searchParams] = useSearchParams();
   const requestedId = searchParams.get("analysis_id");
+  const { user } = useAuth();
+  const canSeeAll = ["admin", "company_owner"].includes(user?.role);
 
   const [analysisId, setAnalysisId] = useState(requestedId);
   const [report, setReport] = useState(null);
@@ -388,14 +400,21 @@ export default function Academia() {
   const { threshold: noveltyThreshold } = useNoveltyThreshold();
   const noveltyParam = noveltyThreshold == null ? "unavailable" : `≥ ${noveltyThreshold.toFixed(2)}`;
 
-  const [netThr, setNetThr] = useState(12);
-  const [visCount, setVisCount] = useState(null);
+  const [env, setEnv] = useState(null);
+  const [envError, setEnvError] = useState("");
+  const [scope, setScope] = useState("mine");
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [rank, setRank] = useState("species");
+  const [cooc, setCooc] = useState(null);
+  const [coocError, setCoocError] = useState("");
+  const [rhythms, setRhythms] = useState(null);
+  const [rhythmsError, setRhythmsError] = useState("");
+  const [rhythmMetric, setRhythmMetric] = useState("uploads");
+
   const [copied, setCopied] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState(null);
-
-  const canvasRef = useRef(null);
-  const netRef = useRef(null);
-  const netMountRef = useRef(null);
+  const [exportStatus, setExportStatus] = useState(null); // {ok, text}
 
   useEffect(() => {
     if (requestedId) {
@@ -415,53 +434,54 @@ export default function Academia() {
     getReport(analysisId).then(setReport).catch((e) => setError(e.message || "Failed to load report."));
   }, [analysisId]);
 
-  useEffect(() => {
-    if (!netRef.current) netRef.current = buildNetwork();
-    setVisCount(netRef.current.nodes.filter((n) => n.ab >= netThr).length);
-  }, [netThr]);
+  const uploadId = report?.metadata?.upload_id;
+  const loadEnv = useCallback(() => {
+    if (!uploadId) return;
+    setEnvError("");
+    getEnvironmentContext(uploadId).then(setEnv).catch((e) => setEnvError(e.message || "Failed to load environmental context."));
+  }, [uploadId]);
+  useEffect(() => { loadEnv(); }, [loadEnv]);
 
   useEffect(() => {
-    if (!netRef.current) netRef.current = buildNetwork();
-    // Recorded once on true mount, not per-effect-run, so dragging the
-    // abundance-threshold slider (which reruns this effect) doesn't replay
-    // the entrance sweep -- it should only ever play once, when the page
-    // first opens.
-    if (netMountRef.current === null) netMountRef.current = performance.now();
-    let raf;
-    const loop = (t) => {
-      const canvas = canvasRef.current;
-      const revealElapsed = (performance.now() - netMountRef.current) / 1000;
-      // Runs every frame (not just on resize) so the node-radius ripple
-      // animates continuously; this also naturally picks up size changes
-      // without a separate resize listener, since drawNetwork re-reads
-      // canvas.clientWidth each call.
-      if (canvas) drawNetwork(canvas, netRef.current.nodes, netRef.current.edges, netThr, t / 1000, revealElapsed);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [netThr]);
+    setSummary(null);
+    setSummaryError("");
+    getPartnerSummary({ scope }).then(setSummary).catch((e) => setSummaryError(e.message || "Failed to load coverage."));
+    setRhythms(null);
+    setRhythmsError("");
+    getPartnerRhythms({ scope }).then(setRhythms).catch((e) => setRhythmsError(e.message || "Failed to load activity rhythms."));
+  }, [scope]);
+
+  useEffect(() => {
+    setCoocError("");
+    getPartnerCooccurrence({ scope, rank, limit: 50 }).then(setCooc).catch((e) => setCoocError(e.message || "Failed to load co-occurrence."));
+  }, [scope, rank]);
 
   const handleExport = async (format) => {
     setDownloadingFormat(format);
+    setExportStatus(null);
     try {
-      const resp = format === "csv" ? await exportReportCsv(analysisId) : await exportReportJson(analysisId);
+      const resp = format === "csv" ? await exportReportCsv(analysisId)
+        : format === "fair" ? await exportReportFair(analysisId)
+        : await exportReportJson(analysisId);
+      const ext = format === "fair" ? "zip" : format;
+      const name = filenameFrom(resp, `synthveda_${format === "fair" ? "fair" : "report"}_${analysisId}.${ext}`);
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `synthveda_report_${analysisId}.${format}`;
+      a.download = name;
       a.click();
       URL.revokeObjectURL(url);
+      setExportStatus({ ok: true, text: `Downloaded ${name} (${blob.size.toLocaleString()} bytes).` });
     } catch (e) {
-      alert("Export failed: " + e.message);
+      setExportStatus({ ok: false, text: `Export failed: ${e.message}` });
     } finally {
       setDownloadingFormat(null);
     }
   };
 
   const citation = report
-    ? `SynthVeda eDNA Analysis Platform ${report.metadata.model_version_set || "(model version not recorded)"} (${new Date(report.generated_at).getFullYear()}). Taxonomic assignments generated by DNABERT2-based classification (reference database: pending configuration for this deployment). Run ${report.metadata.analysis_id}; parameters: novelty threshold ${noveltyParam}, contamination gate ≥ 0.50.`
+    ? `SynthVeda eDNA Analysis Platform ${report.metadata.model_version_set || "(model version not recorded)"} (${new Date(report.generated_at).getFullYear()}). Taxonomic assignments generated by DNABERT2-based classification; reference databases and versions per sequence are listed in provenance.json of the FAIR export. Run ${report.metadata.analysis_id}; parameters: novelty threshold ${noveltyParam}, contamination gate ≥ 0.50.`
     : "";
 
   const copyCitation = () => {
@@ -496,6 +516,13 @@ export default function Academia() {
 
   const bio = report.biodiversity;
   const upload = report.metadata; // location_label / depth_meters live here already
+  const cov = summary?.environment;
+  const rankOptions = (() => {
+    const avail = cooc?.taxa_by_rank || {};
+    const ranks = RANK_ORDER.filter((r) => avail[r] || r === rank);
+    return [...ranks.map((r) => ({ value: r, label: `${r} (${avail[r] || 0} taxa)` })), { value: "any", label: "any rank (mixed)" }];
+  })();
+  const rt = rhythms?.totals;
 
   return (
     <div style={pageStyle}>
@@ -507,51 +534,36 @@ export default function Academia() {
           <div style={{ fontSize: s(12), letterSpacing: "0.08em", color: tokens.labelText }}>PARTNER REPORT › ACADEMIA</div>
           <h1 style={{ margin: 0, fontSize: s(27), fontWeight: 600, letterSpacing: "-0.01em" }}>Marine Environment &amp; Bio-Activity Dashboard</h1>
           <p style={{ margin: 0, fontSize: s(14), color: tokens.sectionSubtext }}>
-            {upload.location_label || "Location not recorded"} · eDNA-derived biology paired with environmental telemetry
+            {upload.location_label || "Location not recorded"} · eDNA-derived biology paired with public environmental context
           </p>
         </div>
 
         <div style={{ display: "flex", gap: s(12), alignItems: "center", padding: `${s(10)}px ${s(16)}px`, borderRadius: s(6), border: "1px solid rgba(217,150,60,0.28)", background: "rgba(217,150,60,0.05)" }}>
           <WarningTriangleIcon size={s(15)} color={tokens.warning} />
           <span style={{ fontSize: s(12), lineHeight: 1.5, color: "#C8B79A" }}>
-            Preliminary eDNA-derived results from SynthVeda&rsquo;s DNABERT2-based classification pipeline. Panels marked <MockTag label="MOCK" /> illustrate a designed capability this deployment doesn&rsquo;t have sensors or pipelines for yet — everything else reflects this run&rsquo;s real data.
+            Preliminary eDNA-derived results from SynthVeda&rsquo;s classification pipeline. Environmental values are public ocean and atmosphere model or satellite products matched to the sample&rsquo;s coordinates and collection date (or values entered on the upload), not on-site sensor readings. Every panel states its source.
           </span>
         </div>
 
-        {/* Row 1: sampling station hero · oxygen gauge (mock) · toxicity index (mock) */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: s(14), alignItems: "stretch" }}>
+        {/* Sampling station + environmental coverage */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: s(14), alignItems: "stretch" }}>
           <div style={{ ...cardBase, position: "relative", justifyContent: "space-between", background: "linear-gradient(180deg, rgba(20,110,255,0.10) 0%, rgba(6,10,20,0.75) 100%)", overflow: "hidden" }}>
             {/* Sits behind the card's copy, anchored to the right edge and
                 bleeding past the top and bottom so it reads as an animal
-                drifting behind the panel rather than a pasted-in sticker (the
-                card's overflow:hidden does the cropping). pointerEvents:none
-                keeps it from swallowing clicks meant for the stats. */}
+                drifting behind the panel. pointerEvents:none keeps it from
+                swallowing clicks meant for the stats. */}
             <img
               src={jellyfishArt}
               alt=""
               aria-hidden="true"
               className="sv-jelly"
-              style={{
-                position: "absolute",
-                // Kept just inside the right edge so the bell reads whole;
-                // only the trailing tentacle tips run past the card's bottom,
-                // which is the one crop that looks deliberate.
-                right: s(6),
-                top: s(-2),
-                width: s(234),
-                pointerEvents: "none",
-                userSelect: "none",
-                // Held well back so the station name and stat figures keep
-                // their contrast -- at full strength the bell's bright mesh
-                // competes directly with the white type in front of it.
-                opacity: 0.5,
-              }}
+              style={{ position: "absolute", right: s(6), top: s(-2), width: s(234), pointerEvents: "none", userSelect: "none", opacity: 0.5 }}
             />
             <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: s(5) }}>
               <span style={{ fontSize: s(11), letterSpacing: "0.08em", color: tokens.labelText }}>SAMPLING STATION</span>
               <span style={{ fontSize: s(20), fontWeight: 600, letterSpacing: "-0.01em" }}>{upload.location_label || "Location not recorded"}</span>
               <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>
-                {upload.depth_meters != null ? `${upload.depth_meters.toLocaleString()} m` : "Depth not recorded"} · uploaded {new Date(upload.created_at).toLocaleDateString()}
+                {upload.depth_meters != null ? `${upload.depth_meters.toLocaleString()} m` : "Depth not recorded"} · collected {upload.collected_at ? fmtDateTime(upload.collected_at) : "— not recorded"}
               </span>
             </div>
             <div style={{ position: "relative", display: "flex", gap: s(18), flexWrap: "wrap" }}>
@@ -561,162 +573,194 @@ export default function Academia() {
             </div>
           </div>
 
-          <div style={{ ...cardBase, ...revealStyle(0), alignItems: "center" }}>
-            <span style={{ ...panelLabelStyle, alignSelf: "flex-start", display: "flex", gap: 6 }}>DISSOLVED OXYGEN <MockTag /></span>
-            <OxygenGauge pct={78} />
-            <span style={{ fontSize: s(10.5), color: tokens.pending }}>6.4 mg/L · saturation vs surface baseline</span>
-          </div>
-
-          <div style={{ ...cardBase, background: "radial-gradient(120% 130% at 15% 0%, rgba(84,60,180,0.22) 0%, rgba(20,110,255,0.08) 45%, rgba(6,10,20,0.75) 100%)" }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>TOXICITY INDEX <MockTag /></span>
-            <span style={{ fontSize: s(44), fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1 }}>2.1<span style={{ fontSize: s(15), color: tokens.pending }}> / 10</span></span>
-            <span style={{ fontSize: s(12.5), fontWeight: 600, color: tokens.success }}>Low</span>
-            <span style={{ fontSize: s(11.5), lineHeight: 1.6, color: tokens.sectionSubtext }}>Illustrative only — this deployment has no toxicology sensor or lab-panel integration yet.</span>
-          </div>
-        </div>
-
-        {/* Row 2: temperature (real) · pH (mock) · salinity (real, replacing the redundant pollutant-levels card) */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: s(14), alignItems: "stretch" }}>
-          <div style={{ ...cardBase, justifyContent: "space-between", background: "radial-gradient(130% 140% at 80% 100%, rgba(20,110,255,0.20) 0%, rgba(6,10,20,0.75) 60%)" }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>TEMPERATURE · AT DEPTH <MockTag /></span>
-            {/* Illustrative depth-profile capability -- a single collection-time
-                reading doesn't tell you the surface/midwater/seabed split, and
-                this deployment has no multi-depth probe to back it yet. Same
-                "designed capability, not this run's data" treatment as the
-                Oxygen and Toxicity cards above. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: s(1) }}>
-              {["Surface", "Midwater", "Seabed · reading"].map((label, i) => {
-                const active = i === 2;
-                return (
-                  <div key={label} style={{ display: "flex", alignItems: "center", gap: s(9) }}>
-                    <WaveIcon active={active} />
-                    <span style={{ fontSize: s(10.5), letterSpacing: "0.05em", fontWeight: active ? 600 : 400, color: active ? tokens.accentCyan : tokens.pending }}>
-                      {label.toUpperCase()}
-                    </span>
+          <div data-testid="env-context" style={{ ...cardBase, ...revealStyle(0) }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={panelLabelStyle}>ENVIRONMENTAL CONTEXT · THIS SAMPLE</span>
+              {env && <span style={pillStyle(ENV_STATUS_TONE[env.status] || "pending")}>{env.status.replace("_", " ").toUpperCase()}</span>}
+            </div>
+            {envError && <PanelError text={envError} />}
+            {!env && !envError && <span style={noteStyle}>Loading environmental context…</span>}
+            {env && (
+              <>
+                {env.query ? (
+                  <span style={{ fontSize: s(12), color: tokens.sectionSubtext, lineHeight: 1.6 }}>
+                    Looked up at {fmtNum(env.query.lookup_latitude, 2)}, {fmtNum(env.query.lookup_longitude, 2)} on {env.query.date} (UTC),{" "}
+                    {env.query.target_level === "sample_depth" ? `at the sample depth (${fmtNum(env.query.depth_m, 0)} m)` : "at the surface (no depth recorded)"}.
+                  </span>
+                ) : null}
+                {env.reason && <span style={{ fontSize: s(12), color: env.status === "failed" ? tokens.danger : tokens.sectionSubtext, lineHeight: 1.6 }}>{env.reason}</span>}
+                {env.retrieved_at && <span style={noteStyle}>Retrieved {fmtDateTime(env.retrieved_at)}{env.cache_hit ? " (shared cache)" : ""}</span>}
+                {env.sources?.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {env.sources.map((src) => (
+                      <span key={src.provider} style={noteStyle}><strong style={{ color: tokens.sectionSubtext }}>{src.source}</strong> — {src.attribution}. {src.licence}.</span>
+                    ))}
                   </div>
-                );
-              })}
+                )}
+                {env.status === "pending" && (
+                  <button type="button" onClick={loadEnv} style={{ ...smallBtn, alignSelf: "flex-start" }}>Check again</button>
+                )}
+              </>
+            )}
+            <div style={{ borderTop: `1px solid ${tokens.sectionBorder}`, paddingTop: s(8), display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: s(10), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>COVERAGE · {scope === "all" ? "ALL USERS" : "YOUR UPLOADS"}</span>
+              {summaryError && <PanelError text={summaryError} />}
+              {!cov && !summaryError && <span style={noteStyle}>Loading coverage…</span>}
+              {cov && (
+                <span data-testid="env-coverage" style={{ fontSize: s(11.5), color: tokens.sectionSubtext, lineHeight: 1.6 }}>
+                  {cov.eligible} of {cov.uploads_in_scope} upload{cov.uploads_in_scope === 1 ? "" : "s"} have coordinates and a collection date (needed for a lookup); {cov.not_applicable} do not.
+                  {" "}Of those eligible: {cov.by_status.complete ?? 0} complete, {cov.by_status.partial ?? 0} partial, {cov.by_status.pending ?? 0} pending, {cov.by_status.failed ?? 0} failed, {cov.by_status.not_requested ?? 0} not looked up yet.
+                  {cov.latest_retrieved_at ? ` Latest retrieval ${fmtDateTime(cov.latest_retrieved_at)}.` : ""}
+                </span>
+              )}
+              {cov?.sources?.length > 0 && (
+                <span style={noteStyle}>Sources in scope: {cov.sources.map((x) => `${x.source} (${x.uploads} upload${x.uploads === 1 ? "" : "s"})`).join(" · ")}</span>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: s(10) }}>
-              <ThermoIcon />
-              <div style={{ display: "flex", alignItems: "baseline", gap: s(8) }}>
-                <span style={{ fontSize: s(46), fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1 }}>4.2°</span>
-                <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>C · {(upload.depth_meters ?? 1840).toLocaleString()} m</span>
+          </div>
+        </div>
+
+        {/* Per-variable environmental panels (only when a lookup is possible) */}
+        {env && env.status !== "not_applicable" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: s(14), alignItems: "stretch" }}>
+            {ENV_VARIABLES.map((spec, i) => (
+              <EnvVariableCard key={spec.key} spec={spec} v={env.variables?.[spec.key]} index={i + 1} />
+            ))}
+          </div>
+        )}
+
+        {/* Scope for the cross-sample panels */}
+        <div style={{ display: "flex", alignItems: "center", gap: s(12), flexWrap: "wrap" }}>
+          <span style={{ fontSize: s(11), letterSpacing: "0.08em", color: tokens.labelText }}>ACROSS SAMPLES</span>
+          {canSeeAll ? (
+            <Segmented label="Scope" value={scope} onChange={setScope} options={[{ value: "mine", label: "My uploads" }, { value: "all", label: "All users" }]} />
+          ) : (
+            <span style={noteStyle}>Your uploads (one sample = one upload, its newest analysis)</span>
+          )}
+        </div>
+
+        {/* Activity rhythms */}
+        <div data-testid="rhythms" style={{ ...cardBase, ...revealStyle(7) }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(12), flexWrap: "wrap" }}>
+            <span style={panelLabelStyle}>ACTIVITY RHYTHMS · TIME OF DAY &amp; DAY OF WEEK (UTC)</span>
+            <Segmented label="Rhythm metric" value={rhythmMetric} onChange={setRhythmMetric} options={[{ value: "uploads", label: "Samples" }, { value: "detections", label: "Detections" }]} />
+          </div>
+          {rhythmsError && <PanelError text={rhythmsError} />}
+          {!rhythms && !rhythmsError && <span style={noteStyle}>Loading…</span>}
+          {rhythms && (
+            <>
+              <span data-testid="rhythms-basis" style={{ fontSize: s(11.5), color: tokens.sectionSubtext, lineHeight: 1.6 }}>
+                {rt.uploads} sample{rt.uploads === 1 ? "" : "s"}: {rt.uploads_collected_at} timed by <strong>collected_at</strong> (when the sample was taken), {rt.uploads_upload_time} by <strong>upload time</strong> (no collection time recorded)
+                {rt.uploads_without_timestamp ? `, ${rt.uploads_without_timestamp} without any timestamp` : ""}. {rt.detections.toLocaleString()} detection{rt.detections === 1 ? "" : "s"} (sequences with a taxon, contamination-flagged excluded) from {rt.samples_analysed} analysed sample{rt.samples_analysed === 1 ? "" : "s"}.
+              </span>
+              {rhythmMetric === "uploads" && (
+                <div style={{ display: "flex", gap: s(14), flexWrap: "wrap", fontSize: s(10.5), color: tokens.sectionSubtext }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, background: tokens.accentCyan, display: "inline-block", borderRadius: 2 }} />Timed by collected_at</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, background: tokens.purple, display: "inline-block", borderRadius: 2 }} />Timed by upload time</span>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: s(14) }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: s(9.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>HOUR OF DAY · UTC</span>
+                  <RhythmBars bins={rhythms.by_hour} metric={rhythmMetric} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: s(9.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>DAY OF WEEK · UTC</span>
+                  <RhythmBars bins={rhythms.by_weekday} metric={rhythmMetric} />
+                </div>
               </div>
-            </div>
-          </div>
-          <div style={{ ...cardBase, ...revealStyle(1) }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>pH LEVEL <MockTag /></span>
-            <RangeGauge value={7.9} min={0} max={14} unit="" />
-            <span style={{ fontSize: s(10.5), color: tokens.pending, textAlign: "center" }}>within expected range · ocean baseline 8.1</span>
-          </div>
-          <div style={{ ...cardBase, ...revealStyle(2) }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>SALINITY {upload.salinity_ppt == null && <MockTag label="NOT RECORDED" />}</span>
-            <RangeGauge value={upload.salinity_ppt} min={30} max={40} unit="" />
-            <span style={{ fontSize: s(10.5), color: tokens.pending, textAlign: "center" }}>
-              {upload.salinity_ppt != null ? "PSU · typical open-ocean range 30–40" : "No salinity reading was captured for this upload."}
-            </span>
-          </div>
+              <Notes notes={rhythms.notes} />
+              <span style={noteStyle}>{rhythms.definitions?.interpretation} {rhythms.definitions?.timezone}</span>
+            </>
+          )}
         </div>
 
-        {/* Wind / current -- mock */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: s(14) }}>
-          <div style={{ ...cardBase, ...revealStyle(3), background: "radial-gradient(120% 160% at 70% 100%, rgba(46,160,130,0.14) 0%, rgba(6,10,20,0.75) 60%)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>WIND SPEED BY DAY <MockTag /></span>
-              <span style={{ fontSize: s(13), fontWeight: 600, color: tokens.accentCyan }}>14 <span style={{ fontSize: s(10), fontWeight: 400, color: tokens.pending }}>kn · NNE</span></span>
-            </div>
-            <TrendSVG vals={[19, 18.5, 18, 15, 14.5, 14, 8]} labels={["Tue", "Fri", "Sat", "Wed", "Thu", "Sun", "Mon"]} lo={0} hi={20} />
-          </div>
-          <div style={{ ...cardBase, ...revealStyle(4), background: "radial-gradient(120% 160% at 30% 100%, rgba(20,110,255,0.14) 0%, rgba(6,10,20,0.75) 60%)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>CURRENT SPEED BY DAY <MockTag /></span>
-              <span style={{ fontSize: s(13), fontWeight: 600, color: tokens.accentCyan }}>1.8 <span style={{ fontSize: s(10), fontWeight: 400, color: tokens.pending }}>kn · SW drift</span></span>
-            </div>
-            <TrendSVG vals={[2.6, 2.4, 2.3, 2.2, 1.9, 1.8, 1.1]} labels={["Tue", "Fri", "Sat", "Wed", "Thu", "Sun", "Mon"]} lo={0} hi={3} />
-          </div>
-        </div>
-
-        {/* Multi-omics overlay -- mock */}
-        <div style={{ ...cardBase, ...revealStyle(5) }}>
-          <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>MULTI-OMICS &amp; ENVIRONMENTAL OVERLAY <MockTag /></span>
-          <div style={{ display: "flex", gap: s(14), flexWrap: "wrap", fontSize: s(10.5), color: tokens.sectionSubtext }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.accentCyan, display: "inline-block" }} />DNA reads</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.accentBlue, display: "inline-block" }} />Temp</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: "#146EFF", display: "inline-block" }} />pH</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.purple, display: "inline-block" }} />Salinity</span>
-          </div>
-          <span style={{ fontSize: s(10.5), color: tokens.pending }}>This deployment only stores a single point-in-time reading per upload, not a time series — this chart uses sample data. Correlative view, no causal claim implied.</span>
-          <WavesSVG />
-        </div>
-
-        {/* Sonic + activity rhythms -- mock */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: s(14) }}>
-          <div style={{ ...cardBase, ...revealStyle(6) }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>SONIC ACTIVITY · AMBIENT NOISE <MockTag /></span>
-              <span style={{ fontSize: s(13), fontWeight: 600, color: tokens.accentCyan }}>94 dB <span style={{ fontSize: s(10), fontWeight: 400, color: tokens.pending }}>re 1 µPa</span></span>
-            </div>
-            <SonicSVG />
-            <div style={{ display: "flex", gap: s(14), flexWrap: "wrap", fontSize: s(10.5), color: tokens.sectionSubtext }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.accentCyan, display: "inline-block" }} />Broadband ambient</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.accentBlue, display: "inline-block" }} />Vessel traffic</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 2, background: tokens.purple, display: "inline-block" }} />Biologic band</span>
-            </div>
-            <span style={{ fontSize: s(10.5), color: tokens.pending }}>No hydrophone is wired up for this deployment yet.</span>
-          </div>
-          <div style={{ ...cardBase, ...revealStyle(7) }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>ACTIVITY RHYTHMS · VERTICAL MIGRATION <MockTag /></span>
-              <span style={{ fontSize: s(13), fontWeight: 600, color: tokens.success }}>DVM peak 18:30 <span style={{ fontSize: s(10), fontWeight: 400, color: tokens.pending }}>· detections/hr</span></span>
-            </div>
-            <DvmSVG />
-            <span style={{ fontSize: s(10.5), color: tokens.pending }}>No acoustic backscatter pipeline exists for this deployment yet.</span>
-          </div>
-        </div>
-
-        {/* Co-occurrence network */}
-        <div style={{ ...cardBase, ...revealStyle(8) }}>
+        {/* Co-occurrence top-50 */}
+        <div data-testid="cooccurrence" style={{ ...cardBase, ...revealStyle(8) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(14), flexWrap: "wrap" }}>
-            <span style={{ ...panelLabelStyle, display: "flex", gap: 6 }}>SPECIES CO-OCCURRENCE NETWORK <MockTag /></span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: s(9.5), letterSpacing: "0.07em", color: tokens.sectionSubtext }}>ABUNDANCE THRESHOLD · {netThr}%</span>
-              <input type="range" min={0} max={60} value={netThr} onChange={(e) => setNetThr(+e.target.value)} className="sv-novelty-slider" style={{ width: s(170) }} />
-            </div>
+            <span style={panelLabelStyle}>TAXON CO-OCCURRENCE · TOP 50 PAIRS</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: s(10.5), letterSpacing: "0.06em", color: tokens.sectionSubtext }}>
+              RANK
+              <select
+                aria-label="Taxonomic rank"
+                value={rank}
+                onChange={(e) => setRank(e.target.value)}
+                style={{ background: "#080F1C", color: tokens.wordmark, border: `1px solid ${tokens.sectionBorder}`, borderRadius: 6, padding: "3px 8px", fontFamily: "inherit", fontSize: s(11) }}
+              >
+                {rankOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
           </div>
-          <div style={{ display: "flex", gap: s(16), flexWrap: "wrap", fontSize: s(10.5), color: tokens.sectionSubtext }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 18, height: 2, background: tokens.accentBlue, display: "inline-block" }} />Positive statistical co-occurrence (Spearman ρ &gt; 0.6)</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 18, height: 0, borderTop: `2px dashed ${tokens.danger}`, display: "inline-block" }} />Negative statistical co-occurrence (ρ &lt; −0.6)</span>
-            <span style={{ color: tokens.pending }}>Node radius ∝ relative DNA abundance · correlation ≠ biological interaction</span>
-          </div>
-          <canvas ref={canvasRef} style={{ width: "100%", height: s(340), borderRadius: 6, border: "1px solid #101D33", background: "#04070E" }} />
-          <span style={{ fontSize: s(11), color: tokens.sectionSubtext }}>Showing nodes with relative abundance ≥ {netThr}% of max · {visCount ?? "—"} of 140 nodes visible</span>
+          {coocError && <PanelError text={coocError} />}
+          {!cooc && !coocError && <span style={noteStyle}>Loading…</span>}
+          {cooc && (
+            <>
+              <span data-testid="cooccurrence-basis" style={{ fontSize: s(11.5), color: tokens.sectionSubtext, lineHeight: 1.6 }}>
+                Taxa at {cooc.rank === "any" ? "any recorded rank" : <>rank <strong>{cooc.rank}</strong></>} (decision.predicted_taxon) present in the same sample. {cooc.samples_with_taxa} of {cooc.samples} analysed sample{cooc.samples === 1 ? "" : "s"} have taxa at this rank; {cooc.taxa} distinct taxa; {cooc.pairs_total} pair{cooc.pairs_total === 1 ? "" : "s"}, showing {cooc.pairs.length}. {cooc.contamination_sequences_excluded} contamination-flagged sequence{cooc.contamination_sequences_excluded === 1 ? "" : "s"} excluded.
+              </span>
+              {cooc.pairs.length > 0 ? (
+                <>
+                  <div style={{ display: "flex", gap: s(16), flexWrap: "wrap", fontSize: s(10.5), color: tokens.sectionSubtext }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 18, height: 3, background: tokens.accentBlue, display: "inline-block" }} />Line width ∝ samples together · opacity ∝ Jaccard</span>
+                    <span>Node size ∝ samples containing the taxon</span>
+                  </div>
+                  <CooccurrenceGraph pairs={cooc.pairs} nodes={cooc.nodes} />
+                  <div style={{ overflowX: "auto", maxHeight: s(360), overflowY: "auto", border: `1px solid ${tokens.sectionBorder}`, borderRadius: 6 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: s(11.5) }}>
+                      <thead>
+                        <tr style={{ color: tokens.sectionSubtext, textAlign: "left", position: "sticky", top: 0, background: "#060B16" }}>
+                          {["#", "Taxon A", "Taxon B", "Samples together", "With A", "With B", "Jaccard"].map((h) => (
+                            <th key={h} style={{ padding: "7px 10px", fontWeight: 600, fontSize: s(10), letterSpacing: "0.05em", borderBottom: `1px solid ${tokens.sectionBorder}` }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cooc.pairs.map((p, i) => (
+                          <tr key={`${p.taxon_a}|${p.rank_a}|${p.taxon_b}|${p.rank_b}`} style={{ borderBottom: "1px solid #0C1526" }}>
+                            <td style={{ padding: "6px 10px", color: tokens.pending }}>{i + 1}</td>
+                            <td style={{ padding: "6px 10px" }}><em>{p.taxon_a}</em>{cooc.rank === "any" && <span style={{ color: tokens.pending }}> · {p.rank_a}</span>}</td>
+                            <td style={{ padding: "6px 10px" }}><em>{p.taxon_b}</em>{cooc.rank === "any" && <span style={{ color: tokens.pending }}> · {p.rank_b}</span>}</td>
+                            <td style={{ padding: "6px 10px", color: tokens.accentCyan, fontWeight: 600 }}>{p.samples_together}</td>
+                            <td style={{ padding: "6px 10px" }}>{p.samples_a}</td>
+                            <td style={{ padding: "6px 10px" }}>{p.samples_b}</td>
+                            <td style={{ padding: "6px 10px" }}>{p.jaccard.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>No taxon pairs at this rank in scope.</span>
+              )}
+              <Notes notes={cooc.notes} />
+              <span style={noteStyle}>{cooc.definitions?.interpretation} Pairs are ordered by samples together, then Jaccard, then name.</span>
+            </>
+          )}
         </div>
 
         {/* Export engine */}
         <div style={cardBase}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: s(12), flexWrap: "wrap" }}>
             <span style={panelLabelStyle}>PUBLISH-READY EXPORT</span>
-            <div style={{ display: "flex", gap: s(8) }}>
-              <button
-                onClick={() => handleExport("json")}
-                disabled={downloadingFormat !== null}
-                style={{ padding: `${s(8)}px ${s(18)}px`, border: "1px solid rgba(160,205,255,0.55)", borderRadius: s(12), background: "linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%)", boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38)", fontFamily: "inherit", fontSize: s(12), fontWeight: 600, color: "#FFFFFF", textShadow: "0 1px 2px rgba(8,50,140,0.4)", cursor: downloadingFormat ? "default" : "pointer", opacity: downloadingFormat && downloadingFormat !== "json" ? 0.5 : 1 }}
-              >
+            <div style={{ display: "flex", gap: s(8), flexWrap: "wrap" }}>
+              <button onClick={() => handleExport("fair")} disabled={downloadingFormat !== null} style={exportBtn(downloadingFormat, downloadingFormat && downloadingFormat !== "fair")}>
+                {downloadingFormat === "fair" ? "Building ZIP..." : "⬇ FAIR ZIP"}
+              </button>
+              <button onClick={() => handleExport("json")} disabled={downloadingFormat !== null} style={exportBtn(downloadingFormat, downloadingFormat && downloadingFormat !== "json")}>
                 {downloadingFormat === "json" ? "Exporting..." : "⬇ Download JSON"}
               </button>
-              <button
-                onClick={() => handleExport("csv")}
-                disabled={downloadingFormat !== null}
-                style={{ padding: `${s(8)}px ${s(18)}px`, border: "1px solid rgba(160,205,255,0.55)", borderRadius: s(12), background: "linear-gradient(180deg, #459AF5 0%, #1A71F0 48%, #0D57D1 100%)", boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.55), inset 0 -3px 8px rgba(8,50,140,0.45), 0 10px 30px rgba(30,123,255,0.38)", fontFamily: "inherit", fontSize: s(12), fontWeight: 600, color: "#FFFFFF", textShadow: "0 1px 2px rgba(8,50,140,0.4)", cursor: downloadingFormat ? "default" : "pointer", opacity: downloadingFormat && downloadingFormat !== "csv" ? 0.5 : 1 }}
-              >
+              <button onClick={() => handleExport("csv")} disabled={downloadingFormat !== null} style={exportBtn(downloadingFormat, downloadingFormat && downloadingFormat !== "csv")}>
                 {downloadingFormat === "csv" ? "Exporting..." : "⬇ Download CSV"}
               </button>
             </div>
           </div>
-          <span style={{ fontSize: s(11), color: tokens.pending, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            A single FAIR-structured ZIP (raw FASTA + curated tables + metadata) isn&rsquo;t available yet — the buttons above download the real report as JSON or CSV instead. <MockTag label="MOCK — ZIP BUNDLE NOT BUILT YET" />
+          <span style={{ fontSize: s(11), color: tokens.pending, lineHeight: 1.6 }}>
+            The FAIR ZIP holds README.md, results.csv, sample_metadata.json, provenance.json (models, reference databases), decision traces when recorded, the chain-of-custody log, a manifest of sha256 checksums and — when its checksum still verifies and you may read the upload — the raw uploaded file. Each export is recorded on the sample&rsquo;s custody chain.
           </span>
+          {exportStatus && (
+            <span role={exportStatus.ok ? "status" : "alert"} style={{ fontSize: s(11.5), color: exportStatus.ok ? tokens.success : tokens.danger }}>{exportStatus.text}</span>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: s(7) }}>
             <span style={{ fontSize: s(11), letterSpacing: "0.08em", color: tokens.sectionSubtext }}>AUTO-CITATION GENERATOR</span>
             <textarea
@@ -725,10 +769,7 @@ export default function Academia() {
               value={citation}
               style={{ width: "100%", boxSizing: "border-box", padding: `${s(12)}px ${s(14)}px`, border: `1px solid ${tokens.sectionBorder}`, borderRadius: s(3), background: "#04070E", color: tokens.accentCyan, fontFamily: "ui-monospace,monospace", fontSize: s(11.5), lineHeight: 1.7, resize: "vertical", outline: "none" }}
             />
-            <button
-              onClick={copyCitation}
-              style={{ alignSelf: "flex-start", padding: `${s(6)}px ${s(14)}px`, border: `1px solid ${tokens.sectionBorder}`, borderRadius: s(10), background: "#080F1C", fontFamily: "inherit", fontSize: s(11.5), fontWeight: 500, color: tokens.wordmark, cursor: "pointer" }}
-            >
+            <button onClick={copyCitation} style={{ ...smallBtn, alignSelf: "flex-start", padding: `${s(6)}px ${s(14)}px`, fontSize: s(11.5) }}>
               {copied ? "Copied ✓" : "Copy citation"}
             </button>
           </div>
@@ -739,7 +780,7 @@ export default function Academia() {
 
         <div style={{ display: "flex", justifyContent: "center", padding: `${s(8)}px 0 ${s(2)}px`, borderTop: `1px solid ${tokens.sectionBorder}` }}>
           <span style={{ fontSize: s(11), color: tokens.pending, textAlign: "center" }}>
-            Run {report.metadata.analysis_id} · Pipeline: {report.metadata.model_version_set || "not recorded"} · Reference DB: pending configuration · Generated {new Date(report.generated_at).toLocaleString()}
+            Run {report.metadata.analysis_id} · Pipeline: {report.metadata.model_version_set || "not recorded"} · Generated {new Date(report.generated_at).toLocaleString()}
           </span>
         </div>
       </div>

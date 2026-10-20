@@ -309,3 +309,23 @@ export const syncExpedition = (expedition_id, syncData) =>
 // ---------------------------------------------------------------------------
 
 export const healthCheck = () => request("GET", "/health");
+
+// ---------------------------------------------------------------------------
+// Partner pages: Academia (t-1027-1)
+// ---------------------------------------------------------------------------
+
+/** Cross-run counts incl. environmental-context coverage (GET /partner/summary). */
+export const getPartnerSummary = (params) =>
+  request("GET", "/partner/summary", { params });
+
+/** Taxon pairs found in the same sample, at one rank (params: rank, limit, scope). */
+export const getPartnerCooccurrence = (params) =>
+  request("GET", "/partner/cooccurrence", { params });
+
+/** Uploads / detections by UTC hour of day and day of week. */
+export const getPartnerRhythms = (params) =>
+  request("GET", "/partner/rhythms", { params });
+
+/** FAIR ZIP bundle. Returns a raw Response — caller reads .blob() and the filename header. */
+export const exportReportFair = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/fair`);
