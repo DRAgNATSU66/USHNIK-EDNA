@@ -408,12 +408,23 @@ async def test_full_loop_upload_to_promotion(tmp_path, monkeypatch):
         assert await live["analysis_jobs"].find_one({"job_id": job_id}) is None
 
         timings["total_s"] = round(time.perf_counter() - t_start, 2)
+        # Where the worker's time went, from the stored traces (elapsed_ms per
+        # evidence record; batch providers record their per-sequence share).
+        provider_ms: dict[str, float] = {}
+        provider_status: dict[str, dict[str, int]] = {}
+        for res in results.values():
+            for ev in res["decision_trace"].get("evidence") or []:
+                name = ev.get("provider", "?")
+                provider_ms[name] = round(provider_ms.get(name, 0.0) + float(ev.get("elapsed_ms") or 0.0), 1)
+                st = provider_status.setdefault(name, {})
+                st[ev.get("status", "?")] = st.get(ev.get("status", "?"), 0) + 1
         summary = {
             "db": db_name, "sequences": [(sid, label, results[sid]["route"], results[sid]["decision"]["result_class"],
                                           results[sid]["decision"].get("predicted_taxon")) for sid, _, label in seqs],
             "auto_reviews": [(rv["review_type"], rv["sequence_id"]) for rv in auto_reviews],
             "batch": {"batch_id": batch_id, "items": len(items)}, "promoted": model_id,
-            "worker_log": worker_log, "timings": timings,
+            "worker_log": worker_log, "provider_ms": provider_ms, "provider_status": provider_status,
+            "timings": timings,
         }
         print("\nLOOP_SUMMARY " + json.dumps(summary, default=str, indent=1))
     finally:
