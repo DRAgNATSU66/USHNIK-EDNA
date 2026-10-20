@@ -457,15 +457,38 @@ class TestCreateMonthlyBatch:
         assert "local_only" in result["status"]
 
 
+class _ItemsColl:
+    """Minimal training_batch_items collection: find_one / update_many on
+    equality filters, where None matches a missing field (as in MongoDB)."""
+
+    def __init__(self, docs):
+        self.docs = [dict(d) for d in docs]
+
+    @staticmethod
+    def _match(doc, query):
+        return all(doc.get(k) == v for k, v in query.items())
+
+    async def find_one(self, query):
+        return next((dict(d) for d in self.docs if self._match(d, query)), None)
+
+    async def update_many(self, query, update):
+        for d in self.docs:
+            if self._match(d, query):
+                d.update(update["$set"])
+
+
 class TestFreezeBatch:
     @pytest.mark.anyio
     async def test_freeze_writes_audit_log(self):
         from app.reviews.curation import freeze_training_batch
 
         inserted_logs = []
+        items = _ItemsColl([{"batch_id": "tbatch_202605_fish_abc123", "review_id": "rev_1"}])
 
         class _Db:
             def __getitem__(self, name):
+                if name == "training_batch_items":
+                    return items
                 coll = MagicMock()
                 async def _insert_one(doc):
                     inserted_logs.append(doc)
@@ -485,8 +508,12 @@ class TestFreezeBatch:
     async def test_freeze_supabase_failure_does_not_raise(self):
         from app.reviews.curation import freeze_training_batch
 
+        items = _ItemsColl([{"batch_id": "tbatch_001", "review_id": "rev_1"}])
+
         class _Db:
             def __getitem__(self, name):
+                if name == "training_batch_items":
+                    return items
                 coll = MagicMock()
                 coll.insert_one = AsyncMock()
                 return coll
@@ -499,6 +526,8 @@ class TestFreezeBatch:
             result = await freeze_training_batch(_Db(), "tbatch_001", "usr_admin")
 
         assert result["status"] == "frozen"
+        # MongoDB carries the frozen state even when Supabase is down.
+        assert items.docs[0]["frozen_by"] == "usr_admin" and items.docs[0]["frozen_at"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +627,9 @@ async def test_batch_freeze_requires_admin(client, curator_token):
 
 @pytest.mark.anyio
 async def test_batch_freeze_accessible_by_admin(client, admin_token):
-    with patch("app.reviews.curation.SupabaseClient.freeze_training_batch", new_callable=AsyncMock):
+    frozen = {"batch_id": "tbatch_test_001", "status": "frozen", "frozen_by": "usr_admin_001",
+              "frozen_at": "2026-10-20T00:00:00+00:00", "already_frozen": False}
+    with patch("app.reviews.router.freeze_training_batch", new_callable=AsyncMock, return_value=frozen):
         resp = await client.post(
             "/reviews/batch/tbatch_test_001/freeze",
             headers={"Authorization": f"Bearer {admin_token}"},

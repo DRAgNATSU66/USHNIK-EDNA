@@ -389,4 +389,9 @@ async def post_freeze_batch(
     """
     db = get_db()
     result = await freeze_training_batch(db, batch_id, current_user.user_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Training batch {batch_id} not found (no training_batch_items; an empty batch cannot be frozen)",
+        )
     return result

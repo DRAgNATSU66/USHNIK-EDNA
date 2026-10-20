@@ -62,6 +62,43 @@ worker-test:
 	cd $(WORKER_DIR) && python -m pytest tests/ -v
 
 # -------------------------------------------------------------------------
+# Full-loop integration test (t-1025-3, roadmap Day 12): upload -> worker
+# orchestrator -> reviews -> training batch -> freeze -> register -> promote,
+# as ONE pytest (services/api/tests/test_full_loop_integration.py). The API app
+# runs in-process; the worker code runs as a subprocess in the worker venv and
+# pops the job the API pushed onto Redis. LOCAL ONLY, not in CI: it needs the
+# model checkpoints, reference DBs and processed splits (tens of GB) and runs
+# the route heads, so it is skipped unless SYNTHVEDA_LOOP_TEST=1.
+#
+# On a fresh clone it needs:
+#   - Mongo :27017 and Redis :6379 (`make up`, or just the mongo/redis services)
+#   - $(DATA_ROOT) (SYNTHVEDA_DATA_ROOT, default ./synthveda-data) with
+#     processed/{fish,bacteria_pathogen}/test.csv, checkpoints/ named by
+#     models/registry, reference/ and BLAST+ (tools/blast/bin or on PATH)
+#   - services/api/.venv (requirements-dev) and services/worker/.venv
+#     (requirements-dev + requirements-ml, CUDA torch); override with
+#     API_PYTHON= / WORKER_PYTHON=
+# Isolation: a random Mongo DB (synthveda_looptest_*, dropped afterwards),
+# Redis db 15 (never db 0, the stack's queue: its worker would pop the job),
+# local upload storage and a copy of models/registry in a temp dir, no Supabase.
+# Missing data root / venv -> skipped with the reason; Mongo/Redis down -> fails.
+# -------------------------------------------------------------------------
+.PHONY: test-loop
+
+API_PYTHON     ?= $(API_DIR)/.venv/bin/python
+WORKER_PYTHON  ?= $(WORKER_DIR)/.venv/bin/python
+LOOP_MONGO_URI ?= mongodb://localhost:27017
+LOOP_REDIS_URL ?= redis://localhost:6379/15
+
+test-loop:
+	cd $(API_DIR) && SYNTHVEDA_LOOP_TEST=1 \
+		SYNTHVEDA_TEST_MONGO_URI=$(LOOP_MONGO_URI) \
+		SYNTHVEDA_TEST_REDIS_URL=$(LOOP_REDIS_URL) \
+		SYNTHVEDA_DATA_ROOT=$(abspath $(DATA_ROOT)) \
+		SYNTHVEDA_WORKER_PYTHON=$(abspath $(WORKER_PYTHON)) \
+		$(abspath $(API_PYTHON)) -m pytest tests/test_full_loop_integration.py -m integration -s -v -rs -p no:cacheprovider
+
+# -------------------------------------------------------------------------
 # Seed / database
 # -------------------------------------------------------------------------
 .PHONY: seed-dev
