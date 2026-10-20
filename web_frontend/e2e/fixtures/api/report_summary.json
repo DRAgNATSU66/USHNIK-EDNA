@@ -107,5 +107,29 @@
     "submitted": 2,
     "total_reviews": 3,
     "triaged": 0
+  },
+  "taxa": {
+    "available": false,
+    "definitions": {
+      "fraction_with_taxon": "sequences_with_taxon / sequences_with_decision. Low-quality sequences are in the denominator (they never get a taxon) and listed under without_taxon_reasons.",
+      "reference_dbs": "Distinct (decision.reference_db, decision.reference_db_version) pairs, counted per sequence; a decision names the reference DB whenever the lookup ran, assigned or not.",
+      "richness_by_rank": "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank. Ranks are never mixed or summed into one richness: a genus-level call and a species of that genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'. Listed finest rank first (species, genus, family, order, class, phylum, kingdom, superkingdom), other ranks after by name, 'unranked' last.",
+      "taxon": "Per sequence: results[].decision.predicted_taxon at results[].decision.taxon_rank, the orchestrator's combined answer (after the plant genus cap). Sequences without a decision (written before the orchestrator) are not counted; a decision with a null taxon counts as without taxon.",
+      "top_taxa": "(taxon, rank) groups by sequence count, ties by name, first 20. mean/min/max_percent_identity are over the group's sequences whose decision carries a percent_identity (arithmetic mean, 2 dp); taxon_groups counts every group before the cut (a row count, not a richness estimate).",
+      "without_taxon_reasons": "For each decided sequence with no taxon: 'low_quality' when decision.final_route is low_quality, otherwise the rule of the taxon step in decision_trace.combine (':' + its outcome when that is a status string, e.g. no_reference_assignment:below_threshold), or 'not_recorded' when the trace has no taxon step."
+    },
+    "fraction_with_taxon": null,
+    "orchestrator_version": null,
+    "reference_dbs": [],
+    "richness_by_rank": [],
+    "sequences_with_decision": 0,
+    "sequences_with_taxon": null,
+    "sequences_without_taxon": null,
+    "taxon_groups": null,
+    "top_taxa": [],
+    "top_taxa_limit": 20,
+    "total_sequences": 7,
+    "unavailable_reason": "No sequence carries an orchestrator decision: this analysis predates the orchestrator, so taxon rank, percent identity and reference DB were never recorded. Re-run the analysis to get taxa. 3 of 7 sequences carry a legacy predicted_taxon without a rank; it is shown per sequence but not aggregated.",
+    "without_taxon_reasons": {}
   }
 }

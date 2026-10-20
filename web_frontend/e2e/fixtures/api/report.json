@@ -75,18 +75,28 @@
     {
       "confidence": 0.91,
       "model_version_used": "dnabert2_fish_v1",
+      "percent_identity": null,
       "predicted_taxon": "Thunnus albacares",
       "reason_codes": [],
+      "reference_db": null,
+      "reference_db_version": null,
       "route": "fish",
-      "sequence_id": "seq_e2e_tuna_001"
+      "sequence_id": "seq_e2e_tuna_001",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.62,
       "model_version_used": "dnabert2_fish_v1",
+      "percent_identity": null,
       "predicted_taxon": "Myctophum punctatum",
       "reason_codes": [],
+      "reference_db": null,
+      "reference_db_version": null,
       "route": "fish",
-      "sequence_id": "seq_e2e_lantern_002"
+      "sequence_id": "seq_e2e_lantern_002",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     }
   ],
   "metadata": {
@@ -178,7 +188,7 @@
     "passed_qc": 6,
     "total_sequences": 7
   },
-  "report_version": "1.0",
+  "report_version": "1.1",
   "review_status": {
     "accepted": 1,
     "auto_contamination_reviews": 1,
@@ -219,6 +229,30 @@
       "route": "low_quality"
     }
   ],
+  "taxa": {
+    "available": false,
+    "definitions": {
+      "fraction_with_taxon": "sequences_with_taxon / sequences_with_decision. Low-quality sequences are in the denominator (they never get a taxon) and listed under without_taxon_reasons.",
+      "reference_dbs": "Distinct (decision.reference_db, decision.reference_db_version) pairs, counted per sequence; a decision names the reference DB whenever the lookup ran, assigned or not.",
+      "richness_by_rank": "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank. Ranks are never mixed or summed into one richness: a genus-level call and a species of that genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'. Listed finest rank first (species, genus, family, order, class, phylum, kingdom, superkingdom), other ranks after by name, 'unranked' last.",
+      "taxon": "Per sequence: results[].decision.predicted_taxon at results[].decision.taxon_rank, the orchestrator's combined answer (after the plant genus cap). Sequences without a decision (written before the orchestrator) are not counted; a decision with a null taxon counts as without taxon.",
+      "top_taxa": "(taxon, rank) groups by sequence count, ties by name, first 20. mean/min/max_percent_identity are over the group's sequences whose decision carries a percent_identity (arithmetic mean, 2 dp); taxon_groups counts every group before the cut (a row count, not a richness estimate).",
+      "without_taxon_reasons": "For each decided sequence with no taxon: 'low_quality' when decision.final_route is low_quality, otherwise the rule of the taxon step in decision_trace.combine (':' + its outcome when that is a status string, e.g. no_reference_assignment:below_threshold), or 'not_recorded' when the trace has no taxon step."
+    },
+    "fraction_with_taxon": null,
+    "orchestrator_version": null,
+    "reference_dbs": [],
+    "richness_by_rank": [],
+    "sequences_with_decision": 0,
+    "sequences_with_taxon": null,
+    "sequences_without_taxon": null,
+    "taxon_groups": null,
+    "top_taxa": [],
+    "top_taxa_limit": 20,
+    "total_sequences": 7,
+    "unavailable_reason": "No sequence carries an orchestrator decision: this analysis predates the orchestrator, so taxon rank, percent identity and reference DB were never recorded. Re-run the analysis to get taxa. 3 of 7 sequences carry a legacy predicted_taxon without a rank; it is shown per sequence but not aggregated.",
+    "without_taxon_reasons": {}
+  },
   "taxonomic_assignments": [
     {
       "confidence": 0.91,
@@ -226,10 +260,16 @@
       "contamination_flagged": false,
       "length": 300,
       "model_version_used": "dnabert2_fish_v1",
+      "percent_identity": null,
       "predicted_taxon": "Thunnus albacares",
       "reason_codes": [],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "known_species",
       "route": "fish",
-      "sequence_id": "seq_e2e_tuna_001"
+      "sequence_id": "seq_e2e_tuna_001",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.88,
@@ -237,12 +277,18 @@
       "contamination_flagged": true,
       "length": 300,
       "model_version_used": "dnabert2_human_domestic_v1",
+      "percent_identity": null,
       "predicted_taxon": "Homo sapiens",
       "reason_codes": [
         "human_contaminant_match"
       ],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "possible_contaminant",
       "route": "human_domestic",
-      "sequence_id": "seq_e2e_contam_005"
+      "sequence_id": "seq_e2e_contam_005",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.62,
@@ -250,10 +296,16 @@
       "contamination_flagged": false,
       "length": 300,
       "model_version_used": "dnabert2_fish_v1",
+      "percent_identity": null,
       "predicted_taxon": "Myctophum punctatum",
       "reason_codes": [],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "known_species",
       "route": "fish",
-      "sequence_id": "seq_e2e_lantern_002"
+      "sequence_id": "seq_e2e_lantern_002",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.35,
@@ -261,10 +313,16 @@
       "contamination_flagged": false,
       "length": 300,
       "model_version_used": "dnabert2_plant_v1",
+      "percent_identity": null,
       "predicted_taxon": null,
       "reason_codes": [],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "unknown_needs_online_confirmation",
       "route": "plant",
-      "sequence_id": "seq_e2e_plant_006"
+      "sequence_id": "seq_e2e_plant_006",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.21,
@@ -272,12 +330,18 @@
       "contamination_flagged": false,
       "length": 300,
       "model_version_used": "dnabert2_fish_v1",
+      "percent_identity": null,
       "predicted_taxon": null,
       "reason_codes": [
         "low_reference_similarity"
       ],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "possible_novel_taxon",
       "route": "fish",
-      "sequence_id": "seq_e2e_novel_003"
+      "sequence_id": "seq_e2e_novel_003",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     },
     {
       "confidence": 0.18,
@@ -285,12 +349,18 @@
       "contamination_flagged": false,
       "length": 300,
       "model_version_used": "dnabert2_bacteria_v1",
+      "percent_identity": null,
       "predicted_taxon": null,
       "reason_codes": [
         "low_reference_similarity"
       ],
+      "reference_db": null,
+      "reference_db_version": null,
+      "result_class": "possible_novel_taxon",
       "route": "bacteria",
-      "sequence_id": "seq_e2e_novel_004"
+      "sequence_id": "seq_e2e_novel_004",
+      "taxon_rank": null,
+      "taxon_source": "legacy"
     }
   ]
 }

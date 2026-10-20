@@ -54,6 +54,16 @@ _TIER_RED_MAX = 0.50
 # Rows in TaxaSummary.top_taxa; per-sequence calls are in taxonomic_assignments.
 TOP_TAXA_LIMIT = 20
 _LOW_QUALITY_ROUTE = "low_quality"
+# Display order of TaxaSummary.richness_by_rank, finest first (the ranks the
+# worker's reference lineages use, orchestrator/combiner.py _genus_of). Any
+# other rank sorts after these by name, "unranked" last.
+_RANK_ORDER = ("species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom")
+
+
+def _rank_order(rank: str) -> int:
+    if rank in _RANK_ORDER:
+        return _RANK_ORDER.index(rank)
+    return len(_RANK_ORDER) + (1 if rank == "unranked" else 0)
 
 
 # Distinguishes "caller did not pass an upload" (legacy call sites) from
@@ -361,7 +371,9 @@ TAXA_DEFINITIONS: dict[str, str] = {
     "richness_by_rank": (
         "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank. "
         "Ranks are never mixed or summed into one richness: a genus-level call and a species of that "
-        "genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'."
+        "genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'. "
+        "Listed finest rank first (species, genus, family, order, class, phylum, kingdom, superkingdom), "
+        "other ranks after by name, 'unranked' last."
     ),
     "top_taxa": (
         f"(taxon, rank) groups by sequence count, ties by name, first {TOP_TAXA_LIMIT}. "
@@ -447,7 +459,7 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
         counts[1] += len(decs)
     richness = [
         RankRichness(rank=rank, distinct_taxa=d, sequences=n)
-        for rank, (d, n) in sorted(by_rank.items(), key=lambda x: (-x[1][0], x[0]))
+        for rank, (d, n) in sorted(by_rank.items(), key=lambda x: (_rank_order(x[0]), x[0]))
     ]
 
     ranked = sorted(groups.items(), key=lambda x: (-len(x[1]), x[0][0], x[0][1] or ""))
