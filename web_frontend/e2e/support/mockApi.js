@@ -47,6 +47,10 @@ const ROUTES = [
   ["GET", /^\/models\/registry$/, () => "models_registry"],
   ["GET", /^\/models\/promotions$/, () => "models_promotions"],
   ["GET", /^\/abyss\/expeditions$/, () => "abyss_expeditions"],
+  ["GET", /^\/partner\/hotspots$/, () => "partner_hotspots"],
+  ["GET", /^\/partner\/alerts$/, () => "partner_alerts"],
+  ["GET", /^\/partner\/summary$/, () => "partner_summary_week"],
+  ["GET", /^\/reports\/[^/]+\/custody$/, () => "report_custody"],
 ];
 
 function json(route, status, body) {
@@ -94,6 +98,15 @@ export const test = base.extend({
           if (!m) continue;
           const out = typeof handler === "function" ? handler(m, url, role) : handler;
           if (typeof out === "string") return json(route, 200, fixture(out));
+          if (out.contentType) {
+            // Non-JSON download (e.g. the FAIR ZIP): {status, contentType, headers, body}.
+            return route.fulfill({
+              status: out.status ?? 200,
+              contentType: out.contentType,
+              headers: { "access-control-allow-origin": "*", ...(out.headers || {}) },
+              body: out.body,
+            });
+          }
           return json(route, out.status ?? 200, out.body);
         }
         unmocked.push(`${req.method()} ${url.pathname}`);
