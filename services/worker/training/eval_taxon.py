@@ -760,21 +760,30 @@ def cmd_leak(args: argparse.Namespace) -> None:
         final = (r.get("decision") or {}).get("final_route")
         same = same_record_hits(all_hits, accs, ref_accs)
         same_final = same_record_hits((r.get("ref_hits") or {}).get(final) or [], accs, ref_accs)
+        # the GRCh38 BLAST index is the whole genome: held-out windows cannot be
+        # excluded from it (reference manifest note), so a window row is in it
+        in_genome = any(c.get("src") == "grch38" for c in t.get("copies") or [])
         per_row[r["id"]] = {
             "exact_row_in_ref": exact_row, "exact_source_record_in_ref": exact_source,
             "same_accession_sequence_in_ref": sorted(a for a in accs if acc_in_ref.get(a)),
             "same_record_hits_ge99": same, "same_record_hits_ge99_final_route": same_final,
-            "leaky": bool(exact_row or exact_source or same),
+            "grch38_window_in_genome_index": in_genome,
+            "leaky": bool(exact_row or exact_source or same or in_genome),
         }
     summary = {
         "reference_version": version, "reference_sequences": ref_counts, "rows": len(per_row),
         "rows_with_accessions": sum(1 for r in rows if (truth.get(r["id"]) or {}).get("accessions")),
+        # coverage of the same-record check: hit reference records whose
+        # sequence was found again in a source record (accessions known)
+        "hit_reference_records": len(hit_ids), "hit_reference_records_in_ref_fasta": len(id_digest),
+        "hit_reference_records_traced_to_source_accessions": len(ref_accs),
         "exact_row_in_ref": sum(v["exact_row_in_ref"] for v in per_row.values()),
         "exact_source_record_in_ref": sum(v["exact_source_record_in_ref"] for v in per_row.values()),
         "same_accession_sequence_in_ref_any_identity": sum(bool(v["same_accession_sequence_in_ref"]) for v in per_row.values()),
         "same_record_hit_ge99_any_planned_route": sum(bool(v["same_record_hits_ge99"]) for v in per_row.values()),
         "same_record_hit_ge99_final_route": sum(bool(v["same_record_hits_ge99_final_route"]) for v in per_row.values()),
-        "leaky": sum(v["leaky"] for v in per_row.values()),
+        "grch38_window_in_genome_index": sum(v["grch38_window_in_genome_index"] for v in per_row.values()),
+        "leaky":sum(v["leaky"] for v in per_row.values()),
         "seconds": round(time.time() - t0, 1),
     }
     (out / f"leak_{args.split}.json").write_text(json.dumps({"summary": summary, "rows": per_row}))
@@ -881,6 +890,8 @@ def summarise_taxon(rows: list[dict], truth: dict, leak: dict | None, genus_cap_
     out = {
         "n": n,
         "labels": dict(Counter(r["label"] for r in rows)),
+        "human_genome_hit": sum(bool(((_ref_payload(r, "human_domestic_contamination") or {}).get("human_genome")
+                                      or {}).get("hit")) for r in rows),
         "final_route_correct": sum((r.get("decision") or {}).get("final_route") == r["true_route"] for r in rows),
         "truth_basis": dict(basis),
         "assigned_share_by_rank_pct": {k: _pct(v, n) for k, v in sorted(rank_share.items(),
@@ -1037,7 +1048,10 @@ def cmd_report(args: argparse.Namespace) -> None:
                           "and INSDC copies of one specimen carry different accessions, so this cannot be "
                           "excluded); no_identity_below_99."),
         "leaky": "exact row or source record in a ref.fasta, or any planned-route hit >= 99% from the same source "
-                 "record (shared accession)",
+                 "record (shared accession), or a GRCh38 window row (the GRCh38 BLAST index is the whole genome, "
+                 "held-out windows included)",
+        "human_genome_hit": "the human route's GRCh38 BLAST screen hit the row (payload.human_genome.hit); it "
+                            "flags contamination but sets no taxon",
     }
     Path(args.json).parent.mkdir(parents=True, exist_ok=True)
     Path(args.json).write_text(json.dumps(report, indent=1, default=str))

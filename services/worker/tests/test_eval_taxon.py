@@ -220,3 +220,13 @@ def test_audit_relabels_only_novelty_rows_relabelled():
     counts = et.relabel_counts(audit)
     assert counts["all"]["verdict"] == {"label_noise": 1}
     assert counts["by_rule"]["novelty_suppressed_by_reference"]["n"] == 1
+
+
+def test_summarise_counts_human_genome_hits_without_a_taxon():
+    hdc = "human_domestic_contamination"
+    rows = [_row("hdc:test:1", true_route=hdc, final_route=hdc, status="no_hit"),
+            _row("hdc:test:2", true_route=hdc, final_route=hdc, status="no_hit")]
+    rows[0]["decision_trace"]["evidence"][0]["payload"]["human_genome"] = {"hit": True, "identity": 100.0}
+    s = et.summarise_taxon(rows, {}, None, set())
+    assert s["human_genome_hit"] == 1
+    assert s["assigned_share_by_rank_pct"] == {"none": 100.0}
