@@ -273,7 +273,7 @@ async def test_cooccurrence_other_user_for_company_owner(client, company_owner_t
                              headers=_auth(company_owner_token))).json()
     assert body["scope"] == {"mode": "user", "user_id": OTHER, "date_from": None, "date_to": None}
     assert body["samples"] == 1 and body["pairs_total"] == 3
-    assert any("Only one sample is in scope" in n for n in body["notes"])
+    assert any("Only one sample has taxa at rank species" in n for n in body["notes"])
 
 
 @pytest.mark.anyio

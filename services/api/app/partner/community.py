@@ -259,9 +259,9 @@ async def build_cooccurrence(db, *, scope: CommunityScopeInfo, owner_filter: dic
         notes.append(f"No sample in scope has a taxon assigned at {rank_label}, so there are no pairs.")
     elif not pairs:
         notes.append(f"No sample in scope has two or more taxa at {rank_label}, so there are no pairs.")
-    if analysed and len(analysed) == 1 and pairs:
-        notes.append("Only one sample is in scope: every pair is seen in that one sample, so the counts "
-                     "cannot separate taxa that tend to occur together from ones that happened to share it.")
+    if with_taxa == 1 and pairs:
+        notes.append(f"Only one sample has taxa at {rank_label}: every pair is seen in that one sample, so the "
+                     "counts cannot separate taxa that tend to occur together from ones that happened to share it.")
     if len(ranked) > limit:
         notes.append(f"pairs lists the top {limit} of {len(ranked)} pairs.")
         last, nxt = ranked[limit - 1], ranked[limit]
