@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MatrixRain from "../components/upload/MatrixRain";
 import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
-import { createUpload, createAnalysisJob, healthCheck } from "../lib/api";
+import { createUpload, createAnalysisJob, healthCheck, getModelStatus, getModels } from "../lib/api";
 import dnaHero from "../assets/dna.png";
 import {
   uploadColors,
@@ -70,25 +70,74 @@ const COLLECTED_AT_FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 const emptyMeta = () => ({ ...Object.fromEntries(META_FIELDS.map((f) => [f.key, ""])), negative_control: "" });
 
 const MODES = [
-  { value: "online_full", title: "Online Full", desc: "Full cloud analysis with every model. Best for publishable results." },
+  { value: "online_full", title: "Online Full", desc: "Full cloud analysis: router, reference lookup and route heads. Best for publishable results." },
   { value: "abyss_synced", title: "Abyss Synced", desc: "Process data synced from an offline Abyss Mode field expedition." },
 ];
 
-// Processing Model is a design-only concept for now — the backend's
-// POST /analysis/jobs only accepts `mode`, no model field, so this
-// selection is real UI state but doesn't affect the actual analysis run
-// yet. Wiring it up for real is separate backend work (job-level model
-// routing), not something to fake here.
-const MODELS_BY_MODE = {
-  online_full: [
-    { name: "AbyssNet v3", tag: "Main", desc: "Full ensemble, species-level resolution. Best for publishable results." },
-    { name: "MetaGen Ensemble", tag: "Fallback", desc: "Consensus voting fallback if AbyssNet is unavailable." },
-  ],
-  abyss_synced: [
-    { name: "AbyssNet Lite", tag: "Main", desc: "Offline-trained weights synced from the expedition unit." },
-    { name: "MetaGen Lite", tag: "Fallback", desc: "Fast genus-level fallback for field-collected reads." },
-  ],
+// Processing Model: there is no user model choice. POST /analysis/jobs takes
+// only `mode`; the worker's orchestrator (decision Q7, orchestrator-1.2.0,
+// docs/qna.md QNA-024/025) picks the models per sequence. The old picker
+// ("AbyssNet v3", "MetaGen Ensemble"...) named models that do not exist and
+// changed nothing, so it is replaced by one honest "Auto" choice that says
+// what the orchestrator does and which route heads are served now, read
+// from GET /models/status (and the router's entry from GET /models/registry).
+const ROUTE_LABELS = {
+  fish: "Fish",
+  plant: "Plant",
+  bacteria_pathogen: "Bacteria / pathogen",
+  animal_general: "Animal (general)",
+  human_domestic_contamination: "Human / domestic",
+  misc_unknown: "Misc / unknown",
 };
+
+// /models/status `status` per route (services/api/app/models/router.py
+// _route_status). Anything but "ready" means the worker would stub that
+// route's head or cannot be confirmed from the API host.
+const HEAD_STATUS = {
+  ready: { label: "served", color: "#5FD9A9" },
+  unverified: { label: "unverified", color: "#E0C25C" },
+  missing_artifacts: { label: "files missing — stub", color: "#FF7B7B" },
+  no_model: { label: "no model — stub", color: "#FF7B7B" },
+};
+
+function ModelStatusList({ status, routerId, error }) {
+  if (error) {
+    return (
+      <span style={{ fontSize: 12, color: uploadColors.errorText }}>
+        Model status unavailable ({error}). Auto still applies; the worker uses whatever its registry serves.
+      </span>
+    );
+  }
+  if (!status) return <span style={{ fontSize: 12, color: uploadColors.cardDesc }}>Loading model status…</span>;
+  const routes = Object.entries(status.routes ?? {});
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }} data-testid="served-models">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12 }}>
+        <span style={{ color: uploadColors.cardDesc }}>Router</span>
+        <span style={{ color: uploadColors.cardTitle, fontFamily: "ui-monospace,monospace" }}>{routerId ?? "not reported"}</span>
+      </div>
+      {routes.map(([route, r]) => {
+        const st = HEAD_STATUS[r.status] ?? { label: r.status ?? "unknown", color: "#8C9AB2" };
+        return (
+          <div key={route} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 12 }}>
+            <span style={{ color: uploadColors.cardDesc }}>{ROUTE_LABELS[route] ?? route}</span>
+            <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+              <span style={{ color: uploadColors.cardTitle, fontFamily: "ui-monospace,monospace", overflowWrap: "anywhere" }}>
+                {r.model_id ?? "—"}
+              </span>
+              {r.registry_status && <span style={{ color: "#61708A" }}>{r.registry_status}</span>}
+              <span style={{ color: st.color, whiteSpace: "nowrap" }} title={r.reason ?? undefined}>{st.label}</span>
+            </span>
+          </div>
+        );
+      })}
+      <span style={{ fontSize: "11px", lineHeight: 1.5, color: "#61708A" }} title={status.note ?? undefined}>
+        As seen by the API (registry + files on disk). The worker publishes no live state, so “served” means the files
+        resolve, not that the worker has loaded them.
+      </span>
+    </div>
+  );
+}
 
 const HERO_CARDS = [
   { title: "FASTA · JSON", subtitle: "Read formats", pos: { left: 0, top: 24 } },
@@ -227,14 +276,24 @@ export default function Upload() {
   const [metaErrors, setMetaErrors] = useState({});
 
   const [mode, setMode] = useState("online_full");
-  const [modelIndex, setModelIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [maxSizeMb, setMaxSizeMb] = useState(DEFAULT_MAX_SIZE_MB);
+  const [modelStatus, setModelStatus] = useState(null);
+  const [modelStatusError, setModelStatusError] = useState("");
+  const [routerId, setRouterId] = useState(null);
 
   useEffect(() => {
     healthCheck()
       .then((h) => { if (Number.isFinite(h?.max_upload_size_mb)) setMaxSizeMb(h.max_upload_size_mb); })
+      .catch(() => {});
+    getModelStatus()
+      .then(setModelStatus)
+      .catch((e) => setModelStatusError(e.message || "request failed"));
+    // The router is not in /models/status; the registry names the entry the
+    // worker would select for it. Missing -> "not reported", never a guess.
+    getModels()
+      .then((reg) => setRouterId(reg?.selected_by_route?.router ?? null))
       .catch(() => {});
   }, []);
 
@@ -266,10 +325,7 @@ export default function Upload() {
   };
   const setMetaField = (k) => (e) => setMetaValue(k, e.target.value);
 
-  const handleModeSelect = (value) => {
-    setMode(value);
-    setModelIndex(0);
-  };
+  const handleModeSelect = (value) => setMode(value);
 
   const handleReset = () => {
     setFile(null);
@@ -277,7 +333,6 @@ export default function Upload() {
     setMeta(emptyMeta());
     setMetaErrors({});
     setMode("online_full");
-    setModelIndex(0);
     setError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -306,8 +361,6 @@ export default function Upload() {
       setSubmitting(false);
     }
   };
-
-  const models = MODELS_BY_MODE[mode];
 
   return (
     <div style={{ background: uploadColors.pageBg, minHeight: "100vh" }}>
@@ -508,23 +561,27 @@ export default function Upload() {
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <SlabHeader title="Processing Model" />
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {models.map((md, i) => {
-                    const active = i === modelIndex;
-                    return (
-                      <div key={md.name} onClick={() => setModelIndex(i)} style={modelCardStyle(active)}>
-                        <span style={modelRadioOuterStyle(active)}>
-                          <span style={modelRadioDotStyle(active)} />
-                        </span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: uploadColors.cardTitle }}>{md.name}</span>
-                            <span style={modelTagStyle(i === 0)}>{md.tag}</span>
-                          </div>
-                          <span style={{ fontSize: 12, lineHeight: 1.45, color: uploadColors.cardDesc }}>{md.desc}</span>
+                  <div role="radiogroup" aria-label="Processing model">
+                    <div role="radio" aria-checked="true" style={modelCardStyle(true)}>
+                      <span style={modelRadioOuterStyle(true)}>
+                        <span style={modelRadioDotStyle(true)} />
+                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: uploadColors.cardTitle }}>Auto</span>
+                          <span style={modelTagStyle(true)}>Orchestrator</span>
                         </div>
+                        <span style={{ fontSize: 12, lineHeight: 1.5, color: uploadColors.cardDesc }}>
+                          No manual model choice. The router ranks the routes for each sequence; when it is unsure, or
+                          its pick is a route it often gets wrong, a few candidate routes are planned (default cap 3).
+                          Each planned route's head runs and, when reference lookup is enabled on the worker, its
+                          reference database is searched; fixed rules pick
+                          the final route, taxon and class, and the full decision trace is saved with the result.
+                        </span>
+                        <ModelStatusList status={modelStatus} routerId={routerId} error={modelStatusError} />
                       </div>
-                    );
-                  })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
