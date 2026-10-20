@@ -945,9 +945,16 @@ def audit_relabels(rows: list[dict], truth: dict, leak: dict | None) -> list[dic
         cats = {name_category(c.get("organism")) for c in copies}
         if not copies:
             verdict, reason, agreement = "undetermined", "row not traced to a source record", None
+            verdict_no_path = verdict
         else:
             verdict, reason, agreement = classify_relabel(names_in(copies), payload.get("lineage") or {}, cats, same,
-                                               names_in([c for c in copies if c.get("usable_name")]))
+                                                          names_in([c for c in copies if c.get("usable_name")]))
+            # sensitivity: SILVA's own taxonomy path is a different taxonomy from
+            # the NCBI-unified hit lineage (e.g. SILVA Ruminococcaceae vs NCBI
+            # Oscillospiraceae); the verdict from organism names + NCBI lineage only
+            verdict_no_path = classify_relabel(names_in([{k: v for k, v in c.items() if k != "path_lineage"}
+                                                         for c in copies]),
+                                               payload.get("lineage") or {}, cats, same)[0]
         out.append({
             "id": r["id"], "true_route": r["true_route"], "final_route": d.get("final_route"),
             "result_class": d.get("result_class"), "rule": d.get("rule"),
@@ -963,6 +970,7 @@ def audit_relabels(rows: list[dict], truth: dict, leak: dict | None) -> list[dic
                     "top_marker": top.get("marker"), "reference_db": payload.get("reference_db")},
             "same_specimen": same, "same_record_hits": lk.get("same_record_hits_ge99_final_route") or [],
             "verdict": verdict, "reason": reason, "agreement_rank": agreement,
+            "verdict_without_silva_path": verdict_no_path,
             # the reported taxon is finer than the rank the names agree at
             # (e.g. a species call on 'uncultured Bacteroides sp.')
             "reported_finer_than_agreement": bool(
@@ -986,6 +994,7 @@ def relabel_counts(audit: list[dict]) -> dict:
                 "verdict_by_reported_rank": {v: dict(Counter(str(a["hit"]["reported_rank"]) for a in items
                                                              if a["verdict"] == v))
                                              for v in ("label_noise", "real_disagreement", "undetermined")},
+                "verdict_without_silva_path": dict(Counter(a["verdict_without_silva_path"] for a in items)),
                 "undetermined_species_call_identity_ge99": sum(
                     a["verdict"] == "undetermined" and a["hit"]["reported_rank"] == "species"
                     and (a["hit"]["identity"] or 0) >= 99 for a in items)}
@@ -1068,7 +1077,9 @@ def cmd_report(args: argparse.Namespace) -> None:
                           "and INSDC copies of one specimen carry different accessions, so this cannot be "
                           "excluded); no_identity_below_99."),
         "leaky": "exact row or source record in a ref.fasta, or any planned-route hit >= 99% from the same source "
-                 "record (shared accession), or a GRCh38 window row (the GRCh38 BLAST index is the whole genome, "
+                 "record (shared accession; SILVA accessions are compared without their start.end coordinates, "
+                 "so another rRNA operon copy of the same genome assembly counts as the same record), or a GRCh38 "
+                 "window row (the GRCh38 BLAST index is the whole genome, "
                  "held-out windows included)",
         "human_genome_hit": "the human route's GRCh38 BLAST screen hit the row (payload.human_genome.hit); it "
                             "flags contamination but sets no taxon",

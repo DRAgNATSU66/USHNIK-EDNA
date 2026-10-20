@@ -248,3 +248,16 @@ def test_classify_relabel_agreement_rank_and_finer_call():
     c = et.relabel_counts([a])["all"]
     assert c["label_noise_by_agreement_rank"] == {"genus": 1} and c["label_noise_reported_finer_than_agreement"] == 1
     assert c["verdict_by_reported_rank"]["label_noise"] == {"species": 1}
+
+
+def test_audit_reports_verdict_without_silva_path():
+    hit = {"family": "Oscillospiraceae", "genus": "Faecalibacterium", "species": "Faecalibacterium prausnitzii"}
+    row = _row("bacteria_pathogen:test:2", true_route="bacteria_pathogen", final_route="bacteria_pathogen",
+               label="possible_novelty", taxon="Faecalibacterium prausnitzii", rank="species", lineage=hit,
+               rule="novelty_suppressed_by_reference")
+    truth = {row["id"]: {"copies": [{"organism": "uncultured bacterium", "src": "silva", "lineage": {},
+                                     "path_lineage": {"family": "Ruminococcaceae", "genus": "Faecalibacterium"},
+                                     "usable_name": False}], "accessions": [], "n_copies": 1}}
+    a = et.audit_relabels([row], truth, None)[0]
+    assert a["verdict"] == "label_noise" and a["verdict_without_silva_path"] == "undetermined"
+    assert et.relabel_counts([a])["all"]["verdict_without_silva_path"] == {"undetermined": 1}
