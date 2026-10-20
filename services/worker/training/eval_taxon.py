@@ -212,63 +212,91 @@ def name_category(name: str | None) -> str:
 
 
 def names_in(copies: list[dict]) -> dict[str, set[str]]:
-    """Genus and species names a set of source copies carried, from the
-    organism name words and from every lineage (NCBI-unified and SILVA
-    path). 'uncultured Bacteroides sp.' carries genus 'bacteroides'."""
+    """Genus keys (genus_key) and species names (lower case) that a set of
+    source copies carried: from each copy's lineage (NCBI-unified, after
+    _drop_vague_species), its SILVA path, and the first capitalised word of
+    its organism name (plus the next word when it is a lower-case epithet).
+    'uncultured Bacteroides sp.' carries genus 'bacteroides', no species."""
     genera: set[str] = set()
     species: set[str] = set()
-    stop = {"uncultured", "unidentified", "unclassified", "environmental", "sample", "bacterium", "organism",
-            "eukaryote", "fungus", "metazoan", "marine", "soil", "candidatus", "sp", "sp.", "cf.", "aff.",
-            "metagenome", "prokaryote", "archaeon", "clone"}
     for c in copies:
         for lin in (c.get("lineage") or {}, c.get("path_lineage") or {}):
             nl = norm_lineage(lin)
-            if nl.get("genus"):
-                genera.add(nl["genus"])
-            if nl.get("species") and not _UNRESOLVED.search(nl["species"]) and " sp." not in nl["species"] + ".":
-                species.add(nl["species"])
+            if (g := genus_key(nl.get("genus"))):
+                genera.add(g)
+            sp = nl.get("species")
+            if sp and not _UNRESOLVED.search(sp) and not re.search(r"\bsp\.?(\s|$)|\bcf\.\s", sp):
+                species.add(sp)
         words = [w for w in re.split(r"[\s_]+", (c.get("organism") or "").strip()) if w]
-        words_l = [w.lower() for w in words]
-        cands = [w for w, wl in zip(words, words_l) if wl not in stop and w[:1].isupper() and w.isalpha()]
-        if cands:
-            genera.add(cands[0].lower())
-            i = words.index(cands[0])
-            if i + 1 < len(words) and words[i + 1].islower() and words[i + 1].isalpha() and \
-                    words[i + 1] not in ("sp", "bacterium", "environmental"):
-                species.add(f"{cands[0]} {words[i + 1]}".lower())
+        for i, w in enumerate(words):
+            if w.lower() in _NAME_STOP or not (w[:1].isupper() and w.isalpha()):
+                continue
+            if (g := genus_key(w)):
+                genera.add(g)
+                nxt = words[i + 1] if i + 1 < len(words) else ""
+                if nxt.isalpha() and nxt.islower() and nxt not in ("sp", "bacterium", "environmental", "cf", "aff"):
+                    species.add(f"{w} {nxt}".lower())
+            break
     return {"genus": genera, "species": species}
 
 
+_NAME_STOP = {"uncultured", "unidentified", "unclassified", "environmental", "sample", "bacterium", "organism",
+              "eukaryote", "fungus", "metazoan", "marine", "soil", "candidatus", "metagenome", "prokaryote",
+              "archaeon", "clone", "vector/adapter:", "unknown"}
+
+
+def genus_key(name: str | None) -> str | None:
+    """Comparable genus: lower-case first word, 'Candidatus' dropped, so
+    SILVA's 'Clostridium sensu stricto 1' and NCBI's 'Clostridium' agree.
+    None for placeholders ('uncultured', 'unidentified', ...)."""
+    if not name:
+        return None
+    words = [w for w in name.lower().replace("_", " ").split() if w != "candidatus"]
+    if not words or _UNRESOLVED.search(words[0]) or words[0] in ("incertae", "unknown", "environmental"):
+        return None
+    return words[0].strip("[]'\"")
+
+
 def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str], name_cats: set[str],
-                     same_specimen: str) -> tuple[str, str]:
+                     same_specimen: str, named_copy_names: dict[str, set[str]] | None = None) -> tuple[str, str]:
     """(verdict, reason) for one possible_novelty row the orchestrator
-    relabelled. verdict:
-      label_noise        the source record itself names the taxon the hit
-                         names (same species, or same genus for a genus-or-
-                         coarser call), or the hit is the same specimen in
-                         another database: the sequence is known, only its
-                         submitter's name was 'uncultured/environmental'
-      real_disagreement  the source names a genus and the hit names a
-                         different genus: the reference and the record
-                         disagree about what the organism is
-      undetermined       the source carries no genus/species name to
-                         compare (e.g. 'uncultured bacterium'), and no
-                         same-specimen evidence
-    """
+    relabelled known_species / likely_taxonomic_group.
+
+      label_noise        the hit is the same source record in another
+                         database (shared accession); or the source records
+                         name the hit's species; or they name the hit's
+                         genus and no conflicting species: the sequence
+                         belongs to a taxon its own record names, and only
+                         the 'uncultured / environmental' wording made the
+                         label
+      real_disagreement  the source records name a different genus, or the
+                         same genus but a different species
+      undetermined       the source carries no genus or species to compare
+                         ('uncultured bacterium'), or the hit resolves only
+                         above genus, and no shared accession
+    row_names: names_in(all copies); named_copy_names: names_in(copies with
+    a usable organism name), only used to word the reason."""
     hl = norm_lineage(hit_lineage)
+    hs, hg = hl.get("species"), genus_key(hl.get("genus"))
+
+    def via(key: str, value: str) -> str:
+        if named_copy_names and value in named_copy_names.get(key, set()):
+            return "a named copy of the identical sequence"
+        return "the source record"
+
     if same_specimen == "same_accession":
         return "label_noise", "hit is the same source record (shared accession) in another database"
-    hs, hg = hl.get("species"), hl.get("genus")
     if hs and hs in row_names["species"]:
-        return "label_noise", "source record names the hit's species"
+        return "label_noise", f"{via('species', hs)} names the hit's species"
     if hg and hg in row_names["genus"]:
-        return "label_noise", "source record names the hit's genus"
+        if hs and any(genus_key(s) == hg for s in row_names["species"]):
+            return "real_disagreement", "same genus, but the source names a different species"
+        return "label_noise", f"{via('genus', hg)} names the hit's genus"
     if row_names["genus"] and hg:
-        return "real_disagreement", "source record names a different genus"
-    if row_names["genus"] and not hg:
-        # the hit only resolves above genus: compare the family if the row has one
-        return "undetermined", "hit resolves above genus; source names a genus"
-    return "undetermined", f"source carries no genus name ({', '.join(sorted(name_cats)) or 'none'})"
+        return "real_disagreement", "the source names a different genus"
+    if row_names["genus"]:
+        return "undetermined", "the hit resolves only above genus"
+    return "undetermined", f"the source carries no genus or species name ({', '.join(sorted(name_cats)) or 'none'})"
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +410,644 @@ def cmd_run(args: argparse.Namespace) -> None:
     print("run complete", flush=True)
 
 
+# ---------------------------------------------------------------------------
+# trace: every source copy of every row
+# ---------------------------------------------------------------------------
+
+# build_dataset read these BLAST DBs only up to its max_scan (300,000; the
+# 300,001st record stops it). They are not in the reference plan: their
+# records are mostly "uncultured"/"environmental" and name nothing.
+DATASET_ONLY_BLASTDB = {"env_nt": 300_001, "nt_others": 300_001}
+DATASET_EXCLUDED_BLASTDB = {"nt_viruses", "ref_prok_rep_genomes", "taxdb"}   # build_report args
+
+
+@contextlib.contextmanager
+def _usable_name_lifted():
+    """build_reference_db's iterators drop records without a usable organism
+    name before yielding them; the possible_novelty rows came from exactly
+    those records. Lift that filter for the duration of the trace only."""
+    from training import build_reference_db as brd
+    orig = brd._usable_name
+    brd._usable_name = lambda name: bool(name and name.strip())
+    try:
+        yield orig
+    finally:
+        brd._usable_name = orig
+
+
+def _iter_blastdb_all(blastdbcmd: Path, db_path: Path, taxonomy, marker: str, limit: int | None):
+    """Like build_reference_db.iter_blastdb_ref without the name and length
+    filters (sources.iter_blastdb has neither), with accessions."""
+    from training import build_reference_db as brd
+    from training import sources
+
+    proc = subprocess.Popen([str(blastdbcmd), "-db", str(db_path), "-entry", "all", "-outfmt", "%a|%T|%s"],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                            encoding="utf-8", errors="replace", bufsize=1 << 20)
+    n = 0
+    try:
+        for line in proc.stdout:
+            acc, taxid_s, raw_seq = (line.rstrip("\n").split("|", 2) + ["", ""])[:3]
+            if not taxid_s.isdigit():
+                continue
+            seq = sources._clean_sequence(raw_seq)
+            if not seq:
+                continue
+            n += 1
+            if limit and n > limit:
+                break
+            taxid = int(taxid_s)
+            yield brd.RefRecord(seq, dict(taxonomy.lineage(taxid)), taxid, acc, db_path.name, marker,
+                                taxonomy.scientific_name(taxid) or "")
+    finally:
+        proc.stdout.close()
+        proc.kill()
+        proc.wait()
+
+
+def _iter_grch38_windows(path: Path):
+    from training import build_reference_db as brd
+    from training import sources
+    for i, rec in enumerate(sources.iter_grch38(path)):
+        yield brd.RefRecord(rec.sequence, {"superkingdom": "Eukaryota", "kingdom": "Metazoa", "genus": "Homo",
+                                           "species": "Homo sapiens"}, 9606, f"GRCh38_window_{i}", "grch38",
+                            "genome", "Homo sapiens", forced_route="human_domestic_contamination")
+
+
+def full_source_plan(root: Path, taxonomy, names, blastdbcmd: Path | None) -> list[tuple[str, callable]]:
+    """Every source build_dataset read, as RefRecords with accessions. Call
+    inside _usable_name_lifted()."""
+    from training import build_reference_db as brd
+
+    raw = root / "raw"
+    plan: list = []
+    for key, make_iter, _files in brd._source_plan(raw, taxonomy, names, None, {"midori2", "silva", "unite", "bold"}):
+        plan.append((key, make_iter))
+    supp = raw / "supplementary"
+    if supp.exists():
+        pairs = [(m, m.with_name(m.name[: -len(".manifest.csv")] + ".fasta"))
+                 for m in sorted(supp.glob("*/*.manifest.csv"))]
+        pairs = [(m, f) for m, f in pairs if f.exists()]
+        plan.append(("supplementary", lambda q=pairs: brd.iter_supplementary_ref(supp, taxonomy, q)))
+    for name in ("UniVec", "UniVec_Core"):
+        f = raw / "univec" / name
+        if f.exists():
+            plan.append((f"univec:{name}", lambda f=f: brd.iter_univec_ref(f)))
+    grch = raw / "grch38" / "GRCh38_no_alt_analysis_set.fna.gz"
+    if grch.exists():
+        plan.append(("grch38_windows", lambda: _iter_grch38_windows(grch)))
+    extracted = raw / "ncbi_blastdb" / "extracted"
+    markers = dict(brd.BLAST_SOURCES)
+    if blastdbcmd is not None and extracted.exists():
+        for d in sorted(extracted.iterdir()):
+            if d.name in DATASET_EXCLUDED_BLASTDB or not d.is_dir():
+                continue
+            if not (any(d.glob("*.nin")) or any(d.glob("*.nal")) or any(d.glob("*.??.nin"))):
+                continue
+            plan.append((f"ncbi_blastdb:{d.name}",
+                         lambda d=d: _iter_blastdb_all(blastdbcmd, d / d.name, taxonomy, markers.get(d.name, "nt"),
+                                                       DATASET_ONLY_BLASTDB.get(d.name))))
+    return plan
+
+
+def _silva_paths(raw: Path, want: dict[bytes, list[str]]) -> dict[str, list[dict]]:
+    """SILVA's own path for every matched record (the NCBI-unified lineage
+    of 'uncultured bacterium' is just Bacteria; the path keeps the genus)."""
+    from training import build_reference_db as brd
+    from training import sources
+
+    out: dict[str, list[dict]] = defaultdict(list)
+    for p in sorted((raw / "silva").glob("*.fasta.gz")):
+        with gzip.open(p, "rt", encoding="utf-8", errors="replace") as fh:
+            for header, raw_seq in sources._iter_fasta(fh):
+                seq = sources._clean_sequence(raw_seq)
+                if not seq:
+                    continue
+                digs = [brd._digest(seq)]
+                if len(seq) > brd.CHUNK_SOURCE_LEN:
+                    digs += [brd._digest(c) for c in brd.build_dataset_chunks(seq)]
+                hits = [rid for d in digs for rid in want.get(d, ())]
+                if not hits:
+                    continue
+                acc, _, path = header.partition(" ")
+                tokens = path.split(";")
+                pl: dict[str, str] = {}
+                if tokens and tokens[0] in ("Bacteria", "Archaea") and len(tokens) == 7:
+                    pl = dict(zip(("superkingdom", "phylum", "class", "order", "family", "genus"), tokens[:6]))
+                for rid in hits:
+                    out[rid].append({"acc": acc, "path": path, "path_lineage": pl, "organism": tokens[-1] if tokens else "",
+                                     "src": "silva", "marker": "LSU" if "LSU" in p.name else "SSU",
+                                     "seq_digest": brd._digest(seq).hex()})
+    return out
+
+
+MAX_COPIES_KEPT = 40
+
+
+def trace_all_copies(root: Path, rows: list[dict]) -> dict[str, dict]:
+    from training import build_reference_db as brd
+    from training.taxonomy import TaxonomyResolver
+
+    want: dict[bytes, list[str]] = defaultdict(list)
+    for r in rows:
+        want[brd._digest(r["sequence"])].append(r["id"])
+    taxonomy = TaxonomyResolver(root / "tools" / "taxdump")
+    names = brd.NameResolver(taxonomy)
+    blastdbcmd = brd.find_tool("blastdbcmd", root)
+    found: dict[str, dict] = {}
+    t0 = time.time()
+    with _usable_name_lifted() as usable:
+        for key, make_iter in full_source_plan(root, taxonomy, names, blastdbcmd):
+            n = 0
+            for rec in make_iter():
+                n += 1
+                digs = [brd._digest(rec.sequence)]
+                if len(rec.sequence) > brd.CHUNK_SOURCE_LEN:
+                    digs += [brd._digest(c) for c in brd.build_dataset_chunks(rec.sequence)]
+                hits = [rid for d in digs for rid in want.get(d, ())]
+                if not hits:
+                    continue
+                copy = {"src": rec.src, "marker": rec.marker, "acc": rec.acc, "organism": rec.organism,
+                        "usable_name": bool(usable(rec.organism)) or rec.forced_route is not None,
+                        "lineage": brd._drop_vague_species(rec.lineage), "taxid": rec.taxid,
+                        "chunked": len(rec.sequence) > brd.CHUNK_SOURCE_LEN, "seq_digest": digs[0].hex()}
+                for rid in hits:
+                    cur = found.setdefault(rid, {"copies": [], "n_copies": 0, "accessions": set()})
+                    cur["n_copies"] += 1
+                    if (b := acc_base(rec.acc)):
+                        cur["accessions"].add(b)
+                    if len(cur["copies"]) < MAX_COPIES_KEPT:
+                        cur["copies"].append(copy)
+            print(f"  {key}: {n:,} records, traced so far {len(found):,} ({time.time() - t0:.0f}s)", flush=True)
+    for rid, extra in _silva_paths(root / "raw", want).items():
+        cur = found.setdefault(rid, {"copies": [], "n_copies": 0, "accessions": set()})
+        for e in extra:
+            if (b := acc_base(e["acc"])):
+                cur["accessions"].add(b)
+            match = next((c for c in cur["copies"] if c["src"] == "silva" and c["acc"] == e["acc"]), None)
+            if match is not None:
+                match["path"], match["path_lineage"] = e["path"], e["path_lineage"]
+            elif len(cur["copies"]) < MAX_COPIES_KEPT:   # organelle rRNA brd could not place
+                cur["n_copies"] += 1
+                cur["copies"].append({**e, "usable_name": bool(usable(e["organism"])), "lineage": {},
+                                      "taxid": None, "chunked": False})
+    print(f"  silva paths done ({time.time() - t0:.0f}s)", flush=True)
+    for v in found.values():
+        v["accessions"] = sorted(v["accessions"])
+        named = [norm_lineage(c["lineage"]) for c in v["copies"] if c["usable_name"] and c["lineage"]]
+        anyl = [norm_lineage(c["lineage"]) for c in v["copies"] if c["lineage"]]
+        v["lca_named"] = lca(named) if named else None
+        v["lca_any"] = lca(anyl) if anyl else None
+    return found
+
+
+def cmd_trace(args: argparse.Namespace) -> None:
+    from training import eval_reference_lookup as erl
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    root = _data_root()
+    rows = _split_rows(args.split)
+    t0 = time.time()
+    print("== (a) eval_reference_lookup.trace_ground_truth (QNA-020 ground truth, unchanged)", flush=True)
+    samples: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        samples[r["true_route"]].append({"id": r["id"], "sequence": r["sequence"]})
+    named = erl.trace_ground_truth(root, dict(samples))
+    ta = time.time() - t0
+    print(f"== (b) every source copy, names kept ({ta:.0f}s so far)", flush=True)
+    copies = trace_all_copies(root, rows)
+    truth = {}
+    for r in rows:
+        a = named.get(r["id"])
+        b = copies.get(r["id"])
+        truth[r["id"]] = {
+            "reference_truth": {"lineage": a["lineage"], "sources": a["sources"], "accessions": a["accessions"],
+                                "copies": a["copies"]} if a else None,
+            **(b or {"copies": [], "n_copies": 0, "accessions": [], "lca_named": None, "lca_any": None}),
+        }
+    meta = {"split": args.split, "rows": len(rows), "traced_reference_view": len(named),
+            "traced_any_copy": len(copies), "seconds_reference_view": round(ta, 1),
+            "seconds_total": round(time.time() - t0, 1)}
+    (out / f"truth_{args.split}.json").write_text(json.dumps({"meta": meta, "rows": truth}, default=str))
+    print(json.dumps(meta), flush=True)
+
+
+# ---------------------------------------------------------------------------
+# leak: reference v2 vs the evaluated rows
+# ---------------------------------------------------------------------------
+
+def _ref_dir(root: Path) -> tuple[Path, str]:
+    ref = root / "reference"
+    version = (ref / "CURRENT").read_text().strip() if (ref / "CURRENT").exists() else "v2"
+    return ref / version, version
+
+
+def _read_ref_digests(ref_dir: Path, want_ids: set[str]) -> tuple[set[bytes], dict[str, bytes], dict[str, int]]:
+    """Digest of every ref.fasta sequence (all routes), and id -> digest for
+    want_ids (the hit target ids)."""
+    from training import build_reference_db as brd
+    from training import sources
+
+    all_d: set[bytes] = set()
+    by_id: dict[str, bytes] = {}
+    counts: dict[str, int] = {}
+    for route in ROUTES:
+        f = ref_dir / route / "ref.fasta"
+        if not f.exists():
+            continue
+        n = 0
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            for header, seq in sources._iter_fasta(fh):
+                d = brd._digest(seq.strip().upper())
+                all_d.add(d)
+                sid = header.split(";", 1)[0]
+                if sid in want_ids:
+                    by_id[sid] = d
+                n += 1
+        counts[route] = n
+    return all_d, by_id, counts
+
+
+def same_record_hits(hits: list[dict], row_accs: set[str], ref_accs: dict[str, set[str]],
+                     min_identity: float = NEAR_DUP_IDENTITY) -> list[dict]:
+    """Hits at >= min_identity whose reference record came (in any of its
+    merged copies) from a source record sharing an accession with the row's
+    own source records."""
+    out = []
+    for h in hits or []:
+        if (h.get("identity") or 0) < min_identity:
+            continue
+        accs = set(ref_accs.get(h.get("target_id") or "", set()))
+        if (b := acc_base(h.get("accession"))):
+            accs.add(b)
+        shared = accs & row_accs
+        if shared:
+            out.append({"target_id": h.get("target_id"), "accession": h.get("accession"),
+                        "identity": h.get("identity"), "shared_accessions": sorted(shared)})
+    return out
+
+
+def cmd_leak(args: argparse.Namespace) -> None:
+    from training import build_reference_db as brd
+    from training.taxonomy import TaxonomyResolver
+
+    out = Path(args.out)
+    root = _data_root()
+    rows = [r for r in _load_jsonl(out / f"rows_{args.split}.jsonl") if not r.get("dropped_by_parser")]
+    truth = json.loads((out / f"truth_{args.split}.json").read_text())["rows"]
+    seqs = {r["id"]: r["sequence"] for r in _split_rows(args.split)}
+    hit_ids = {h["target_id"] for r in rows for hs in (r.get("ref_hits") or {}).values() for h in (hs or [])
+               if h.get("target_id")}
+    ref_dir, version = _ref_dir(root)
+    t0 = time.time()
+    ref_all, id_digest, ref_counts = _read_ref_digests(ref_dir, hit_ids)
+    print(f"reference {version}: {sum(ref_counts.values()):,} sequences, {len(id_digest):,}/{len(hit_ids):,} hit ids "
+          f"resolved ({time.time() - t0:.0f}s)", flush=True)
+    # accessions behind every hit's reference record (all merged copies)
+    digest_ids: dict[bytes, list[str]] = defaultdict(list)
+    for sid, d in id_digest.items():
+        digest_ids[d].append(sid)
+    row_accs_all = {a for t in truth.values() for a in t.get("accessions") or []}
+    ref_accs: dict[str, set[str]] = defaultdict(set)
+    acc_in_ref: dict[str, set[str]] = defaultdict(set)   # row accession -> ref digests (hex) from that accession
+    taxonomy = TaxonomyResolver(root / "tools" / "taxdump")
+    names = brd.NameResolver(taxonomy)
+    blastdbcmd = brd.find_tool("blastdbcmd", root)
+    with _usable_name_lifted():
+        for key, make_iter in full_source_plan(root, taxonomy, names, blastdbcmd):
+            n = 0
+            for rec in make_iter():
+                n += 1
+                b = acc_base(rec.acc)
+                d = brd._digest(rec.sequence)
+                if d in digest_ids and b:
+                    for sid in digest_ids[d]:
+                        ref_accs[sid].add(b)
+                if b in row_accs_all and d in ref_all:
+                    acc_in_ref[b].add(d.hex())
+            print(f"  {key}: {n:,} records ({time.time() - t0:.0f}s)", flush=True)
+    per_row = {}
+    for r in rows:
+        t = truth.get(r["id"]) or {}
+        accs = set(t.get("accessions") or [])
+        seq = seqs.get(r["id"], "")
+        exact_row = brd._digest(seq) in ref_all
+        exact_source = any(bytes.fromhex(c["seq_digest"]) in ref_all for c in t.get("copies") or []
+                           if c.get("seq_digest"))
+        all_hits = [h for hs in (r.get("ref_hits") or {}).values() for h in (hs or [])]
+        final = (r.get("decision") or {}).get("final_route")
+        same = same_record_hits(all_hits, accs, ref_accs)
+        same_final = same_record_hits((r.get("ref_hits") or {}).get(final) or [], accs, ref_accs)
+        per_row[r["id"]] = {
+            "exact_row_in_ref": exact_row, "exact_source_record_in_ref": exact_source,
+            "same_accession_sequence_in_ref": sorted(a for a in accs if acc_in_ref.get(a)),
+            "same_record_hits_ge99": same, "same_record_hits_ge99_final_route": same_final,
+            "leaky": bool(exact_row or exact_source or same),
+        }
+    summary = {
+        "reference_version": version, "reference_sequences": ref_counts, "rows": len(per_row),
+        "rows_with_accessions": sum(1 for r in rows if (truth.get(r["id"]) or {}).get("accessions")),
+        "exact_row_in_ref": sum(v["exact_row_in_ref"] for v in per_row.values()),
+        "exact_source_record_in_ref": sum(v["exact_source_record_in_ref"] for v in per_row.values()),
+        "same_accession_sequence_in_ref_any_identity": sum(bool(v["same_accession_sequence_in_ref"]) for v in per_row.values()),
+        "same_record_hit_ge99_any_planned_route": sum(bool(v["same_record_hits_ge99"]) for v in per_row.values()),
+        "same_record_hit_ge99_final_route": sum(bool(v["same_record_hits_ge99_final_route"]) for v in per_row.values()),
+        "leaky": sum(v["leaky"] for v in per_row.values()),
+        "seconds": round(time.time() - t0, 1),
+    }
+    (out / f"leak_{args.split}.json").write_text(json.dumps({"summary": summary, "rows": per_row}))
+    print(json.dumps(summary, indent=1), flush=True)
+
+
+# ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+KNOWN_CLASS = {r: "known_species" for r in ROUTES} | {"misc_unknown": "unknown_needs_online_confirmation"}
+
+
+def grading_truth(t: dict | None) -> tuple[dict[str, str] | None, str]:
+    """(normalised truth lineage, basis). The QNA-020 tracer's lineage
+    (eval_reference_lookup.trace_ground_truth: named reference-builder
+    records, LCA over copies) wins; a row it could not trace falls back to
+    the LCA over named copies from the dataset-only sources, then over all
+    copies (names like 'uncultured Salmo sp.' keep their genus)."""
+    if not t:
+        return None, "untraced"
+    if t.get("reference_truth"):
+        return norm_lineage(t["reference_truth"]["lineage"]), "reference_named"
+    if t.get("lca_named"):
+        return dict(t["lca_named"]), "named_copy_outside_reference_plan"
+    if t.get("lca_any"):
+        return dict(t["lca_any"]), "unresolved_name_only"
+    return None, "untraced"
+
+
+def _ref_payload(row: dict, route: str | None) -> dict | None:
+    for e in (row.get("decision_trace") or {}).get("evidence") or []:
+        if e.get("provider") == "reference_lookup" and e.get("route") == route and e.get("status") == "ok":
+            return e.get("payload") or {}
+    return None
+
+
+def _ref_pred(payload: dict | None, cap: bool) -> dict[str, str]:
+    if not payload or payload.get("status") != "assigned":
+        return {}
+    lin = norm_lineage(payload.get("lineage"))
+    # combiner.combine caps on ORCHESTRATOR_GENUS_CAP_ROUTES or a Viridiplantae lineage
+    if (cap or lin.get("kingdom") == "viridiplantae") and "species" in lin:
+        lin.pop("species")
+    return lin
+
+
+def summarise_taxon(rows: list[dict], truth: dict, leak: dict | None, genus_cap_routes: set[str]) -> dict:
+    n = len(rows)
+    rank_share = Counter((r.get("decision") or {}).get("taxon_rank") or "none" for r in rows)
+    graded = []
+    for r in rows:
+        tl, basis = grading_truth(truth.get(r["id"]))
+        eff, unc = predicted_lineage(r)
+        graded.append((r, tl, basis, eff, unc))
+    traced = [g for g in graded if g[1] is not None]
+    basis = Counter(g[2] for g in graded)
+
+    def metrics(sub):
+        return rank_metrics([(eff, tl) for _, tl, _, eff, _ in sub])
+
+    known = [g for g in traced if g[0]["label"] == KNOWN_CLASS[g[0]["true_route"]]]
+    novelty = [g for g in traced if g[0]["label"] == "possible_novelty"]
+    named_basis = [g for g in traced if g[2] == "reference_named"]
+    # genus cap: the same rows, species read from the uncapped assignment
+    capped = [g for g in traced if genus_capped(g[0])]
+    cap_species_truth = [g for g in capped if "species" in g[1]]
+    cap_effect = {
+        "rows_capped": sum(genus_capped(r) for r in rows),
+        "rows_capped_traced": len(capped),
+        "capped_with_species_truth": len(cap_species_truth),
+        "dropped_species_correct": sum(g[4].get("species") == g[1]["species"] for g in cap_species_truth),
+        "species_with_cap": rank_metrics([(eff, tl) for _, tl, _, eff, _ in traced], ("species",))["species"],
+        "species_without_cap": rank_metrics([(unc, tl) for _, tl, _, _, unc in traced], ("species",))["species"],
+    }
+    d = cap_effect
+    d["dropped_species_precision_pct"] = _pct(d["dropped_species_correct"], d["capped_with_species_truth"])
+    # errors: wrong final route vs wrong taxon in the right route
+    errors = {}
+    for rank in EVAL_RANKS:
+        e = Counter()
+        for r, tl, _, eff, _ in traced:
+            if rank not in tl:
+                continue
+            right_route = (r.get("decision") or {}).get("final_route") == r["true_route"]
+            where = "right_route" if right_route else "wrong_route"
+            if rank in eff:
+                if eff[rank] != tl[rank]:
+                    e[f"wrong_call_{where}"] += 1
+                    if not right_route:
+                        planned = (r.get("decision_trace") or {}).get("plan", {}).get("routes") or []
+                        if r["true_route"] in planned:
+                            alt = _ref_pred(_ref_payload(r, r["true_route"]),
+                                            r["true_route"] in genus_cap_routes)
+                            e["wrong_route_true_route_planned"] += 1
+                            e["wrong_route_true_route_reference_correct"] += alt.get(rank) == tl[rank]
+            else:
+                e[f"no_call_{where}"] += 1
+                if not right_route and (r.get("decision") or {}).get("final_route") == "low_quality":
+                    e["no_call_low_quality_gate"] += 1
+        errors[rank] = dict(e)
+    out = {
+        "n": n,
+        "labels": dict(Counter(r["label"] for r in rows)),
+        "final_route_correct": sum((r.get("decision") or {}).get("final_route") == r["true_route"] for r in rows),
+        "truth_basis": dict(basis),
+        "assigned_share_by_rank_pct": {k: _pct(v, n) for k, v in sorted(rank_share.items(),
+                                                                         key=lambda kv: (RANK_ORDER + ("none",)).index(kv[0])
+                                                                         if kv[0] in RANK_ORDER + ("none",) else 99)},
+        "assigned_by_rank": dict(rank_share),
+        "rank_metrics_all_traced": metrics(traced),
+        "rank_metrics_known_class": metrics(known),
+        "rank_metrics_possible_novelty": metrics(novelty),
+        "rank_metrics_reference_named_truth_only": metrics(named_basis),
+        "genus_cap": cap_effect,
+        "errors_by_rank": errors,
+    }
+    if leak:
+        clean = [g for g in traced if not (leak.get(g[0]["id"]) or {}).get("leaky")]
+        out["leaky_rows"] = sum(1 for r in rows if (leak.get(r["id"]) or {}).get("leaky"))
+        out["rank_metrics_all_traced_leaky_excluded"] = metrics(clean)
+        out["rank_metrics_known_class_leaky_excluded"] = metrics(
+            [g for g in clean if g[0]["label"] == KNOWN_CLASS[g[0]["true_route"]]])
+    return out
+
+
+def audit_relabels(rows: list[dict], truth: dict, leak: dict | None) -> list[dict]:
+    """Every possible_novelty row whose final class is known_species or
+    likely_taxonomic_group: what its source said, what the hit said, and a
+    classify_relabel verdict."""
+    out = []
+    for r in rows:
+        d = r.get("decision") or {}
+        if r["label"] != "possible_novelty" or d.get("result_class") not in RELABELLED_CLASSES:
+            continue
+        t = truth.get(r["id"]) or {}
+        copies = t.get("copies") or []
+        payload = _ref_payload(r, d.get("final_route")) or {}
+        full_hits = (r.get("ref_hits") or {}).get(d.get("final_route")) or []
+        top = full_hits[0] if full_hits else ((payload.get("hits") or [{}])[0])
+        lk = (leak or {}).get(r["id"]) or {}
+        ident = payload.get("identity") or 0
+        if lk.get("same_record_hits_ge99_final_route"):
+            same = "same_accession"
+        elif ident >= NEAR_DUP_IDENTITY:
+            same = "possible_not_confirmable"
+        else:
+            same = "no_identity_below_99"
+        cats = {name_category(c.get("organism")) for c in copies}
+        if not copies:
+            verdict, reason = "undetermined", "row not traced to a source record"
+        else:
+            verdict, reason = classify_relabel(names_in(copies), payload.get("lineage") or {}, cats, same,
+                                               names_in([c for c in copies if c.get("usable_name")]))
+        out.append({
+            "id": r["id"], "true_route": r["true_route"], "final_route": d.get("final_route"),
+            "result_class": d.get("result_class"), "rule": d.get("rule"),
+            "source": {"names": sorted({c.get("organism") or "" for c in copies})[:8],
+                       "name_categories": sorted(cats), "named_copy": any(c.get("usable_name") for c in copies),
+                       "sources": sorted({c.get("src") or "" for c in copies}),
+                       "accessions": (t.get("accessions") or [])[:8], "n_copies": t.get("n_copies", 0),
+                       "silva_paths": sorted({c["path"] for c in copies if c.get("path")})[:3]},
+            "hit": {"taxon": payload.get("taxon"), "rank": payload.get("rank"), "identity": payload.get("identity"),
+                    "query_coverage": payload.get("query_coverage"), "lineage": payload.get("lineage"),
+                    "reported_taxon": d.get("predicted_taxon"), "reported_rank": d.get("taxon_rank"),
+                    "top_accession": top.get("accession"), "top_source_db": top.get("source"),
+                    "top_marker": top.get("marker"), "reference_db": payload.get("reference_db")},
+            "same_specimen": same, "same_record_hits": lk.get("same_record_hits_ge99_final_route") or [],
+            "verdict": verdict, "reason": reason,
+        })
+    return out
+
+
+def relabel_counts(audit: list[dict]) -> dict:
+    def block(items):
+        return {"n": len(items), "verdict": dict(Counter(a["verdict"] for a in items)),
+                "reason": dict(Counter(a["reason"] for a in items).most_common()),
+                "same_specimen": dict(Counter(a["same_specimen"] for a in items)),
+                "source_name_categories": dict(Counter(c for a in items for c in a["source"]["name_categories"])),
+                "named_copy_exists": sum(a["source"]["named_copy"] for a in items),
+                "hit_identity_ge99": sum((a["hit"]["identity"] or 0) >= 99 for a in items)}
+    return {"all": block(audit),
+            "by_result_class": {c: block([a for a in audit if a["result_class"] == c]) for c in RELABELLED_CLASSES},
+            "by_rule": {k: block([a for a in audit if a["rule"] == k]) for k in sorted({a["rule"] for a in audit})},
+            "by_true_route": {k: block([a for a in audit if a["true_route"] == k]) for k in ROUTES
+                              if any(a["true_route"] == k for a in audit)}}
+
+
+def cmd_report(args: argparse.Namespace) -> None:
+    from app.config import get_worker_settings
+
+    out = Path(args.out)
+    settings = get_worker_settings()
+    cap_routes = set(settings.orchestrator_genus_cap_routes or [])
+    report: dict = {"task": "t-1023-3", "date": time.strftime("%Y-%m-%d"),
+                    "script": "services/worker/training/eval_taxon.py", "splits": {}}
+    for split in args.splits.split(","):
+        all_rows = _load_jsonl(out / f"rows_{split}.jsonl")
+        if not all_rows:
+            continue
+        dropped = [r for r in all_rows if r.get("dropped_by_parser")]
+        rows = [r for r in all_rows if not r.get("dropped_by_parser")]
+        tpath, lpath = out / f"truth_{split}.json", out / f"leak_{split}.json"
+        truth_doc = json.loads(tpath.read_text()) if tpath.exists() else {"meta": None, "rows": {}}
+        truth = truth_doc["rows"]
+        leak_doc = json.loads(lpath.read_text()) if lpath.exists() else None
+        leak = leak_doc["rows"] if leak_doc else None
+        run_meta = json.loads((out / f"run_{split}.json").read_text())
+        chunks = run_meta["chunks"]
+        # (a) vs (b) agreement on rows both traced with a named lineage
+        agree = disagree = 0
+        for t in truth.values():
+            if t.get("reference_truth") and t.get("lca_named"):
+                a = norm_lineage(t["reference_truth"]["lineage"])
+                if a == t["lca_named"]:
+                    agree += 1
+                else:
+                    disagree += 1
+        audit = audit_relabels(rows, truth, leak)
+        per_route = {route: summarise_taxon([r for r in rows if r["true_route"] == route], truth, leak, cap_routes)
+                     for route in ROUTES}
+        orch_s = sum(c["orchestrator_seconds"] for c in chunks)
+        report["splits"][split] = {
+            "orchestrator_version": run_meta["orchestrator_version"],
+            "reference_db_version": next((p.get("reference_db_version") for r in rows
+                                          if (p := _ref_payload(r, (r.get("decision") or {}).get("final_route")))),
+                                         None),
+            "rows": {"input": run_meta["input_rows"], "evaluated": len(rows), "dropped_by_parser": len(dropped),
+                     "seed": run_meta["seed"], "chunk": run_meta["chunk"]},
+            "timing": {"orchestrator_seconds": round(orch_s, 1),
+                       "orchestrator_ms_per_sequence": round(1000 * orch_s / max(1, len(rows)), 1),
+                       "reference_search_seconds_by_route": {
+                           rt: round(sum(b.get("elapsed_seconds") or 0 for c in chunks for b in c["reference_batches"]
+                                         if b["route"] == rt), 1) for rt in ROUTES},
+                       "peak_gpu_allocated_mb": max((c.get("peak_gpu_allocated_mb") or 0) for c in chunks),
+                       "peak_rss_mb_python": max(c["peak_rss_mb_python"] for c in chunks)},
+            "truth": {"meta": truth_doc["meta"], "reference_view_vs_all_copies_named_lca": {
+                "agree": agree, "differ": disagree}},
+            "leakage": leak_doc["summary"] if leak_doc else None,
+            "overall": summarise_taxon(rows, truth, leak, cap_routes),
+            "per_route": per_route,
+            "novelty_relabel_audit": relabel_counts(audit),
+        }
+        if args.audit_out:
+            p = Path(args.audit_out.replace("{split}", split))
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as fh:
+                for a in audit:
+                    fh.write(json.dumps(a, default=str) + "\n")
+    report["definitions"] = {
+        "truth": grading_truth.__doc__.strip(),
+        "rank_metrics": rank_metrics.__doc__.strip(),
+        "predicted": predicted_lineage.__doc__.strip(),
+        "relabel_verdict": classify_relabel.__doc__.strip(),
+        "same_specimen": ("same_accession: a final-route hit at >= 99% identity whose reference record (any "
+                          "merged copy) shares an accession with the row's source records; "
+                          "possible_not_confirmable: assignment identity >= 99% but no shared accession (RefSeq "
+                          "and INSDC copies of one specimen carry different accessions, so this cannot be "
+                          "excluded); no_identity_below_99."),
+        "leaky": "exact row or source record in a ref.fasta, or any planned-route hit >= 99% from the same source "
+                 "record (shared accession)",
+    }
+    Path(args.json).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.json).write_text(json.dumps(report, indent=1, default=str))
+    print(markdown_tables(report), flush=True)
+
+
+def markdown_tables(report: dict) -> str:
+    lines = []
+    for split, s in report["splits"].items():
+        lines.append(f"### {split} ({s['rows']['evaluated']} rows, {s['orchestrator_version']}, reference "
+                     f"{s['reference_db_version']})\n")
+        lines.append("| Route | n | traced | sp / gen / fam / coarser / none (%) | Species P / R | Genus P / R | "
+                     "Family P / R | Species P uncapped | Leaky | Species P / Genus P, leaky excl. |")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|")
+        for name, m in list(s["per_route"].items()) + [("**all**", s["overall"])]:
+            sh = m["assigned_share_by_rank_pct"]
+            coarser = round(sum(v for k, v in sh.items() if k not in ("species", "genus", "family", "none")), 1)
+            rm = m["rank_metrics_all_traced"]
+            lx = m.get("rank_metrics_all_traced_leaky_excluded") or {}
+            traced = m["n"] - m["truth_basis"].get("untraced", 0)
+            pr = lambda x: f"{x['precision_pct']} / {x['recall_pct']}"
+            lines.append(
+                f"| {name} | {m['n']} | {traced} | {sh.get('species', 0)} / {sh.get('genus', 0)} / "
+                f"{sh.get('family', 0)} / {coarser} / {sh.get('none', 0)} | {pr(rm['species'])} | {pr(rm['genus'])} | "
+                f"{pr(rm['family'])} | {m['genus_cap']['species_without_cap']['precision_pct']} | "
+                f"{m.get('leaky_rows', '-')} | "
+                f"{(lx.get('species') or {}).get('precision_pct')} / {(lx.get('genus') or {}).get('precision_pct')} |")
+        a = s["novelty_relabel_audit"]["all"]
+        lines.append(f"\nRelabelled possible_novelty rows: {a['n']}; verdicts {a['verdict']}; "
+                     f"same specimen {a['same_specimen']}.\n")
+    return "\n".join(lines)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -391,8 +1057,19 @@ def main() -> None:
     r.add_argument("--chunk", type=int, default=1000)
     r.add_argument("--seed", type=int, default=1023)
     r.add_argument("--limit", type=int, default=0, help="seeded sample of this many rows (0 = every row)")
+    t = sub.add_parser("trace")
+    t.add_argument("--split", default="test", choices=("dev", "test"))
+    t.add_argument("--out", required=True)
+    lk = sub.add_parser("leak")
+    lk.add_argument("--split", default="test", choices=("dev", "test"))
+    lk.add_argument("--out", required=True)
+    rp = sub.add_parser("report")
+    rp.add_argument("--out", required=True)
+    rp.add_argument("--splits", default="test,dev")
+    rp.add_argument("--json", required=True, help="results file, e.g. docs/ml/results/taxon_eval_2026-10-19.json")
+    rp.add_argument("--audit-out", default=None, help="per-row relabel audit JSONL; {split} is substituted")
     args = ap.parse_args()
-    {"run": cmd_run}[args.cmd](args)
+    {"run": cmd_run, "trace": cmd_trace, "leak": cmd_leak, "report": cmd_report}[args.cmd](args)
 
 
 if __name__ == "__main__":
