@@ -2011,3 +2011,28 @@ Merge note: the merge conflicted with sprint/d11-review-tables in `reviews/route
 - That is correct, and the response says so. The chain proves the internal consistency of one sample's history. It does not prove the server is honest. Its outside anchors are the exports: every FAIR ZIP carries custody.json, the head hash at export time and a manifest whose sha256 is recorded on the chain as the next event. A recipient who keeps a ZIP can later show whether the server's chain still extends that head. A rewrite that changes any earlier event changes every later hash, so it cannot match a head that is already held outside.
 - Challenge: "your hashes of review text are guessable." Partly correct. Unsalted sha256 of a short string, such as a taxon name or even a phone number, can be found by dictionary or brute force. The hashes are therefore pseudonymous, not anonymous. A per-review salt kept in the erasable review document would fix this. That is logged as an open issue, not claimed as done.
 - Challenge: "any user can still POST a review on someone else's analysis." Correct, and this predates the branch. Since e83274d such a review writes nothing to the owner's chain. The endpoint's own access rule is logged as an open issue in Task D's area.
+
+## QNA-030 — 2026-10-20 — Owner decisions after orchestrator-1.2.0: reference hit wins the class; human DNA on the human route is flagged but not auto-queued (Q7; follows QNA-025)
+
+**Commit:** `801ab15` on `sprint/d9-human-route-reviews`, merged into `LATEST_USHNIK` as `871b357`. Decisions logged in `docs/decisions.md` (entry 2026-10-19). Resolves the open owner decision recorded in QNA-025; QNA-024/025 stay as written.
+
+**Q1. Mechanism.**
+- Class rule: unchanged code. The owner kept orchestrator-1.2.0's `novelty_suppressed_by_reference` / `novelty_downgraded_by_reference` rules (`services/worker/app/orchestrator/combiner.py`, `CLASS_RULES`).
+- Reviews: `services/worker/app/job_runner.py:296` adds `EXPECTED_CONTAMINATION_BY_ROUTE = {"human_domestic_contamination": {"human_dna"}}`. At `:341`, `_build_auto_reviews` skips the `auto_contamination` review when the read's final `route` lists its `contamination_type` as expected. `contamination_flagged`, `contamination_type` and the decision trace are not changed. Novelty reviews are not affected.
+
+**Q2. Rationale.**
+- Reference wins: a ≥97% identity / ≥80% coverage hit to a named reference is the standard metabarcoding basis for a known taxon. The alternative (report the classifier's class with the hit beside it) measured higher against the dataset labels (0.8631 vs 0.773), but would call a read "possibly novel" while it matches a named species at ≥97%. The owner chose reference-wins.
+- Human route: human/domestic DNA is what that route exists to detect. On the held-out sample all 102 human_dna flags were on that route, 65 on rows labelled known_species, and each queued an urgent review. That would flood the review queue on samples that are meant to contain human DNA.
+
+**Q3. Blast radius.**
+- The 0.773 label agreement stands as the reported number. The paper must explain it, and the explanation (label noise from "uncultured / environmental" names) is not yet shown; t-1023-3 must test it.
+- A human read that is real contamination on the human route (e.g. a human sample contaminated by the operator) is no longer queued automatically. It stays flagged and visible on the result.
+- Human DNA routed anywhere else, and any other contamination type on the human route, still queues a review.
+
+**Q4. Verification.**
+- `services/worker/tests/test_job_runner.py`: 4 new tests (human_dna on the human route is flagged but not queued; human_dna on fish is queued; vector_adapter on the human route is queued; novelty is still queued on the human route).
+- `cd services/worker && SYNTHVEDA_DATA_ROOT=… .venv/bin/python -m pytest tests/ -q` gives **500 passed** (496 + 4).
+- Not re-measured on real data: the held-out run predates this change. From that run, 102 auto_contamination reviews on the human route would now not be queued.
+
+**Q5. Defence: "You lowered your own accuracy and hid contamination."**
+Neither result is hidden. The 0.773 vs 0.8631 comparison is recorded as measured (QNA-025), with the rows that drive it, and it is a disagreement with proxy labels, not with ground truth. Human DNA flags stay on every result and in the trace. Only the automatic review ticket is skipped, and only for the one route where human DNA is the expected finding.
