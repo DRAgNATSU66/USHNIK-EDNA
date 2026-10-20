@@ -119,15 +119,13 @@ function ModelStatusList({ status, routerId, error }) {
       {routes.map(([route, r]) => {
         const st = HEAD_STATUS[r.status] ?? { label: r.status ?? "unknown", color: "#8C9AB2" };
         return (
-          <div key={route} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 12 }}>
+          <div key={route} style={{ display: "grid", gridTemplateColumns: "1fr auto", columnGap: 10, rowGap: 1, fontSize: 12 }}>
             <span style={{ color: uploadColors.cardDesc }}>{ROUTE_LABELS[route] ?? route}</span>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-              <span style={{ color: uploadColors.cardTitle, fontFamily: "ui-monospace,monospace", overflowWrap: "anywhere" }}>
-                {r.model_id ?? "—"}
-              </span>
-              {r.registry_status && <span style={{ color: "#61708A" }}>{r.registry_status}</span>}
-              <span style={{ color: st.color, whiteSpace: "nowrap" }} title={r.reason ?? undefined}>{st.label}</span>
+            <span style={{ color: st.color, whiteSpace: "nowrap", textAlign: "right" }} title={r.reason ?? undefined}>{st.label}</span>
+            <span style={{ color: uploadColors.cardTitle, fontFamily: "ui-monospace,monospace", overflowWrap: "anywhere" }}>
+              {r.model_id ?? "—"}
             </span>
+            <span style={{ color: "#61708A", textAlign: "right" }}>{r.registry_status ?? ""}</span>
           </div>
         );
       })}
@@ -562,7 +560,9 @@ export default function Upload() {
                 <SlabHeader title="Processing Model" />
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div role="radiogroup" aria-label="Processing model">
-                    <div role="radio" aria-checked="true" style={modelCardStyle(true)}>
+                    {/* The shared radio card has a fixed 88px height; this one
+                        holds the served-model list, so it grows with it. */}
+                    <div role="radio" aria-checked="true" style={{ ...modelCardStyle(true), height: "auto", cursor: "default" }}>
                       <span style={modelRadioOuterStyle(true)}>
                         <span style={modelRadioDotStyle(true)} />
                       </span>
