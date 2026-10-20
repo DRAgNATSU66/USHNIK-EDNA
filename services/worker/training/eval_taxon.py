@@ -796,7 +796,7 @@ def _ref_pred(payload: dict | None, cap: bool) -> dict[str, str]:
         return {}
     lin = norm_lineage(payload.get("lineage"))
     # combiner.combine caps on ORCHESTRATOR_GENUS_CAP_ROUTES or a Viridiplantae lineage
-    if (cap or lin.get("kingdom") == "viridiplantae") and "species" in lin:
+    if (cap or lin.get("kingdom") in ("viridiplantae", "plantae")) and "species" in lin:
         lin.pop("species")
     return lin
 
