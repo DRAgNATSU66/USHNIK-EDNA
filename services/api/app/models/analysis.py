@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal, Mapping, Optional, Any
+from collections.abc import Mapping
+from typing import Literal, Optional, Any
 from pydantic import BaseModel, Field, model_validator
 import uuid
 
@@ -121,7 +122,7 @@ class SequenceResult(BaseModel):
         src = {"predicted_taxon": self.predicted_taxon,
                "decision": self.decision.model_dump() if self.decision is not None else None}
         for field, value in resolve_taxon_fields(src).items():
-            object.__setattr__(self, field, value)
+            setattr(self, field, value)
         return self
 
 
