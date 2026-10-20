@@ -32,13 +32,15 @@ def _taxon_step(rule, outcome=None):
     return {"step": "taxon", "rule": rule, "outcome": outcome, "detail": None}
 
 
-def _seq(sid, decision=None, taxon_step=None, legacy_taxon=None, route=None, result_class=None):
+def _seq(sid, decision=None, taxon_step=None, legacy_taxon=None, route=None, result_class=None,
+         contamination_flagged=False, contamination_score=0.0, contamination_type=None):
     r = {"sequence_id": sid, "sequence": "ACGT" * 30, "length": 120, "gc_ratio": 0.5, "n_ratio": 0.0,
          "route": route or (decision or {}).get("final_route") or "fish", "route_confidence": 0.9,
          "result_class": result_class or (decision or {}).get("result_class") or "unknown_needs_online_confirmation",
          "predicted_taxon": (decision or {}).get("predicted_taxon") if decision else legacy_taxon,
-         "confidence": 0.9, "novelty_score": 0.0, "contamination_score": 0.0, "model_version_used": "v2",
-         "reason_codes": []}
+         "confidence": 0.9, "novelty_score": 0.0, "contamination_score": contamination_score,
+         "contamination_flagged": contamination_flagged, "contamination_type": contamination_type,
+         "model_version_used": "v2", "reason_codes": []}
     if decision is not None:
         r["decision"] = decision
         r["decision_trace"] = {"orchestrator_version": "orchestrator-1.2.0", "plan": {}, "evidence": [],
@@ -290,6 +292,84 @@ class TestTaxaSection:
                          _seq("s2", legacy_taxon="Legacy name")], None)
         assert (t.total_sequences, t.sequences_with_decision, t.sequences_with_taxon) == (2, 1, 1)
         assert [e.taxon for e in t.top_taxa] == ["Gadus morhua"]
+
+
+def _contamination_results():
+    """Shapes of ana_ca1680d40e6e4ef8 (orchestrator-1.1.0, local Mongo): the
+    human/domestic route flags every sequence, including ones that got a
+    reference taxon (a spike-in control, a cloning vector, a domestic animal)."""
+    hd = dict(route="human_domestic_contamination", db="synthveda-reference/human_domestic_contamination")
+    return [
+        _seq("s1", _decision("Gadus morhua", "species", 99.0)),
+        _seq("s2", _decision("Chaetomitrium", "genus", 100.0, route="plant", db="synthveda-reference/plant",
+                             result_class="likely_taxonomic_group")),
+        _seq("s3", _decision(None, None, None, result_class="possible_novelty"),
+             _taxon_step("no_reference_assignment", "no_hit")),
+        # Flagged, known_species: a domestic animal.
+        _seq("c1", _decision("Ovis aries", "species", 100.0, **hd), contamination_flagged=True,
+             contamination_type="human_dna", contamination_score=0.9),
+        # Flagged, possible_contamination with a taxon: a spike-in control.
+        _seq("c2", _decision("Sinsheimervirus phiX174", "species", 100.0, result_class="possible_contamination",
+                             **hd), contamination_flagged=True, contamination_type="human_dna",
+             contamination_score=0.95),
+        # Decision says possible_contamination but the legacy flag is unset.
+        _seq("c3", _decision("Origami vector p7560", "species", 99.5, result_class="possible_contamination", **hd)),
+        # Not flagged, but the score is over the contamination-warning threshold.
+        _seq("c4", _decision("Bos taurus", "species", 99.0, **hd), contamination_score=0.6),
+        # Flagged with no taxon.
+        _seq("c5", _decision(None, None, None, result_class="possible_contamination", **hd),
+             _taxon_step("no_reference_assignment", "below_threshold"), contamination_flagged=True),
+    ]
+
+
+class TestTaxaContamination:
+    def test_contaminants_are_not_counted_as_observed_taxa(self):
+        t = _build_taxa(_contamination_results(), None)
+        by_rank = {r.rank: (r.distinct_taxa, r.sequences) for r in t.richness_by_rank}
+        assert by_rank == {"species": (1, 1), "genus": (1, 1)}
+        assert [e.taxon for e in t.top_taxa] == ["Chaetomitrium", "Gadus morhua"]
+        assert t.taxon_groups == 2
+        assert all(e.fraction_of_assigned == 0.5 for e in t.top_taxa)
+
+    def test_counts_partition_the_decided_sequences(self):
+        t = _build_taxa(_contamination_results(), None)
+        assert (t.sequences_with_decision, t.sequences_with_taxon, t.sequences_without_taxon,
+                t.sequences_contamination_flagged) == (8, 2, 1, 5)
+        assert t.sequences_with_taxon + t.sequences_without_taxon + t.sequences_contamination_flagged \
+            == t.sequences_with_decision
+        assert t.fraction_with_taxon == round(2 / 3, 4)
+        # A flagged sequence without a taxon is not a "without taxon" reason.
+        assert t.without_taxon_reasons == {"no_reference_assignment:no_hit": 1}
+
+    def test_flagged_taxa_listed_separately(self):
+        t = _build_taxa(_contamination_results(), None)
+        got = [(e.taxon, e.taxon_rank, e.sequences) for e in t.contamination_flagged_taxa]
+        assert got == [("Bos taurus", "species", 1), ("Origami vector p7560", "species", 1),
+                       ("Ovis aries", "species", 1), ("Sinsheimervirus phiX174", "species", 1)]
+        assert t.sequences_contamination_flagged_with_taxon == 4
+
+    def test_reference_dbs_still_count_every_decided_sequence(self):
+        t = _build_taxa(_contamination_results(), None)
+        got = {u.reference_db: (u.sequences, u.sequences_with_taxon) for u in t.reference_dbs}
+        assert got["synthveda-reference/human_domestic_contamination"] == (5, 4)
+
+    def test_same_sequences_as_contamination_warnings(self):
+        """Every sequence the report warns about is kept out of richness."""
+        results = _contamination_results()
+        report = build_report(_doc(results), [], upload=None)
+        warned = {w.sequence_id for w in report.contamination_warnings}
+        assert warned == {"c1", "c2", "c4", "c5"}
+        counted = {e.taxon for e in report.taxa.top_taxa}
+        assert counted.isdisjoint({"Ovis aries", "Sinsheimervirus phiX174", "Origami vector p7560", "Bos taurus"})
+
+    def test_definitions_say_contaminants_are_excluded(self):
+        t = _build_taxa(_contamination_results(), None)
+        for key in ("taxon", "richness_by_rank", "contamination_flagged"):
+            assert "contamination" in t.definitions[key]
+
+    def test_no_contamination_gives_zero_and_empty_list(self):
+        t = _build_taxa(_mixed_results(), None)
+        assert t.sequences_contamination_flagged == 0 and t.contamination_flagged_taxa == []
 
 
 class TestTaxaUnavailable:

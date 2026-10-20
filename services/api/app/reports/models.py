@@ -197,6 +197,16 @@ class ReferenceDbUsage(BaseModel):
     sequences_with_taxon: int  # of which carried a taxon
 
 
+class ContaminationFlaggedTaxon(BaseModel):
+    """A taxon named only by contamination-flagged sequences' decisions; kept
+    out of richness_by_rank and top_taxa (see TaxaSummary.definitions)."""
+    taxon: str
+    taxon_rank: Optional[str]
+    sequences: int
+    result_classes: list[str]          # decision.result_class values, sorted
+    contamination_types: list[str]     # results[].contamination_type values, sorted
+
+
 class TaxaSummary(BaseModel):
     """
     Taxon richness and top taxa (t-1023-1), counted from results[].decision.
@@ -204,6 +214,11 @@ class TaxaSummary(BaseModel):
     decision: those analyses predate the orchestrator, never recorded rank,
     identity or reference DB, and are reported as unavailable, not as zero.
     Every count below is None when unavailable. See `definitions`.
+
+    Contamination-flagged sequences are not observed taxa: they are counted in
+    sequences_contamination_flagged and listed in contamination_flagged_taxa,
+    never in richness_by_rank / top_taxa / sequences_with_taxon. Invariant:
+    with_taxon + without_taxon + contamination_flagged == with_decision.
     """
     available: bool
     unavailable_reason: Optional[str] = None
@@ -212,6 +227,8 @@ class TaxaSummary(BaseModel):
     sequences_with_decision: int
     sequences_with_taxon: Optional[int] = None
     sequences_without_taxon: Optional[int] = None
+    sequences_contamination_flagged: Optional[int] = None
+    sequences_contamination_flagged_with_taxon: Optional[int] = None
     fraction_with_taxon: Optional[float] = None
     # Why a decided sequence has no taxon: the taxon step's combine rule from
     # decision_trace (heads_only, no_reference_assignment), "low_quality",
@@ -223,6 +240,7 @@ class TaxaSummary(BaseModel):
     # Number of (taxon, rank) groups top_taxa is cut from: a row count, not a
     # richness (it mixes ranks; use richness_by_rank).
     taxon_groups: Optional[int] = None
+    contamination_flagged_taxa: list[ContaminationFlaggedTaxon] = Field(default_factory=list)
     reference_dbs: list[ReferenceDbUsage] = Field(default_factory=list)
     definitions: dict[str, str] = Field(default_factory=dict)
 

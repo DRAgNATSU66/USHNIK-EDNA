@@ -25,6 +25,7 @@ from ..models.analysis import resolve_taxon_fields
 from .models import (
     AnalysisReport,
     BiodiversitySummary,
+    ContaminationFlaggedTaxon,
     ContaminationWarning,
     KnownSpeciesEntry,
     ModelVersionEntry,
@@ -290,10 +291,14 @@ def _build_novelty_table(results: list[dict]) -> list[PossibleNoveltyEntry]:
     return sorted(entries, key=lambda e: -e.novelty_score)
 
 
+def _in_contamination_warnings(r: dict) -> bool:
+    return bool(r.get("contamination_flagged")) or float(r.get("contamination_score", 0.0)) >= _CONTAMINATION_THRESHOLD
+
+
 def _build_contamination_warnings(results: list[dict]) -> list[ContaminationWarning]:
     entries = []
     for r in results:
-        if r.get("contamination_flagged") or float(r.get("contamination_score", 0.0)) >= _CONTAMINATION_THRESHOLD:
+        if _in_contamination_warnings(r):
             entries.append(ContaminationWarning(
                 sequence_id=r.get("sequence_id", "unknown"),
                 contamination_type=r.get("contamination_type"),
@@ -356,34 +361,47 @@ TAXA_DEFINITIONS: dict[str, str] = {
         "Per sequence: results[].decision.predicted_taxon at results[].decision.taxon_rank, the "
         "orchestrator's combined answer (after the plant genus cap). Sequences without a decision "
         "(written before the orchestrator) are not counted; a decision with a null taxon counts "
-        "as without taxon."
+        "as without taxon. Contamination-flagged sequences (see contamination_flagged) are not "
+        "observed taxa and are excluded from sequences_with/without_taxon, richness_by_rank and top_taxa."
+    ),
+    "contamination_flagged": (
+        "A decided sequence is contamination-flagged when it is in this report's contamination_warnings "
+        f"(results[].contamination_flagged, or contamination_score >= {_CONTAMINATION_THRESHOLD}) or its "
+        "decision.result_class is possible_contamination. sequences_contamination_flagged counts them; "
+        "the taxa they named are listed in contamination_flagged_taxa, not in richness or top taxa. "
+        "sequences_with_taxon + sequences_without_taxon + sequences_contamination_flagged = "
+        "sequences_with_decision."
     ),
     "fraction_with_taxon": (
-        "sequences_with_taxon / sequences_with_decision. Low-quality sequences are in the "
+        "sequences_with_taxon / (sequences_with_decision - sequences_contamination_flagged); null when "
+        "every decided sequence is contamination-flagged. Low-quality sequences are in the "
         "denominator (they never get a taxon) and listed under without_taxon_reasons."
     ),
     "without_taxon_reasons": (
-        "For each decided sequence with no taxon: 'low_quality' when decision.final_route is "
+        "For each decided, not contamination-flagged sequence with no taxon: 'low_quality' when decision.final_route is "
         "low_quality, otherwise the rule of the taxon step in decision_trace.combine "
         "(':' + its outcome when that is a status string, e.g. no_reference_assignment:below_threshold), "
         "or 'not_recorded' when the trace has no taxon step."
     ),
     "richness_by_rank": (
-        "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank. "
+        "For each taxon_rank, the number of distinct predicted_taxon names decided at that rank, over "
+        "sequences that are not contamination-flagged (contaminants are not counted as observed taxa). "
         "Ranks are never mixed or summed into one richness: a genus-level call and a species of that "
         "genus are counted separately, each at its own rank. A taxon without a rank is 'unranked'. "
         "Listed finest rank first (species, genus, family, order, class, phylum, kingdom, superkingdom), "
         "other ranks after by name, 'unranked' last."
     ),
     "top_taxa": (
-        f"(taxon, rank) groups by sequence count, ties by name, first {TOP_TAXA_LIMIT}. "
+        f"(taxon, rank) groups of not contamination-flagged sequences by sequence count, ties by name, "
+        f"first {TOP_TAXA_LIMIT}; fraction_of_assigned = sequences / sequences_with_taxon. "
         "mean/min/max_percent_identity are over the group's sequences whose decision carries a "
         "percent_identity (arithmetic mean, 2 dp); taxon_groups counts every group before the cut "
         "(a row count, not a richness estimate)."
     ),
     "reference_dbs": (
         "Distinct (decision.reference_db, decision.reference_db_version) pairs, counted per sequence; "
-        "a decision names the reference DB whenever the lookup ran, assigned or not."
+        "a decision names the reference DB whenever the lookup ran, assigned or not. This is DB usage, "
+        "so contamination-flagged sequences are included."
     ),
 }
 
@@ -404,6 +422,10 @@ def _without_taxon_reason(r: dict, decision: dict) -> str:
 def _ref_label(d: dict) -> str:
     return (f"{d.get('reference_db') or 'reference DB not recorded'} "
             f"{d.get('reference_db_version') or 'version not recorded'}")
+
+
+def _is_contamination_flagged(r: dict, decision: dict) -> bool:
+    return _in_contamination_warnings(r) or decision.get("result_class") == "possible_contamination"
 
 
 def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSummary:
@@ -436,6 +458,8 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
     without_reasons: dict[str, int] = {}
     groups: dict[tuple[str, str | None], list[dict]] = {}
     refs: dict[tuple[str | None, str | None], list[int]] = {}
+    flagged = 0
+    flagged_groups: dict[tuple[str, str | None], list[tuple[dict, dict]]] = {}
     for r, dec in decided:
         taxon = dec.get("predicted_taxon")
         db, ver = dec.get("reference_db"), dec.get("reference_db_version")
@@ -443,6 +467,11 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
             counts = refs.setdefault((db, ver), [0, 0])
             counts[0] += 1
             counts[1] += 1 if taxon else 0
+        if _is_contamination_flagged(r, dec):
+            flagged += 1
+            if taxon:
+                flagged_groups.setdefault((taxon, dec.get("taxon_rank")), []).append((r, dec))
+            continue
         if not taxon:
             reason = _without_taxon_reason(r, dec)
             without_reasons[reason] = without_reasons.get(reason, 0) + 1
@@ -451,6 +480,7 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
 
     with_taxon = sum(len(g) for g in groups.values())
     n_decided = len(decided)
+    n_counted = n_decided - flagged
 
     by_rank: dict[str, list[int]] = {}
     for (_taxon, rank), decs in groups.items():
@@ -470,7 +500,7 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
             taxon=taxon,
             taxon_rank=rank,
             sequences=len(decs),
-            fraction_of_assigned=round(len(decs) / with_taxon, 4),
+            fraction_of_assigned=round(len(decs) / with_taxon, 4),  # with_taxon >= len(decs) > 0
             mean_percent_identity=round(sum(ids) / len(ids), 2) if ids else None,
             min_percent_identity=min(ids) if ids else None,
             max_percent_identity=max(ids) if ids else None,
@@ -487,13 +517,24 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
         total_sequences=total,
         sequences_with_decision=n_decided,
         sequences_with_taxon=with_taxon,
-        sequences_without_taxon=n_decided - with_taxon,
-        fraction_with_taxon=round(with_taxon / n_decided, 4),
+        sequences_without_taxon=n_counted - with_taxon,
+        sequences_contamination_flagged=flagged,
+        sequences_contamination_flagged_with_taxon=sum(len(g) for g in flagged_groups.values()),
+        fraction_with_taxon=round(with_taxon / n_counted, 4) if n_counted else None,
         without_taxon_reasons=dict(sorted(without_reasons.items(), key=lambda x: (-x[1], x[0]))),
         richness_by_rank=richness,
         top_taxa=top,
         top_taxa_limit=TOP_TAXA_LIMIT,
         taxon_groups=len(groups),
+        contamination_flagged_taxa=[
+            ContaminationFlaggedTaxon(
+                taxon=taxon, taxon_rank=rank, sequences=len(members),
+                result_classes=sorted({d["result_class"] for _, d in members if d.get("result_class")}),
+                contamination_types=sorted({r["contamination_type"] for r, _ in members
+                                            if r.get("contamination_type")}),
+            )
+            for (taxon, rank), members in sorted(flagged_groups.items(), key=lambda x: (x[0][0], x[0][1] or ""))
+        ],
         reference_dbs=[
             ReferenceDbUsage(reference_db=db, reference_db_version=ver, sequences=n, sequences_with_taxon=t)
             for (db, ver), (n, t) in sorted(refs.items(), key=lambda x: (x[0][0] or "", x[0][1] or ""))
