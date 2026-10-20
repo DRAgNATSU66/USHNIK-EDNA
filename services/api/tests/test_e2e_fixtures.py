@@ -23,7 +23,9 @@ FIXTURE_DIR = API_DIR.parents[1] / "web_frontend" / "e2e" / "fixtures" / "api"
 # models/registry/*.json is real repo data that other work adds to; pinning
 # the full body here would fail API CI on every new registry entry. Its
 # shape (top-level keys, per-entry keys the pages read) is still checked.
-SHAPE_ONLY = {"models_registry"}
+# models_status is derived from the same registry (which entry each route
+# selects), so it is shape-only for the same reason.
+SHAPE_ONLY = {"models_registry", "models_status"}
 
 
 def _load_generator():
@@ -56,8 +58,13 @@ def test_committed_fixtures_match_live_responses(generated):
         committed = json.loads(path.read_text(encoding="utf-8"))
         if name in SHAPE_ONLY:
             assert set(committed) == set(body), f"{name}: top-level keys changed"
-            for entry in committed["models"]:
-                assert {"model_id", "route", "status", "metrics"} <= set(entry), f"{name}: entry shape changed"
+            if name == "models_registry":
+                for entry in committed["models"]:
+                    assert {"model_id", "route", "status", "metrics"} <= set(entry), f"{name}: entry shape changed"
+            else:
+                assert set(committed["routes"]) == set(body["routes"]), f"{name}: route set changed"
+                for route, st in committed["routes"].items():
+                    assert {"status", "reason", "model_id", "inference_mode"} <= set(st), f"{name}: {route} shape changed"
             continue
         if committed != body:
             stale.append(name)

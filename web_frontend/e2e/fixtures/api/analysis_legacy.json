@@ -1,0 +1,115 @@
+{
+  "analysis_id": "ana_e2e0000000003",
+  "context": {
+    "accuracy_note": "11 of 14 optional context fields were provided. Missing context can reduce accuracy and limits how these results can be interpreted. No negative control, contamination not ruled out.",
+    "flags": [
+      {
+        "code": "no_negative_control",
+        "message": "No negative control, contamination not ruled out."
+      }
+    ],
+    "labels": {
+      "collected_at": "Collection date/time",
+      "collector": "Collector",
+      "depth_meters": "Depth",
+      "dissolved_oxygen_mg_l": "Dissolved oxygen",
+      "habitat": "Habitat",
+      "latitude": "Latitude",
+      "location_label": "Location",
+      "longitude": "Longitude",
+      "methodology": "Methodology",
+      "negative_control_included": "Negative control",
+      "ph": "pH",
+      "salinity_ppt": "Salinity",
+      "source_type": "Source type",
+      "temperature_celsius": "Temperature"
+    },
+    "missing": [
+      "salinity_ppt",
+      "dissolved_oxygen_mg_l",
+      "ph"
+    ],
+    "negative_control": "not_included",
+    "partner_report": {
+      "available": true,
+      "missing_required": [],
+      "reason": null
+    },
+    "provided": [
+      "collected_at",
+      "latitude",
+      "longitude",
+      "location_label",
+      "depth_meters",
+      "source_type",
+      "habitat",
+      "temperature_celsius",
+      "methodology",
+      "negative_control_included",
+      "collector"
+    ],
+    "upload_found": true
+  },
+  "created_at": "2026-10-08T08:00:00",
+  "job_id": "job_e2e_legacy001",
+  "mode": "online_full",
+  "model_version_set": "stub_none",
+  "orchestrator_version": null,
+  "results": [
+    {
+      "confidence": 0.93,
+      "contamination_score": 0.0,
+      "decision": null,
+      "decision_trace": null,
+      "gc_ratio": 0.48,
+      "inference_mode": "model",
+      "length": 300,
+      "model_version_used": "dnabert2_fish_v1",
+      "n_ratio": 0.0,
+      "novelty_score": 0.1,
+      "predicted_taxon": null,
+      "reason_codes": [],
+      "result_class": "known_species",
+      "route": "fish",
+      "route_confidence": 0.9,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": null,
+      "router_fallback_reason": null,
+      "router_method": null,
+      "router_route": null,
+      "router_version": null,
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_old_01",
+      "stub_reason": null
+    },
+    {
+      "confidence": 0.0,
+      "contamination_score": 0.0,
+      "decision": null,
+      "decision_trace": null,
+      "gc_ratio": 0.48,
+      "inference_mode": "stub",
+      "length": 300,
+      "model_version_used": "dnabert2_misc_unknown_v1:stub_no_weights",
+      "n_ratio": 0.0,
+      "novelty_score": 0.1,
+      "predicted_taxon": null,
+      "reason_codes": [],
+      "result_class": "unknown_needs_online_confirmation",
+      "route": "misc_unknown",
+      "route_confidence": 0.9,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": null,
+      "router_fallback_reason": null,
+      "router_method": null,
+      "router_route": null,
+      "router_version": null,
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_old_02",
+      "stub_reason": null
+    }
+  ],
+  "summary": null,
+  "upload_id": "upl_e2e0000000001",
+  "user_id": "usr_e2e_researcher"
+}
