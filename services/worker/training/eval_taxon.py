@@ -269,8 +269,9 @@ def genus_key(name: str | None) -> str | None:
 
 
 def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str], name_cats: set[str],
-                     same_specimen: str, named_copy_names: dict[str, set[str]] | None = None) -> tuple[str, str]:
-    """(verdict, reason) for one possible_novelty row the orchestrator
+                     same_specimen: str, named_copy_names: dict[str, set[str]] | None = None
+                     ) -> tuple[str, str, str | None]:
+    """(verdict, reason, agreement) for one possible_novelty row the orchestrator
     relabelled known_species / likely_taxonomic_group.
 
       label_noise        the hit is the same source record in another
@@ -288,6 +289,10 @@ def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str]
                          bacterium', 'marine metagenome'), or the hit and the
                          source share no rank to compare, and no shared
                          accession
+    agreement: the rank at which source and hit names agree ('accession',
+    'species', 'genus', 'family'), None unless label_noise. A genus or
+    family agreement shows the hit does not contradict the source; it does
+    not show the source was a known species.
     row_names: names_in(all copies); named_copy_names: names_in(copies with
     a usable organism name), only used to word the reason."""
     hl = norm_lineage(hit_lineage)
@@ -300,22 +305,23 @@ def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str]
         return "the source record"
 
     if same_specimen == "same_accession":
-        return "label_noise", "hit is the same source record (shared accession) in another database"
+        return "label_noise", "hit is the same source record (shared accession) in another database", "accession"
     if hs and hs in row_names["species"]:
-        return "label_noise", f"{via('species', hs)} names the hit's species"
+        return "label_noise", f"{via('species', hs)} names the hit's species", "species"
     if hg and hg in row_names["genus"]:
         if hs and any(genus_key(s) == hg for s in row_names["species"]):
-            return "real_disagreement", "same genus, but the source names a different species"
-        return "label_noise", f"{via('genus', hg)} names the hit's genus"
+            return "real_disagreement", "same genus, but the source names a different species", None
+        return "label_noise", f"{via('genus', hg)} names the hit's genus", "genus"
     if row_names["genus"] and hg:
-        return "real_disagreement", "the source names a different genus"
+        return "real_disagreement", "the source names a different genus", None
     if hf and families:
         if hf in families:
-            return "label_noise", f"{via('family', hf)} names the hit's family (no genus to compare)"
-        return "real_disagreement", "the source names a different family"
+            return "label_noise", f"{via('family', hf)} names the hit's family (no genus to compare)", "family"
+        return "real_disagreement", "the source names a different family", None
     if row_names["genus"]:
-        return "undetermined", "the hit resolves only above genus"
-    return "undetermined", f"the source carries no name to compare ({', '.join(sorted(name_cats)) or 'none'})"
+        return "undetermined", "the hit resolves only above genus", None
+    return ("undetermined", f"the source carries no name to compare ({', '.join(sorted(name_cats)) or 'none'})",
+            None)
 
 
 # ---------------------------------------------------------------------------
@@ -938,9 +944,9 @@ def audit_relabels(rows: list[dict], truth: dict, leak: dict | None) -> list[dic
             same = "no_identity_below_99"
         cats = {name_category(c.get("organism")) for c in copies}
         if not copies:
-            verdict, reason = "undetermined", "row not traced to a source record"
+            verdict, reason, agreement = "undetermined", "row not traced to a source record", None
         else:
-            verdict, reason = classify_relabel(names_in(copies), payload.get("lineage") or {}, cats, same,
+            verdict, reason, agreement = classify_relabel(names_in(copies), payload.get("lineage") or {}, cats, same,
                                                names_in([c for c in copies if c.get("usable_name")]))
         out.append({
             "id": r["id"], "true_route": r["true_route"], "final_route": d.get("final_route"),
@@ -956,7 +962,12 @@ def audit_relabels(rows: list[dict], truth: dict, leak: dict | None) -> list[dic
                     "top_accession": top.get("accession"), "top_source_db": top.get("source"),
                     "top_marker": top.get("marker"), "reference_db": payload.get("reference_db")},
             "same_specimen": same, "same_record_hits": lk.get("same_record_hits_ge99_final_route") or [],
-            "verdict": verdict, "reason": reason,
+            "verdict": verdict, "reason": reason, "agreement_rank": agreement,
+            # the reported taxon is finer than the rank the names agree at
+            # (e.g. a species call on 'uncultured Bacteroides sp.')
+            "reported_finer_than_agreement": bool(
+                agreement in EVAL_RANKS and d.get("taxon_rank") in EVAL_RANKS
+                and EVAL_RANKS.index(d["taxon_rank"]) < EVAL_RANKS.index(agreement)),
         })
     return out
 
@@ -968,7 +979,16 @@ def relabel_counts(audit: list[dict]) -> dict:
                 "same_specimen": dict(Counter(a["same_specimen"] for a in items)),
                 "source_name_categories": dict(Counter(c for a in items for c in a["source"]["name_categories"])),
                 "named_copy_exists": sum(a["source"]["named_copy"] for a in items),
-                "hit_identity_ge99": sum((a["hit"]["identity"] or 0) >= 99 for a in items)}
+                "hit_identity_ge99": sum((a["hit"]["identity"] or 0) >= 99 for a in items),
+                "label_noise_by_agreement_rank": dict(Counter(a["agreement_rank"] for a in items
+                                                              if a["verdict"] == "label_noise")),
+                "label_noise_reported_finer_than_agreement": sum(a["reported_finer_than_agreement"] for a in items),
+                "verdict_by_reported_rank": {v: dict(Counter(str(a["hit"]["reported_rank"]) for a in items
+                                                             if a["verdict"] == v))
+                                             for v in ("label_noise", "real_disagreement", "undetermined")},
+                "undetermined_species_call_identity_ge99": sum(
+                    a["verdict"] == "undetermined" and a["hit"]["reported_rank"] == "species"
+                    and (a["hit"]["identity"] or 0) >= 99 for a in items)}
     return {"all": block(audit),
             "by_result_class": {c: block([a for a in audit if a["result_class"] == c]) for c in RELABELLED_CLASSES},
             "by_rule": {k: block([a for a in audit if a["rule"] == k]) for k in sorted({a["rule"] for a in audit})},
@@ -1063,7 +1083,7 @@ def markdown_tables(report: dict) -> str:
     for split, s in report["splits"].items():
         lines.append(f"### {split} ({s['rows']['evaluated']} rows, {s['orchestrator_version']}, reference "
                      f"{s['reference_db_version']})\n")
-        lines.append("| Route | n | traced | sp / gen / fam / coarser / none (%) | Species P / R | Genus P / R | "
+        lines.append("| Route | n | with truth lineage | sp / gen / fam / coarser / none (%) | Species P / R | Genus P / R | "
                      "Family P / R | Species P uncapped | Leaky | Species P / Genus P, leaky excl. |")
         lines.append("|---|---|---|---|---|---|---|---|---|---|")
         for name, m in list(s["per_route"].items()) + [("**all**", s["overall"])]:
@@ -1071,7 +1091,7 @@ def markdown_tables(report: dict) -> str:
             coarser = round(sum(v for k, v in sh.items() if k not in ("species", "genus", "family", "none")), 1)
             rm = m["rank_metrics_all_traced"]
             lx = m.get("rank_metrics_all_traced_leaky_excluded") or {}
-            traced = m["n"] - m["truth_basis"].get("untraced", 0)
+            traced = m["n"] - m["truth_basis"].get("untraced", 0) - m["truth_basis"].get("traced_no_lineage", 0)
             pr = lambda x: f"{x['precision_pct']} / {x['recall_pct']}"
             lines.append(
                 f"| {name} | {m['n']} | {traced} | {sh.get('species', 0)} / {sh.get('genus', 0)} / "

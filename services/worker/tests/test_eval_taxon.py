@@ -128,27 +128,27 @@ def test_names_in_family_and_higher_words_are_not_genera():
 def test_classify_relabel_verdicts():
     hit = {"genus": "Bacteroides", "species": "Bacteroides fragilis"}
     cats = {"uncultured"}
-    v, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": set()}, hit, cats, "possible_not_confirmable")
+    v, _, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": set()}, hit, cats, "possible_not_confirmable")
     assert v == "label_noise"
-    v, _ = et.classify_relabel({"genus": {"prevotella"}, "species": set()}, hit, cats, "possible_not_confirmable")
+    v, _, _ = et.classify_relabel({"genus": {"prevotella"}, "species": set()}, hit, cats, "possible_not_confirmable")
     assert v == "real_disagreement"
-    v, why = et.classify_relabel({"genus": {"bacteroides"}, "species": {"bacteroides ovatus"}}, hit, cats, "no")
+    v, why, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": {"bacteroides ovatus"}}, hit, cats, "no")
     assert v == "real_disagreement" and "species" in why
-    v, why = et.classify_relabel({"genus": set(), "species": set()}, hit, cats, "possible_not_confirmable")
+    v, why, _ = et.classify_relabel({"genus": set(), "species": set()}, hit, cats, "possible_not_confirmable")
     assert v == "undetermined" and "uncultured" in why
-    v, _ = et.classify_relabel({"genus": set(), "species": set()}, hit, cats, "same_accession")
+    v, _, _ = et.classify_relabel({"genus": set(), "species": set()}, hit, cats, "same_accession")
     assert v == "label_noise"
-    v, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": set()}, {"family": "Bacteroidaceae"}, cats, "no")
+    v, _, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": set()}, {"family": "Bacteroidaceae"}, cats, "no")
     assert v == "undetermined"
     fam = {"genus": set(), "species": set(), "family": {"bacteroidaceae"}}
-    v, why = et.classify_relabel(fam, dict(hit, family="Bacteroidaceae"), cats, "no")
+    v, why, _ = et.classify_relabel(fam, dict(hit, family="Bacteroidaceae"), cats, "no")
     assert v == "label_noise" and "family" in why
-    v, why = et.classify_relabel(fam, dict(hit, family="Prevotellaceae"), cats, "no")
+    v, why, _ = et.classify_relabel(fam, dict(hit, family="Prevotellaceae"), cats, "no")
     assert v == "real_disagreement" and "family" in why
-    v, why = et.classify_relabel({"genus": set(), "species": set(), "family": set()}, {"family": "Gobiidae"},
+    v, why, _ = et.classify_relabel({"genus": set(), "species": set(), "family": set()}, {"family": "Gobiidae"},
                                  {"environmental sample"}, "no")
     assert v == "undetermined" and "environmental sample" in why
-    v, why = et.classify_relabel({"genus": {"bacteroides"}, "species": {"bacteroides fragilis"}}, hit, cats, "no",
+    v, why, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": {"bacteroides fragilis"}}, hit, cats, "no",
                                  {"genus": {"bacteroides"}, "species": {"bacteroides fragilis"}})
     assert v == "label_noise" and "named copy" in why
 
@@ -230,3 +230,21 @@ def test_summarise_counts_human_genome_hits_without_a_taxon():
     s = et.summarise_taxon(rows, {}, None, set())
     assert s["human_genome_hit"] == 1
     assert s["assigned_share_by_rank_pct"] == {"none": 100.0}
+
+
+def test_classify_relabel_agreement_rank_and_finer_call():
+    hit = {"family": "Bacteroidaceae", "genus": "Bacteroides", "species": "Bacteroides fragilis"}
+    names = {"genus": {"bacteroides"}, "species": set(), "family": set()}
+    assert et.classify_relabel(names, hit, {"uncultured"}, "no")[2] == "genus"
+    assert et.classify_relabel(names, hit, {"uncultured"}, "same_accession")[2] == "accession"
+    assert et.classify_relabel({"genus": {"prevotella"}, "species": set()}, hit, set(), "no")[2] is None
+    row = _row("bacteria_pathogen:test:1", true_route="bacteria_pathogen", final_route="bacteria_pathogen",
+               label="possible_novelty", taxon="Bacteroides fragilis", rank="species", lineage=hit,
+               rule="novelty_suppressed_by_reference")
+    truth = {row["id"]: {"copies": [{"organism": "uncultured Bacteroides sp.", "src": "silva", "lineage": {},
+                                     "usable_name": False}], "accessions": [], "n_copies": 1}}
+    a = et.audit_relabels([row], truth, None)[0]
+    assert a["agreement_rank"] == "genus" and a["reported_finer_than_agreement"] is True
+    c = et.relabel_counts([a])["all"]
+    assert c["label_noise_by_agreement_rank"] == {"genus": 1} and c["label_noise_reported_finer_than_agreement"] == 1
+    assert c["verdict_by_reported_rank"]["label_noise"] == {"species": 1}
