@@ -2036,3 +2036,44 @@ Merge note: the merge conflicted with sprint/d11-review-tables in `reviews/route
 
 **Q5. Defence: "You lowered your own accuracy and hid contamination."**
 Neither result is hidden. The 0.773 vs 0.8631 comparison is recorded as measured (QNA-025), with the rows that drive it, and it is a disagreement with proxy labels, not with ground truth. Human DNA flags stay on every result and in the trace. Only the automatic review ticket is skipped, and only for the one route where human DNA is the expected finding.
+
+## QNA-031 — 2026-10-20 — Full-loop integration test: upload → orchestrator → review → batch → freeze → promote as one test; batch membership and freeze fixed (tracker t-1025-3)
+
+**Commit:** `fc6687a` on `sprint/d12-loop-integration` (test `9ecabfa`, batch/freeze fixes `ef36cf2`), merged into `LATEST_USHNIK` as `bd8f550`.
+
+**Q1. Mechanism.** `services/api/tests/test_full_loop_integration.py:165` (`test_full_loop_upload_to_promotion`, opt-in: `SYNTHVEDA_LOOP_TEST=1`, `make test-loop`). It points the API at a random Mongo database `synthveda_looptest_*`, Redis db 15 (refuses db 0, the live queue), local storage under tmp_path, Supabase off, and a temp copy of `models/registry` (:230). Then:
+1. POST /uploads with 4 held-out test-split sequences read at run time from SYNTHVEDA_DATA_ROOT (2 fish known_species, 1 fish possible_novelty, 1 bacteria_pathogen), POST /analysis/jobs; asserts the envelope is on Redis (:257).
+2. A worker subprocess in the worker venv (:114) runs `dequeue_job` + `job_runner.run_job`. Every result must carry `decision` (final_route == route), a `decision_trace` with orchestrator_version/plan/evidence/combine, router_method "learned", inference_mode "model" (:273).
+3. Submits "species_correction" reviews the way SpeciesCorrection.jsx does; the curator accepts; asserts curation_decisions and a result_snapshot review_evidence holding the trace (:301).
+4. Builds the fish batch; items must be exactly the accepted fish-route reviews (:335).
+5. Freezes; audit line present, every item stamped frozen_at, unknown id → 404 (:355).
+6. Registers a candidate with training_dataset_version = batch id (:364); dry-run then real promotion; asserts model_eval_metrics (event "promotion"), both audit lines, registry state (:380); the worker's `ModelRegistry.best_available("fish")` returns the promoted model (:142, :398).
+7. Checks the checked-in registry sha256s are unchanged (:405) and drops the database (:434).
+Fixes: `services/api/app/reviews/curation.py:182-215` (`_result_routes`, `batch_membership_route`), `:247` (candidate filter), `:300-335` (freeze), 404 at `app/reviews/router.py:392`.
+
+**Q2. Rationale.**
+- Worker as a subprocess: API and worker are both packages named `app` with different venvs (torch only in the worker's); a subprocess runs the real worker code and the hand-off goes through real Redis.
+- Redis db 15 + random Mongo DB: the running stack pops db 0 and serves db "synthveda"; sharing either would race it or write into its data.
+- No training in the test: training is GPU-hours and a 1-item batch is meaningless; the promoted artifact is the serving fish head's bytes under a new model_id, noted "not retrained". The test proves the plumbing, not model quality.
+- Fixture not checked in: test.csv has no per-row source and mixes BOLD (CC BY-SA) rows; the test skips with the reason when the data root is absent.
+- Batch fix, rejected alternative: put the route into the frontend's correction_type. That keeps membership in free text and keeps the cross-route auto-review leak. The orchestrator's final route is what the batch retrains, so membership follows it.
+- Freeze fix: under B9 Mongo is the source of truth and a batch exists only as its training_batch_items, so freezing stamps those items.
+
+**Q3. Blast radius.**
+- Test is opt-in and skipped by default; cannot break CI. Local-only: CI has no models, data root or GPU (stated in Makefile and README).
+- Batch membership: accepted reviews are now batched by the sequence's result route; the old `correction_type` regex is only a fallback when analysis_results is gone. Before, the Species Correction page's `correction_type: "species_correction"` matched no route, so **accepted corrections never joined any batch**, and every auto review joined every route's batch (a bacteria auto review landed in the fish batch).
+- Freeze: an unknown or empty batch id now gets 404 (the Admin page used to show "frozen" for a typo). Freezing twice returns the first freeze without a second audit line. 3 old unit tests that froze nonexistent batches were updated.
+- Promotion only ever runs inside the temp registry copy; the digest assertion guards the real registry (a leak would demote dnabert2_fish_v2).
+
+**Q4. Verification.**
+- `make test-loop DATA_ROOT=… API_PYTHON=… WORKER_PYTHON=…` → 1 passed in each of 4 runs after the fix. Wall times as measured: 198.5 s, **13.7 s**, 346.4 s, 394.8 s. The run before the fix (26.4 s) failed with `batch tbatch_202610_fish_0a797ffe holds [], expected the accepted fish-route reviews ['rev_1db77c46dbc14b15']`.
+- In the 394.8 s run the stored traces put reference_lookup (BLAST) at 384.7 s of run_job's 388.6 s; route heads 0.77 s, novelty 0.2 s, API side 0.12 s. The slow runs overlapped `training.eval_taxon` BLAST (~390% CPU) and the novelty-centroid jobs on a 14 GB host; the uncontended run took 1.04 s/sequence.
+- Every run: router "learned" 4/4, inference_mode "model" 4/4, **0 auto reviews** (nothing reached novelty ≥ 0.45 or a contamination flag), so the review step ran on 2 manual species_correction reviews. The possible_novelty-labelled fish row was assigned known_species "Perissodus microlepis".
+- New unit tests `test_batch_membership_follows_the_sequence_route`, `test_batch_membership_without_a_result_falls_back_to_correction_type`, `test_freeze_stamps_items_404s_unknown_and_is_idempotent` fail on 1f0e605 (fish batch 3 items, legacy 2, unknown freeze 200) and pass now.
+- API suite on merged `bd8f550`: **647 passed, 3 skipped** (644/2 + 3 fix tests + the opt-in loop test). Worker suite on the branch: 500 passed (no worker files changed).
+- After the runs no `synthveda_looptest_*` database remained and the Redis db 15 queue was empty.
+
+**Q5. Defence: "It promotes a model nobody trained — what does it prove?"**
+That every hand-off the Day 12 exit criterion names works on real services: an upload reaches the worker over real Redis; the orchestrator's decision and trace survive into the API and into each review's evidence snapshot; an accepted correction from the real UI lands in the right route's batch (it did not before this change); the freeze is durable in Mongo; the frozen batch id travels through registration into model_eval_metrics; and the worker's own selection code serves the promoted model. Model quality is measured separately (QNA-021/024). Not exercised, stated as such: the Supabase mirror, the S3/MinIO backend, the dispatcher's polling loop (only dequeue_job + run_job), and the auto-review decision path (0 auto reviews on these 4 sequences; unit tests only).
+
+**Open issues.** Nothing enforces "frozen before register/train" (`POST /models/register`, `scripts/training/export_batch.py` do not check). Reference-lookup time swings 13.7 s → 394.8 s for the same 4 sequences under CPU contention. Batch membership still falls back to correction_type text when the analysis is missing.
