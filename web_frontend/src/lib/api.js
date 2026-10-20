@@ -134,9 +134,16 @@ export const createAnalysisJob = (upload_id, mode = "online_full") =>
 
 export const getJob = (job_id) => request("GET", `/analysis/jobs/${job_id}`);
 
-// No getAnalysis (GET /analysis/{id}) helper: it returns the raw stored
-// result with every per-sequence row, and every page that shows an analysis
-// needs the assembled report (/reports/{id} or its narrow sub-endpoints).
+/**
+ * The stored per-sequence results (GET /analysis/{id}), including each
+ * row's orchestrator `decision` (absent on pre-orchestrator analyses).
+ * include_trace=false drops every decision_trace (mean ~5.5 KB per sequence,
+ * QNA-025) -- the Results page loads the rows without traces and fetches the
+ * traces only when a reader opens "Why this answer". Pages that need the
+ * assembled report still use /reports/{id}.
+ */
+export const getAnalysis = (analysis_id, { includeTrace = true } = {}) =>
+  request("GET", `/analysis/${analysis_id}`, { params: { include_trace: includeTrace } });
 
 // ---------------------------------------------------------------------------
 // Reports
@@ -246,6 +253,12 @@ export const downloadFieldAttachment = (attachment_id) =>
 // ---------------------------------------------------------------------------
 
 export const getModels = () => request("GET", "/models/registry");
+
+/**
+ * Per-route head readiness as the API process sees it (registry + data root
+ * on disk). Not the worker's live state: the response says so in `note`.
+ */
+export const getModelStatus = () => request("GET", "/models/status");
 
 /**
  * Promote a registered model to production for its route (admin only, B8).
