@@ -33,7 +33,8 @@ writing into --out <dir>:
       Reference v2 leakage for the evaluated rows: exact (row or its source
       record in a ref.fasta) and same-source-record (a reference sequence
       whose contributing records share an accession with the row's source
-      records, among the row's hits at >= 99% identity). Writes
+      records, among the row's hits at >= 99% identity), plus GRCh38 window
+      rows (the GRCh38 BLAST index is the whole genome). Writes
       leak_<split>.json.
 
   python -m training.eval_taxon report --split test --out <dir> --json <results.json>
@@ -1134,7 +1135,7 @@ def main() -> None:
     rp = sub.add_parser("report")
     rp.add_argument("--out", required=True)
     rp.add_argument("--splits", default="test,dev")
-    rp.add_argument("--json", required=True, help="results file, e.g. docs/ml/results/taxon_eval_2026-10-19.json")
+    rp.add_argument("--json", required=True, help="results file, e.g. docs/ml/results/taxon_eval_2026-10-20.json")
     rp.add_argument("--audit-out", default=None, help="per-row relabel audit JSONL; {split} is substituted")
     args = ap.parse_args()
     {"run": cmd_run, "trace": cmd_trace, "leak": cmd_leak, "report": cmd_report}[args.cmd](args)
