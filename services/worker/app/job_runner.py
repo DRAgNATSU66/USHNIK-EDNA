@@ -290,6 +290,14 @@ async def _stage_report(
     return analysis_id
 
 
+# Contamination that is the expected finding on its route: flagged and traced,
+# but not auto-queued for review (owner decision 2026-10-19, docs/decisions.md).
+# Human DNA on the human/domestic route is what that route is for.
+EXPECTED_CONTAMINATION_BY_ROUTE: dict[str, frozenset[str]] = {
+    "human_domestic_contamination": frozenset({"human_dna"}),
+}
+
+
 def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> list[dict]:
     """
     Build review documents for novelty/contamination-flagged sequences.
@@ -329,7 +337,8 @@ def _build_auto_reviews(analysis_id: str, job_id: str, results: list[dict]) -> l
                 "created_at": now,
             })
 
-        if contamination_flagged:
+        expected = seq.get("contamination_type") in EXPECTED_CONTAMINATION_BY_ROUTE.get(seq.get("route"), ())
+        if contamination_flagged and not expected:
             reviews.append({
                 "review_id": f"rev_{uuid.uuid4().hex[:16]}",
                 "analysis_id": analysis_id,
