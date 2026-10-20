@@ -358,7 +358,7 @@ function EnvVariableCard({ spec, v, index }) {
           <span style={{ fontSize: s(38), fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1 }}>{fmtNum(v.value)}</span>
           <span style={{ fontSize: s(12), color: tokens.sectionSubtext }}>
             {unit}
-            {dirDeg != null ? ` · ${Math.round(dirDeg)}° ${dirConv ? `(${dirConv})` : ""}` : ""}
+            {dirDeg != null ? ` · ${Math.round(dirDeg)}°${dirConv ? ` ${dirConv}` : ""}` : ""}
           </span>
         </div>
       )}
