@@ -247,3 +247,92 @@ class AuditDoc(BaseModel):
     # Frozen at write time, like field-log author_name.
     created_by_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Regional views: hotspots + alerts (t-1027-3, M2; app/partner/regional.py)
+# ---------------------------------------------------------------------------
+
+class TaxonInCell(BaseModel):
+    taxon: str
+    taxon_rank: Optional[str] = None
+    sequences: int
+
+
+class HotspotCell(BaseModel):
+    """One latitude/longitude grid cell holding at least one upload."""
+    cell_id: str  # "<lat index>:<lon index>" at the response's cell_deg
+    lat_min: float
+    lat_max: float
+    lng_min: float
+    lng_max: float
+    center_lat: float
+    center_lng: float
+    uploads: int
+    analyses: int
+    sequences: int
+    sequences_with_taxon: int
+    distinct_taxa: int
+    novelty_flags: int
+    contamination_flags: int
+    open_reviews: int
+    open_urgent_reviews: int
+    top_taxa: list[TaxonInCell] = Field(default_factory=list)
+    location_labels: list[str] = Field(default_factory=list)
+    upload_ids: list[str] = Field(default_factory=list)  # newest first, capped
+    first_collected_at: Optional[datetime] = None
+    last_collected_at: Optional[datetime] = None
+
+
+class HotspotCoverage(BaseModel):
+    uploads_in_scope: int = 0
+    uploads_with_coordinates: int = 0
+    uploads_without_coordinates: int = 0
+    uploads_invalid_coordinates: int = 0
+    analyses_in_scope: int = 0
+    analyses_mapped: int = 0  # in-scope analyses of mapped in-scope uploads
+
+
+class HotspotsResponse(BaseModel):
+    generated_at: datetime
+    scope: SummaryScopeInfo
+    cell_deg: float
+    definitions: dict[str, str]
+    notes: list[str] = Field(default_factory=list)
+    coverage: HotspotCoverage
+    # Most open urgent reviews first, then most flags, then most uploads.
+    cells: list[HotspotCell] = Field(default_factory=list)
+
+
+class RegionalAlert(BaseModel):
+    analysis_id: str
+    upload_id: Optional[str] = None
+    priority: Literal["urgent", "flagged"]
+    # Subset of open_urgent_review | contamination_flags | novelty_flags.
+    reasons: list[str]
+    analysis_created_at: Optional[datetime] = None
+    upload_found: bool
+    original_filename: Optional[str] = None
+    location_label: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    collected_at: Optional[datetime] = None
+    sequences: int
+    novelty_flags: int
+    contamination_flags: int
+    contamination_types: dict[str, int] = Field(default_factory=dict)
+    open_reviews: int
+    open_urgent_reviews: int
+    open_reviews_by_type: dict[str, int] = Field(default_factory=dict)
+
+
+class AlertsResponse(BaseModel):
+    generated_at: datetime
+    scope: SummaryScopeInfo
+    definitions: dict[str, str]
+    notes: list[str] = Field(default_factory=list)
+    analyses_in_scope: int
+    total: int  # alerts before the limit
+    urgent: int  # of total
+    truncated: bool
+    alerts: list[RegionalAlert] = Field(default_factory=list)
