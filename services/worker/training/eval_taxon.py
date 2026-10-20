@@ -51,19 +51,15 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import csv
 import gzip
 import json
 import random
 import re
 import resource
 import subprocess
-import sys
 import time
 from collections import Counter, defaultdict
-from itertools import islice
 from pathlib import Path
-from typing import Iterator
 
 from training.eval_orchestrator import ROUTES, _data_root, _gpu_peak_mb, _pipeline_dicts, _read
 
@@ -212,32 +208,47 @@ def name_category(name: str | None) -> str:
 
 
 def names_in(copies: list[dict]) -> dict[str, set[str]]:
-    """Genus keys (genus_key) and species names (lower case) that a set of
-    source copies carried: from each copy's lineage (NCBI-unified, after
-    _drop_vague_species), its SILVA path, and the first capitalised word of
-    its organism name (plus the next word when it is a lower-case epithet).
+    """Species names (lower case), genus keys (genus_key) and families that
+    a set of source copies carried: from each copy's lineage (NCBI-unified,
+    after _drop_vague_species), its SILVA path, and the first capitalised
+    word of its organism name -- a genus, plus the next word when that is a
+    lower-case epithet, unless the copy's lineage holds that word at a rank
+    above genus or it has a family/order suffix ('Gobiidae environmental
+    sample' names a family, not a genus).
     'uncultured Bacteroides sp.' carries genus 'bacteroides', no species."""
     genera: set[str] = set()
     species: set[str] = set()
+    families: set[str] = set()
     for c in copies:
+        higher: set[str] = set()
         for lin in (c.get("lineage") or {}, c.get("path_lineage") or {}):
             nl = norm_lineage(lin)
             if (g := genus_key(nl.get("genus"))):
                 genera.add(g)
+            if nl.get("family") and not _UNRESOLVED.search(nl["family"]):
+                families.add(nl["family"])
             sp = nl.get("species")
             if sp and not _UNRESOLVED.search(sp) and not re.search(r"\bsp\.?(\s|$)|\bcf\.\s", sp):
                 species.add(sp)
+            higher |= {v for r, v in nl.items() if r not in ("genus", "species")}
         words = [w for w in re.split(r"[\s_]+", (c.get("organism") or "").strip()) if w]
         for i, w in enumerate(words):
             if w.lower() in _NAME_STOP or not (w[:1].isupper() and w.isalpha()):
                 continue
-            if (g := genus_key(w)):
+            wl = w.lower()
+            if wl.endswith(_FAMILY_SUFFIXES):
+                families.add(wl)
+            elif wl not in higher and not wl.endswith(_HIGHER_SUFFIXES) and (g := genus_key(w)):
                 genera.add(g)
                 nxt = words[i + 1] if i + 1 < len(words) else ""
                 if nxt.isalpha() and nxt.islower() and nxt not in ("sp", "bacterium", "environmental", "cf", "aff"):
                     species.add(f"{w} {nxt}".lower())
             break
-    return {"genus": genera, "species": species}
+    return {"genus": genera, "species": species, "family": families}
+
+
+_FAMILY_SUFFIXES = ("idae", "aceae")
+_HIGHER_SUFFIXES = ("iformes", "ales", "inae", "oidea", "phyta", "mycota", "mycetes")
 
 
 _NAME_STOP = {"uncultured", "unidentified", "unclassified", "environmental", "sample", "bacterium", "organism",
@@ -264,20 +275,24 @@ def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str]
 
       label_noise        the hit is the same source record in another
                          database (shared accession); or the source records
-                         name the hit's species; or they name the hit's
-                         genus and no conflicting species: the sequence
-                         belongs to a taxon its own record names, and only
-                         the 'uncultured / environmental' wording made the
-                         label
-      real_disagreement  the source records name a different genus, or the
-                         same genus but a different species
-      undetermined       the source carries no genus or species to compare
-                         ('uncultured bacterium'), or the hit resolves only
-                         above genus, and no shared accession
+                         name the hit's species; or its genus (and no
+                         conflicting species); or, when the source names
+                         nothing below family, the hit's family. The
+                         sequence then sits in a taxon its own record
+                         names, and only the 'uncultured / environmental'
+                         wording made the label. The reason says at which
+                         rank the names agree.
+      real_disagreement  the source names a different genus, the same genus
+                         but a different species, or a different family
+      undetermined       the source carries no name to compare ('uncultured
+                         bacterium', 'marine metagenome'), or the hit and the
+                         source share no rank to compare, and no shared
+                         accession
     row_names: names_in(all copies); named_copy_names: names_in(copies with
     a usable organism name), only used to word the reason."""
     hl = norm_lineage(hit_lineage)
-    hs, hg = hl.get("species"), genus_key(hl.get("genus"))
+    hs, hg, hf = hl.get("species"), genus_key(hl.get("genus")), hl.get("family")
+    families = row_names.get("family", set())
 
     def via(key: str, value: str) -> str:
         if named_copy_names and value in named_copy_names.get(key, set()):
@@ -294,9 +309,13 @@ def classify_relabel(row_names: dict[str, set[str]], hit_lineage: dict[str, str]
         return "label_noise", f"{via('genus', hg)} names the hit's genus"
     if row_names["genus"] and hg:
         return "real_disagreement", "the source names a different genus"
+    if hf and families:
+        if hf in families:
+            return "label_noise", f"{via('family', hf)} names the hit's family (no genus to compare)"
+        return "real_disagreement", "the source names a different family"
     if row_names["genus"]:
         return "undetermined", "the hit resolves only above genus"
-    return "undetermined", f"the source carries no genus or species name ({', '.join(sorted(name_cats)) or 'none'})"
+    return "undetermined", f"the source carries no name to compare ({', '.join(sorted(name_cats)) or 'none'})"
 
 
 # ---------------------------------------------------------------------------
@@ -568,7 +587,9 @@ def trace_all_copies(root: Path, rows: list[dict]) -> dict[str, dict]:
                 if not hits:
                     continue
                 copy = {"src": rec.src, "marker": rec.marker, "acc": rec.acc, "organism": rec.organism,
-                        "usable_name": bool(usable(rec.organism)) or rec.forced_route is not None,
+                        # supplementary rows carry a forced route too; only vectors and
+                        # genome windows are named by provenance rather than organism
+                        "usable_name": bool(usable(rec.organism)) or rec.src in ("univec", "grch38"),
                         "lineage": brd._drop_vague_species(rec.lineage), "taxid": rec.taxid,
                         "chunked": len(rec.sequence) > brd.CHUNK_SOURCE_LEN, "seq_digest": digs[0].hex()}
                 for rid in hits:
@@ -781,6 +802,8 @@ def grading_truth(t: dict | None) -> tuple[dict[str, str] | None, str]:
         return dict(t["lca_named"]), "named_copy_outside_reference_plan"
     if t.get("lca_any"):
         return dict(t["lca_any"]), "unresolved_name_only"
+    if t.get("copies"):
+        return None, "traced_no_lineage"     # e.g. 'marine metagenome': no rank to grade
     return None, "untraced"
 
 

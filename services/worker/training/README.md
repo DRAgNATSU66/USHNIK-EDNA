@@ -12,6 +12,7 @@ Builds the per-route training data and fine-tunes the route heads.
 | `fetch_supplementary.py` | Fetches extra sequences for thin classes from official APIs into `raw/supplementary/` |
 | `finetune.py`, `evaluate_checkpoint.py` | Training and evaluation |
 | `eval_orchestrator.py` | Day 9 orchestrator: planner sweep on dev, held-out smoke run (`docs/ml/results/orchestrator_*`) |
+| `eval_taxon.py` | Day 10 taxon evaluation of the orchestrator's final taxon on every held-out row: `run` → `trace` → `leak` → `report` (`docs/ml/results/taxon_eval_*`) |
 
 ## Rebuilding `processed/` (`build_dataset.py`)
 
