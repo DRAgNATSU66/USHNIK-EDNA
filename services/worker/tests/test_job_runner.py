@@ -25,6 +25,7 @@ def _seq(
     novelty_level: str = "none",
     contamination_type: str | None = None,
     abyss_recommendation: str = "continue_sampling",
+    route: str = "fish",
 ) -> dict:
     return {
         "sequence_id": sequence_id,
@@ -35,6 +36,7 @@ def _seq(
         "contamination_type": contamination_type,
         "abyss_recommendation": abyss_recommendation,
         "result_class": "unknown_needs_online_confirmation",
+        "route": route,
     }
 
 
@@ -95,6 +97,30 @@ class TestBuildAutoReviews:
         assert r["triage_priority"] == "urgent"
         assert r["contamination_score"] == 0.85
         assert r["is_contamination"] is True
+
+    def test_human_dna_on_human_route_is_flagged_but_not_queued(self):
+        results = [_seq(contamination_flagged=True, contamination_score=0.9,
+                        contamination_type="human_dna", route="human_domestic_contamination")]
+        assert _build_auto_reviews("ana_001", "job_001", results) == []
+        assert results[0]["contamination_flagged"] is True
+
+    def test_human_dna_off_the_human_route_is_queued(self):
+        results = [_seq(contamination_flagged=True, contamination_score=0.9,
+                        contamination_type="human_dna", route="fish")]
+        reviews = _build_auto_reviews("ana_001", "job_001", results)
+        assert [r["review_type"] for r in reviews] == ["auto_contamination"]
+
+    def test_other_contamination_on_human_route_is_queued(self):
+        results = [_seq(contamination_flagged=True, contamination_score=0.9,
+                        contamination_type="vector_adapter", route="human_domestic_contamination")]
+        reviews = _build_auto_reviews("ana_001", "job_001", results)
+        assert [r["review_type"] for r in reviews] == ["auto_contamination"]
+
+    def test_novelty_still_queued_on_human_route_with_human_dna(self):
+        results = [_seq(novelty_score=0.6, contamination_flagged=True,
+                        contamination_type="human_dna", route="human_domestic_contamination")]
+        reviews = _build_auto_reviews("ana_001", "job_001", results)
+        assert [r["review_type"] for r in reviews] == ["auto_novelty"]
 
     def test_both_flags_creates_two_reviews(self):
         results = [_seq(novelty_score=0.55, contamination_flagged=True, contamination_score=0.7)]

@@ -9,6 +9,31 @@ the correction rather than silently rewriting.
 
 ---
 
+## 2026-10-19 — Owner decisions on the orchestrator's class and contamination-review rules
+
+Answered by the owner on 2026-10-19 after the orchestrator-1.2.0 held-out run
+(docs/qna.md QNA-024/025; `docs/ml/results/orchestrator_smoke_2026-10-19.json`).
+
+- **A strong reference hit outranks the classifier's novelty call (kept as merged).** On
+  100 test rows per route, the orchestrator's result_class agrees with the dataset labels
+  on 0.773 of rows against 0.8631 for the old router+head answer, mainly because 82 of
+  180 `possible_novelty`-labelled rows have a ≥97% / ≥80%-coverage hit in reference v2
+  and become known_species (39) or likely_taxonomic_group (43). The owner chose the
+  reference-wins rule (standard metabarcoding practice; QNA-020 Q4) over reporting the
+  head class with the hit as a side note. The lower label agreement is to be explained
+  as label noise from "uncultured / environmental" names, and the Day 10 taxon
+  evaluation (t-1023-3) has to test that explanation rather than assume it.
+- **Human DNA on the human/domestic route does not queue a review.** GRCh38 flagged 102
+  of the sampled rows as human_dna, all on the human route, 65 of them labelled
+  known_species. Those reads keep `contamination_flagged`, `contamination_type` and the
+  decision trace, but `_build_auto_reviews` no longer queues an `auto_contamination`
+  review for a contamination type that is the expected finding on the read's final route
+  (`EXPECTED_CONTAMINATION_BY_ROUTE` in `services/worker/app/job_runner.py`; today only
+  human_dna on human_domestic_contamination). Human DNA on any other route, other
+  contamination types on the human route, and novelty reviews are still queued.
+
+---
+
 ## 2026-10-18 — B7 upload storage: one module copied into both services, URIs in the doc
 
 - **Two backends behind one small interface** (`put/open/exists/delete/uri`) in
