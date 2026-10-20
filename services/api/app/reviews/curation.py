@@ -179,6 +179,42 @@ async def add_evidence(
 # Monthly training batch
 # ---------------------------------------------------------------------------
 
+async def _result_routes(db: AsyncIOMotorDatabase, reviews: list[dict]) -> dict[tuple[str, str], str]:
+    """(analysis_id, sequence_id) -> the sequence's final route in analysis_results."""
+    wanted = {(r.get("analysis_id"), r.get("sequence_id")) for r in reviews}
+    found: dict[tuple[str, str], str] = {}
+    if not wanted:
+        return found
+    cursor = db["analysis_results"].find(
+        {"analysis_id": {"$in": sorted({a for a, _ in wanted if a})}},
+        {"analysis_id": 1, "results.sequence_id": 1, "results.route": 1},
+    )
+    async for doc in cursor:
+        for res in doc.get("results") or []:
+            key = (doc.get("analysis_id"), res.get("sequence_id"))
+            if key in wanted and res.get("route"):
+                found.setdefault(key, str(res["route"]))
+    return found
+
+
+def batch_membership_route(review: dict, result_route: str | None, route: str) -> bool:
+    """
+    Whether an accepted review belongs in `route`'s training batch.
+
+    The sequence's final route in analysis_results decides (the orchestrator's
+    route, the one whose head the batch retrains). Only when that result is
+    gone does the legacy rule apply: the route name inside correction_type.
+    Before t-1025-3 the legacy rule was the only one, plus "every auto review
+    joins every route's batch": the Species Correction page sends
+    correction_type "species_correction", so its accepted corrections joined
+    no batch at all, while an auto review on a bacteria sequence joined the
+    fish batch.
+    """
+    if result_route is not None:
+        return result_route == route
+    return route.lower() in str(review.get("correction_type") or "").lower()
+
+
 async def create_monthly_training_batch(
     db: AsyncIOMotorDatabase,
     route: str,
@@ -189,8 +225,8 @@ async def create_monthly_training_batch(
     Collect all accepted reviews for a route into a training batch.
 
     Steps:
-      1. Find reviews: state=accepted, correction_type includes the route,
-         training_batch_id is None.
+      1. Find reviews: state=accepted, training_batch_id is None, whose
+         sequence is on `route` (batch_membership_route below).
       2. Record one training_batch_items document per review, mirrored to
          Supabase training_batches / curated_sequences / training_batch_items
          (reviews/records.py).
@@ -206,19 +242,16 @@ async def create_monthly_training_batch(
 
     batch_id = f"tbatch_{month_year.replace('-', '')}_{route[:8]}_{uuid.uuid4().hex[:8]}"
 
-    # Find eligible accepted reviews for this route
-    query = {
-        "state": ReviewState.accepted,
-        "training_batch_id": None,
-        "$or": [
-            {"correction_type": {"$regex": route, "$options": "i"}},
-            {"review_type": {"$in": [ReviewType.auto_novelty, ReviewType.auto_contamination]}},
-        ],
-    }
-    cursor = db["reviews"].find(query)
-    reviews: list[dict] = []
+    # Eligible: accepted, not yet batched, and on this route.
+    cursor = db["reviews"].find({"state": ReviewState.accepted, "training_batch_id": None})
+    candidates: list[dict] = []
     async for doc in cursor:
-        reviews.append(doc)
+        candidates.append(doc)
+    routes = await _result_routes(db, candidates)
+    reviews = [
+        doc for doc in candidates
+        if batch_membership_route(doc, routes.get((doc.get("analysis_id"), doc.get("sequence_id"))), route)
+    ]
     review_ids = [doc["review_id"] for doc in reviews]
 
     if not review_ids:
@@ -268,14 +301,36 @@ async def freeze_training_batch(
     db: AsyncIOMotorDatabase,
     batch_id: str,
     frozen_by: str,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """
     Freeze a training batch to prevent further additions.
 
     After freezing, the batch is ready for Phase 14 model retraining.
     Only admin/company_owner should be able to call this endpoint.
+
+    MongoDB is the source of truth (B9): a batch exists as its
+    training_batch_items, and freezing stamps frozen_at / frozen_by on every
+    one of them. Returns None for a batch with no items (unknown id, or an
+    "empty" batch) -- the router answers 404. Before t-1025-3 any id came back
+    "frozen", with only an audit_logs line and the Supabase update behind it.
+    Freezing again is a no-op that returns the first freeze.
     """
+    first = await db["training_batch_items"].find_one({"batch_id": batch_id})
+    if first is None:
+        return None
+    if first.get("frozen_at") is not None and await db["training_batch_items"].find_one(
+        {"batch_id": batch_id, "frozen_at": None}
+    ) is None:
+        frozen_at = first["frozen_at"]
+        return {"batch_id": batch_id, "status": "frozen", "frozen_by": first.get("frozen_by"),
+                "frozen_at": frozen_at.isoformat() if isinstance(frozen_at, datetime) else frozen_at,
+                "already_frozen": True}
+
     now = datetime.now(timezone.utc)
+    await db["training_batch_items"].update_many(
+        {"batch_id": batch_id, "frozen_at": None},
+        {"$set": {"frozen_at": now, "frozen_by": frozen_by}},
+    )
 
     # Freeze in Supabase (best-effort)
     try:
@@ -294,7 +349,8 @@ async def freeze_training_batch(
         "timestamp": now,
     })
 
-    return {"batch_id": batch_id, "status": "frozen", "frozen_by": frozen_by, "frozen_at": now.isoformat()}
+    return {"batch_id": batch_id, "status": "frozen", "frozen_by": frozen_by, "frozen_at": now.isoformat(),
+            "already_frozen": False}
 
 
 # ---------------------------------------------------------------------------

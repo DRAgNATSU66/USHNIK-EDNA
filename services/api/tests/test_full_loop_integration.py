@@ -40,7 +40,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import time
 import uuid
 from pathlib import Path
@@ -76,7 +75,7 @@ pytestmark = [
 
 def _prerequisite_skips() -> list[str]:
     missing = []
-    for route, _, _ in PICKS:
+    for route in dict.fromkeys(route for route, _, _ in PICKS):
         if not (DATA_ROOT / "processed" / route / "test.csv").is_file():
             missing.append(f"{DATA_ROOT}/processed/{route}/test.csv")
     for p in ("checkpoints", "reference"):
@@ -276,7 +275,7 @@ async def test_full_loop_upload_to_promotion(tmp_path, monkeypatch):
             assert proc.returncode == 0, f"worker run failed (rc={proc.returncode}):\n{out[-6000:]}"
             worker_result = _tagged(out, "LOOP_WORKER_RESULT")
             assert worker_result and worker_result["envelope"]["job_id"] == job_id, out[-3000:]
-            orchestrator_line = next((l for l in out.splitlines() if "[worker] orchestrator" in l), None)
+            worker_log = [line for line in out.splitlines() if line.startswith("[worker]")]
             t = lap("worker_subprocess_s", t)
             timings["worker_run_job_s"] = worker_result["run_job_s"]
 
@@ -305,18 +304,22 @@ async def test_full_loop_upload_to_promotion(tmp_path, monkeypatch):
             auto_reviews = r.json()
             assert all(rv["analysis_id"] == analysis_id for rv in auto_reviews)
 
-            # What Species Correction (web_frontend SpeciesCorrection.jsx) sends.
-            target = sorted(batch_route_ids)[0]
-            r = await api.post("/reviews", headers=_auth(researcher), json={
-                "analysis_id": analysis_id, "sequence_id": target,
-                "correction_type": "species_correction",
-                "proposed_taxon": results[target]["decision"].get("predicted_taxon"),
-                "evidence_notes": "loop test: curator confirms the orchestrator's assignment",
-            })
-            assert r.status_code == 201, r.text
-            manual = r.json()
+            # What Species Correction (web_frontend SpeciesCorrection.jsx)
+            # sends: one on a batch-route sequence (must join the batch) and
+            # one on an off-route sequence, if any (must not).
+            manual = []
+            off_route = sorted(set(results) - batch_route_ids)
+            for target in [sorted(batch_route_ids)[0]] + off_route[:1]:
+                r = await api.post("/reviews", headers=_auth(researcher), json={
+                    "analysis_id": analysis_id, "sequence_id": target,
+                    "correction_type": "species_correction",
+                    "proposed_taxon": results[target]["decision"].get("predicted_taxon"),
+                    "evidence_notes": "loop test: curator confirms the orchestrator's assignment",
+                })
+                assert r.status_code == 201, r.text
+                manual.append(r.json())
 
-            decided = auto_reviews + [manual]
+            decided = auto_reviews + manual
             for rv in decided:
                 r = await api.post(f"/reviews/{rv['review_id']}/decision", headers=_auth(curator),
                                    json={"decision": "accept", "notes": "loop test accept"})
@@ -410,7 +413,7 @@ async def test_full_loop_upload_to_promotion(tmp_path, monkeypatch):
                                           results[sid]["decision"].get("predicted_taxon")) for sid, _, label in seqs],
             "auto_reviews": [(rv["review_type"], rv["sequence_id"]) for rv in auto_reviews],
             "batch": {"batch_id": batch_id, "items": len(items)}, "promoted": model_id,
-            "orchestrator": orchestrator_line, "timings": timings,
+            "worker_log": worker_log, "timings": timings,
         }
         print("\nLOOP_SUMMARY " + json.dumps(summary, default=str, indent=1))
     finally:

@@ -541,6 +541,90 @@ async def test_unconfigured_supabase_still_records_skip_reasons(client, admin_to
 
 
 # ---------------------------------------------------------------------------
+# t-1025-3 (full-loop test): batch membership by result route; real freeze
+# ---------------------------------------------------------------------------
+
+MIXED = {
+    "analysis_id": "ana_mix", "user_id": "usr_test_001",
+    "results": [
+        {"sequence_id": "f1", "sequence": "ACGT" * 40, "route": "fish"},
+        {"sequence_id": "f2", "sequence": "ACGA" * 40, "route": "fish"},
+        {"sequence_id": "b1", "sequence": "TTGA" * 40, "route": "bacteria_pathogen"},
+    ],
+}
+
+
+@pytest.mark.anyio
+async def test_batch_membership_follows_the_sequence_route(client, admin_token, db, monkeypatch):
+    """The Species Correction page sends correction_type "species_correction"
+    (web_frontend SpeciesCorrection.jsx). Before t-1025-3 such a review joined
+    no batch, and every auto review joined whichever route's batch came first."""
+    monkeypatch.setattr(sc_module, "_client", None)
+    db["analysis_results"].docs.append(MIXED)
+    db["reviews"].docs += [
+        _accepted("rev_ui", "f1", analysis_id="ana_mix", correction_type="species_correction",
+                  proposed_taxon="Gadus morhua"),
+        _accepted("rev_auto_f", "f2", analysis_id="ana_mix", review_type="auto_novelty",
+                  correction_type="auto_novelty_flag", submitted_by="system"),
+        _accepted("rev_auto_b", "b1", analysis_id="ana_mix", review_type="auto_novelty",
+                  correction_type="auto_novelty_flag", submitted_by="system"),
+        # correction_type names fish, but the sequence is on bacteria: the result decides.
+        _accepted("rev_misnamed", "b1", analysis_id="ana_mix", correction_type="fish_species_correction"),
+    ]
+    r = await client.post("/reviews/batch/create", json={"route": "fish", "month_year": "2026-10"},
+                          headers=_auth(admin_token))
+    fish = r.json()
+    assert r.status_code == 200 and fish["sequence_count"] == 2, r.text
+    assert {d["review_id"] for d in db["training_batch_items"].docs} == {"rev_ui", "rev_auto_f"}
+    state = {d["review_id"]: (d["state"], d["training_batch_id"]) for d in db["reviews"].docs}
+    assert state["rev_auto_b"] == ("accepted", None) and state["rev_misnamed"] == ("accepted", None)
+
+    r = await client.post("/reviews/batch/create", json={"route": "bacteria_pathogen", "month_year": "2026-10"},
+                          headers=_auth(admin_token))
+    assert r.json()["sequence_count"] == 2, r.text
+    state = {d["review_id"]: d["training_batch_id"] for d in db["reviews"].docs}
+    assert state["rev_auto_b"] == state["rev_misnamed"] == r.json()["batch_id"]
+
+
+@pytest.mark.anyio
+async def test_batch_membership_without_a_result_falls_back_to_correction_type(client, admin_token, db, monkeypatch):
+    monkeypatch.setattr(sc_module, "_client", None)
+    db["reviews"].docs += [
+        _accepted("rev_named", "gone_1", analysis_id="ana_gone", correction_type="fish_species_correction"),
+        _accepted("rev_plain", "gone_2", analysis_id="ana_gone", correction_type="species_correction"),
+        _accepted("rev_auto", "gone_3", analysis_id="ana_gone", review_type="auto_novelty",
+                  correction_type="auto_novelty_flag"),
+    ]
+    r = await client.post("/reviews/batch/create", json={"route": "fish", "month_year": "2026-10"},
+                          headers=_auth(admin_token))
+    assert r.json()["sequence_count"] == 1, r.text
+    assert [d["review_id"] for d in db["training_batch_items"].docs] == ["rev_named"]
+
+
+@pytest.mark.anyio
+async def test_freeze_stamps_items_404s_unknown_and_is_idempotent(client, admin_token, db, monkeypatch):
+    monkeypatch.setattr(sc_module, "_client", None)
+    r = await client.post("/reviews/batch/tbatch_nope/freeze", headers=_auth(admin_token))
+    assert r.status_code == 404, r.text
+    assert db["audit_logs"].docs == []
+
+    db["analysis_results"].docs.append(MIXED)
+    db["reviews"].docs += [_accepted("rev_1", "f1", analysis_id="ana_mix"), _accepted("rev_2", "f2", analysis_id="ana_mix")]
+    batch_id = (await client.post("/reviews/batch/create", json={"route": "fish", "month_year": "2026-10"},
+                                  headers=_auth(admin_token))).json()["batch_id"]
+    r = await client.post(f"/reviews/batch/{batch_id}/freeze", headers=_auth(admin_token))
+    first = r.json()
+    assert r.status_code == 200 and (first["status"], first["already_frozen"]) == ("frozen", False), r.text
+    items = db["training_batch_items"].docs
+    assert len(items) == 2 and all(d["frozen_by"] == "usr_admin_001" and d["frozen_at"] for d in items)
+
+    r = await client.post(f"/reviews/batch/{batch_id}/freeze", headers=_auth(admin_token))
+    again = r.json()
+    assert r.status_code == 200 and again["already_frozen"] is True and again["frozen_at"] == first["frozen_at"]
+    assert [d["action"] for d in db["audit_logs"].docs].count("training_batch_frozen") == 1
+
+
+# ---------------------------------------------------------------------------
 # B9 audit: no migration table is left unread/unwritten by the API
 # ---------------------------------------------------------------------------
 
