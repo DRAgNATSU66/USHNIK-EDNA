@@ -1,0 +1,78 @@
+{
+  "analyses_in_scope": 1,
+  "contamination_flags": 1,
+  "definitions": {
+    "contamination_flag": "A sequence with contamination_flagged = true.",
+    "incident": "An analysis in scope with at least one contamination flag, at least one novelty flag, or at least one open urgent review. Flags are as the pipeline raised them; a later review decision does not clear a flag, so open_reviews says how many reviews on that analysis are still open.",
+    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.45 (the worker's per-analysis summary rule).",
+    "open_review": "A review in state submitted, triaged or needs_evidence.",
+    "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
+    "urgent_review": "A review of an analysis in scope with triage_priority = urgent and state submitted, triaged or needs_evidence (open)."
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "incidents": [
+    {
+      "analysis_id": "ana_e2e0000000001",
+      "collected_at": "2026-10-09T06:30:00Z",
+      "contamination_flags": 1,
+      "contamination_types": {
+        "human": 1
+      },
+      "created_at": "2026-10-10T08:05:00Z",
+      "flagged_sequences": [
+        {
+          "contamination_type": "human",
+          "flag": "contamination",
+          "novelty_score": 0.1,
+          "result_class": "possible_contaminant",
+          "sequence_id": "seq_e2e_contam_005"
+        },
+        {
+          "contamination_type": null,
+          "flag": "novelty",
+          "novelty_score": 0.83,
+          "result_class": "possible_novel_taxon",
+          "sequence_id": "seq_e2e_novel_003"
+        },
+        {
+          "contamination_type": null,
+          "flag": "novelty",
+          "novelty_score": 0.67,
+          "result_class": "possible_novel_taxon",
+          "sequence_id": "seq_e2e_novel_004"
+        }
+      ],
+      "location_label": "Arabian Sea, Station 7",
+      "novelty_flags": 2,
+      "open_reviews": 2,
+      "sequences": 7,
+      "source_file": "e2e_arabian_sea_station7.fasta",
+      "upload_id": "upl_e2e0000000001",
+      "urgent_open_reviews": 1
+    }
+  ],
+  "notes": [],
+  "novelty_flags": 2,
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  },
+  "total": 1,
+  "truncated": false,
+  "urgent_reviews": [
+    {
+      "analysis_id": "ana_e2e0000000001",
+      "contamination_score": null,
+      "created_at": "2026-10-10T08:06:00Z",
+      "novelty_score": 0.83,
+      "review_id": "rev_e2e_novelty01",
+      "review_type": "auto_novelty",
+      "sequence_id": "seq_e2e_novel_003",
+      "state": "submitted"
+    }
+  ],
+  "urgent_reviews_total": 1,
+  "urgent_reviews_truncated": false
+}

@@ -1,0 +1,43 @@
+{
+  "definitions": {
+    "order": "Tasks not done first, then by due_date (earliest first, no due date last), then newest first.",
+    "overdue": "task_status is not done and due_date is before today (UTC).",
+    "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
+    "task": "A field-log entry of kind task on an analysis in scope (created in the Researcher Mode field log)."
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  },
+  "tasks": [
+    {
+      "analysis_id": "ana_e2e0000000001",
+      "assignee": "Wet lab",
+      "author_name": "Rhea Researcher",
+      "body": "Re-extract seq_e2e_contam_005 with a fresh negative control.",
+      "created_at": "2026-10-11T11:00:00Z",
+      "due_date": "2020-01-15",
+      "entry_id": "fle_e2e_task0001",
+      "overdue": true,
+      "task_status": "open",
+      "updated_at": null
+    },
+    {
+      "analysis_id": "ana_e2e0000000001",
+      "assignee": null,
+      "author_name": "Rhea Researcher",
+      "body": "Send voucher request for seq_e2e_novel_003.",
+      "created_at": "2026-10-11T12:00:00Z",
+      "due_date": null,
+      "entry_id": "fle_e2e_task0002",
+      "overdue": false,
+      "task_status": "done",
+      "updated_at": null
+    }
+  ],
+  "total": 2,
+  "truncated": false
+}

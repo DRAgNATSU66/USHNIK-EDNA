@@ -257,6 +257,25 @@ FIELD_ENTRIES = [
     {"entry_id": "fle_e2e_cmt00002", "analysis_id": ANALYSIS_ID, "kind": "comment", "author_id": OWNER,
      "author_name": "Rhea Researcher", "body": "Agreed, sample preserved in ethanol.", "anchor_sequence_id": None,
      "reply_to": "fle_e2e_cmt00001", "created_at": _ts(11, 10), "updated_at": None, "edits": []},
+    # Field-log tasks (Industrial page). Due dates far in the past / future so
+    # "overdue" does not depend on the day the fixtures are generated.
+    {"entry_id": "fle_e2e_task0001", "analysis_id": ANALYSIS_ID, "kind": "task", "author_id": OWNER,
+     "author_name": "Rhea Researcher", "body": "Re-extract seq_e2e_contam_005 with a fresh negative control.",
+     "anchor_sequence_id": None, "reply_to": None, "task_status": "open", "due_date": "2020-01-15",
+     "assignee": "Wet lab", "created_at": _ts(11, 11), "updated_at": None, "edits": []},
+    {"entry_id": "fle_e2e_task0002", "analysis_id": ANALYSIS_ID, "kind": "task", "author_id": OWNER,
+     "author_name": "Rhea Researcher", "body": "Send voucher request for seq_e2e_novel_003.",
+     "anchor_sequence_id": None, "reply_to": None, "task_status": "done", "due_date": None,
+     "assignee": None, "created_at": _ts(11, 12), "updated_at": None, "edits": []},
+]
+
+# Partner audits (Industrial page).
+AUDITS = [
+    {"audit_id": "aud_e2e000000001", "target": {"kind": "analysis", "ref": ANALYSIS_ID, "label": "Station 7 run"},
+     "scope": "Contamination controls for the Station 7 extraction batch",
+     "findings": [{"severity": "high", "description": "No negative control included", "reference": None}],
+     "status": "scheduled", "due_date": "2099-03-01", "completed_at": None, "created_by": OWNER,
+     "created_by_name": "Rhea Researcher", "created_at": _ts(12, 9)},
 ]
 
 ATTACHMENTS = [
@@ -304,6 +323,7 @@ def _seed() -> dict[str, list[dict]]:
         "analysis_jobs": JOBS,
         "abyss_expeditions": EXPEDITIONS,
         "audit_logs": AUDIT_LOGS,
+        "audits": AUDITS,
     }
 
 
@@ -330,6 +350,19 @@ CAPTURES: list[tuple[str, str, str]] = [
     ("models_registry", "admin", "/models/registry"),
     ("models_promotions", "admin", "/models/promotions?limit=10"),
     ("abyss_expeditions", "researcher", "/abyss/expeditions"),
+    ("partner_summary", "researcher", "/partner/summary?scope=mine"),
+    ("partner_incidents", "researcher", "/partner/incidents?scope=mine"),
+    ("partner_tasks", "researcher", "/partner/tasks?scope=mine"),
+    ("partner_audits", "researcher", f"/partner/audits?created_by={OWNER}"),
+]
+
+# (fixture file, role, path, JSON body, expected status) -- POSTs whose error
+# responses a page renders. Only requests the API refuses before touching the
+# database, so the in-memory stand-in needs no write support.
+POST_CAPTURES: list[tuple[str, str, str, dict, int]] = [
+    # Industrial page audit form: blank label and scope, analysis target without ref.
+    ("partner_audit_create_422", "researcher", "/partner/audits",
+     {"target": {"kind": "analysis", "label": ""}, "scope": "", "status": "scheduled", "findings": []}, 422),
 ]
 
 
@@ -366,6 +399,11 @@ async def generate() -> dict[str, Any]:
                 resp = await client.get(path, headers={"Authorization": f"Bearer {tokens[role]}"})
                 if resp.status_code != 200:
                     raise RuntimeError(f"{path} as {role}: HTTP {resp.status_code} {resp.text[:300]}")
+                out[name] = _normalise(name, resp.json())
+            for name, role, path, payload, expected in POST_CAPTURES:
+                resp = await client.post(path, json=payload, headers={"Authorization": f"Bearer {tokens[role]}"})
+                if resp.status_code != expected:
+                    raise RuntimeError(f"POST {path} as {role}: HTTP {resp.status_code}, expected {expected}")
                 out[name] = _normalise(name, resp.json())
     return out
 

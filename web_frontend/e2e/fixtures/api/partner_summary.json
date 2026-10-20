@@ -1,0 +1,200 @@
+{
+  "audits": {
+    "by_status": {
+      "cancelled": 0,
+      "completed": 0,
+      "in_progress": 0,
+      "scheduled": 1
+    },
+    "findings_by_severity": {
+      "critical": 0,
+      "high": 1,
+      "info": 0,
+      "low": 0,
+      "medium": 0
+    },
+    "last_completed_at": null,
+    "next_due_date": "2099-03-01",
+    "overdue": 0,
+    "pending": 1,
+    "total": 1
+  },
+  "definitions": {
+    "audits": "Audit records created by the scoped user (all users for scope=all), in their current state and not date-filtered; pending = scheduled or in_progress.",
+    "contamination_flag": "A sequence with contamination_flagged = true.",
+    "environment": "Read from environment_contexts with the same merge as GET /environment/uploads/{id}: a user-entered value counts as user_provided, a public value as ok.",
+    "low_quality": "A sequence whose result_class is low_quality_unusable.",
+    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.45 (the worker's per-analysis summary rule).",
+    "result_class": "Per sequence: results[].decision.result_class when present, otherwise results[].result_class.",
+    "route": "Per sequence: results[].decision.final_route when the orchestrator wrote a decision, otherwise results[].route.",
+    "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
+    "tasks": "Field-log entries of kind task on the analyses in scope; overdue = not done and due before today (UTC).",
+    "taxon": "Per sequence: results[].decision.predicted_taxon (with taxon_rank) when a decision exists, otherwise results[].predicted_taxon. Null taxa are not counted.",
+    "time_series": "Uploads bucketed by upload created_at; analyses, sequences and flags by analysis created_at. period_start is the first day of the UTC day, ISO week (Monday) or month."
+  },
+  "environment": {
+    "by_status": {
+      "complete": 0,
+      "failed": 0,
+      "not_requested": 1,
+      "partial": 0,
+      "pending": 0
+    },
+    "eligible": 1,
+    "latest_retrieved_at": null,
+    "not_applicable": 0,
+    "sources": [],
+    "uploads_in_scope": 1,
+    "variables": {
+      "current": {
+        "ok": 0,
+        "unavailable": 1,
+        "user_provided": 0
+      },
+      "dissolved_oxygen": {
+        "ok": 0,
+        "unavailable": 1,
+        "user_provided": 0
+      },
+      "ph": {
+        "ok": 0,
+        "unavailable": 1,
+        "user_provided": 0
+      },
+      "salinity": {
+        "ok": 0,
+        "unavailable": 1,
+        "user_provided": 0
+      },
+      "temperature": {
+        "ok": 0,
+        "unavailable": 0,
+        "user_provided": 1
+      },
+      "wind": {
+        "ok": 0,
+        "unavailable": 1,
+        "user_provided": 0
+      }
+    }
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "notes": [],
+  "result_class_distribution": {
+    "known_species": 2,
+    "known_species_not_novelty": 0,
+    "likely_taxonomic_group": 0,
+    "low_quality_unusable": 1,
+    "possible_contaminant": 1,
+    "possible_contamination": 0,
+    "possible_novel_taxon": 2,
+    "possible_novelty": 0,
+    "unknown_needs_online_confirmation": 1
+  },
+  "reviews": {
+    "by_state": {
+      "accepted": 1,
+      "company_verified": 0,
+      "duplicate": 0,
+      "included_in_training_batch": 0,
+      "needs_evidence": 0,
+      "rejected": 0,
+      "submitted": 2,
+      "triaged": 0
+    },
+    "by_type": {
+      "auto_contamination": 1,
+      "auto_novelty": 1,
+      "manual_correction": 1
+    },
+    "open": 2,
+    "total": 3
+  },
+  "route_distribution": {
+    "animal_general": 0,
+    "bacteria": 1,
+    "bacteria_pathogen": 0,
+    "fish": 3,
+    "human_domestic": 1,
+    "human_domestic_contamination": 0,
+    "low_quality": 1,
+    "misc_unknown": 0,
+    "plant": 1
+  },
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "interval": "day",
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  },
+  "sites": [
+    {
+      "analyses": 1,
+      "collected_at": "2026-10-09T06:30:00Z",
+      "contamination_flags": 1,
+      "created_at": "2026-10-10T08:00:00Z",
+      "environment_providers": [],
+      "environment_retrieved_at": null,
+      "environment_status": "not_requested",
+      "latitude": 15.52,
+      "location_label": "Arabian Sea, Station 7",
+      "longitude": 68.21,
+      "novelty_flags": 2,
+      "sequences": 7,
+      "upload_id": "upl_e2e0000000001"
+    }
+  ],
+  "sites_truncated": false,
+  "tasks": {
+    "by_status": {
+      "done": 1,
+      "in_progress": 0,
+      "open": 1
+    },
+    "next_due_date": "2020-01-15",
+    "overdue": 1,
+    "total": 2
+  },
+  "time_series": [
+    {
+      "analyses": 1,
+      "contamination_flags": 1,
+      "novelty_flags": 2,
+      "period_start": "2026-10-10",
+      "sequences": 7,
+      "uploads": 1
+    }
+  ],
+  "top_taxa": [
+    {
+      "analyses": 1,
+      "sequences": 1,
+      "taxon": "Homo sapiens",
+      "taxon_rank": null
+    },
+    {
+      "analyses": 1,
+      "sequences": 1,
+      "taxon": "Myctophum punctatum",
+      "taxon_rank": null
+    },
+    {
+      "analyses": 1,
+      "sequences": 1,
+      "taxon": "Thunnus albacares",
+      "taxon_rank": null
+    }
+  ],
+  "totals": {
+    "analyses": 1,
+    "analyses_with_contamination_flags": 1,
+    "analyses_with_novelty_flags": 1,
+    "contamination_flags": 1,
+    "low_quality": 1,
+    "novelty_flags": 2,
+    "sequences": 7,
+    "sequences_with_taxon": 3,
+    "uploads": 1
+  }
+}

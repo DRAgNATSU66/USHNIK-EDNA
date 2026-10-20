@@ -47,6 +47,10 @@ const ROUTES = [
   ["GET", /^\/models\/registry$/, () => "models_registry"],
   ["GET", /^\/models\/promotions$/, () => "models_promotions"],
   ["GET", /^\/abyss\/expeditions$/, () => "abyss_expeditions"],
+  ["GET", /^\/partner\/summary$/, () => "partner_summary"],
+  ["GET", /^\/partner\/incidents$/, () => "partner_incidents"],
+  ["GET", /^\/partner\/tasks$/, () => "partner_tasks"],
+  ["GET", /^\/partner\/audits$/, () => "partner_audits"],
 ];
 
 function json(route, status, body) {
