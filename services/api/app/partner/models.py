@@ -247,3 +247,91 @@ class AuditDoc(BaseModel):
     # Frozen at write time, like field-log author_name.
     created_by_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Incidents and field-log tasks (t-1028-2, Industrial page)
+# ---------------------------------------------------------------------------
+
+class ListScopeInfo(BaseModel):
+    """What a partner list was computed over (no time-series interval)."""
+    mode: Literal["mine", "all", "user"]
+    user_id: Optional[str] = None
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None  # inclusive
+
+
+class FlaggedSequence(BaseModel):
+    sequence_id: Optional[str] = None
+    flag: Literal["contamination", "novelty"]
+    result_class: Optional[str] = None
+    contamination_type: Optional[str] = None
+    novelty_score: Optional[float] = None
+
+
+class IncidentAnalysis(BaseModel):
+    """One analysis that meets the incident definition (see definitions)."""
+    analysis_id: str
+    upload_id: Optional[str] = None
+    source_file: Optional[str] = None
+    location_label: Optional[str] = None
+    collected_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    sequences: int = 0
+    contamination_flags: int = 0
+    novelty_flags: int = 0
+    contamination_types: dict[str, int] = Field(default_factory=dict)
+    open_reviews: int = 0
+    urgent_open_reviews: int = 0
+    # The first few flagged sequences, contamination first, for traceability.
+    flagged_sequences: list[FlaggedSequence] = Field(default_factory=list)
+
+
+class UrgentReview(BaseModel):
+    review_id: str
+    analysis_id: str
+    sequence_id: Optional[str] = None
+    review_type: Optional[str] = None
+    state: str
+    novelty_score: Optional[float] = None
+    contamination_score: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+
+class PartnerIncidents(BaseModel):
+    generated_at: datetime
+    scope: ListScopeInfo
+    definitions: dict[str, str]
+    notes: list[str] = Field(default_factory=list)
+    analyses_in_scope: int = 0
+    total: int = 0  # analyses meeting the incident definition
+    contamination_flags: int = 0  # summed over those analyses
+    novelty_flags: int = 0
+    incidents: list[IncidentAnalysis] = Field(default_factory=list)  # newest first, capped by limit
+    truncated: bool = False
+    urgent_reviews_total: int = 0
+    urgent_reviews: list[UrgentReview] = Field(default_factory=list)  # oldest first, capped by limit
+    urgent_reviews_truncated: bool = False
+
+
+class PartnerTask(BaseModel):
+    """A field-log entry of kind task, without its edit history."""
+    entry_id: str
+    analysis_id: str
+    body: str
+    task_status: str
+    due_date: Optional[str] = None
+    assignee: Optional[str] = None
+    author_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    overdue: bool = False  # not done and due_date before today (UTC)
+
+
+class PartnerTasks(BaseModel):
+    generated_at: datetime
+    scope: ListScopeInfo
+    definitions: dict[str, str]
+    total: int = 0  # matching tasks before the limit
+    tasks: list[PartnerTask] = Field(default_factory=list)
+    truncated: bool = False
