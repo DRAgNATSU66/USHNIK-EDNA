@@ -204,7 +204,7 @@ export default function Industrial() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: s(14) }}>
           <Kpi
             testId="kpi-incidents"
-            label="ACTIVE INCIDENTS"
+            label="INCIDENTS (FLAGGED ANALYSES)"
             value={incidents ? incidents.total : dash}
             tone={incidents?.total ? "danger" : undefined}
             sub={incidents
