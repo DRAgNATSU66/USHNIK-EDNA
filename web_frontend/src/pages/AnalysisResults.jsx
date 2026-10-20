@@ -8,7 +8,9 @@ import { tokens, pillStyle } from "../components/shared/tokens";
 import { formatMetadataField } from "../lib/sampleMetadata";
 import { ArrowRightIcon } from "../components/shared/icons";
 import { useAuth } from "../contexts/AuthContext";
-import { getReport, exportReportJson, exportReportCsv } from "../lib/api";
+import { getReport, getAnalysis, exportReportJson, exportReportCsv } from "../lib/api";
+import SequenceCalls from "../components/results/SequenceCalls";
+import { taxonCall } from "../lib/decision";
 import { useNoveltyThreshold, formatThresholdPct } from "../lib/noveltyThreshold";
 import { revealStyle } from "../styles/reveal";
 
@@ -236,6 +238,34 @@ function SampleContextPanel({ context, metadata, style }) {
   );
 }
 
+// One footer line for the reference DBs the sequence calls were matched
+// against. Orchestrated rows each name their route's DB
+// ("synthveda-reference/fish" v2); when they share a root and a version the
+// footer names that, otherwise it points to the per-sequence tags. Until the
+// rows load (or if they fail) the tag keeps its default pending label.
+function summarizeReferenceDbs(results) {
+  if (!results) return { referenceDb: null, referenceDbVersion: null, missingLabel: undefined };
+  const calls = results.map(taxonCall).filter((c) => c.referenceDb);
+  if (calls.length === 0) {
+    const anyDecision = results.some((r) => r.decision);
+    return {
+      referenceDb: null,
+      referenceDbVersion: null,
+      missingLabel: anyDecision
+        ? "Reference DB: no sequence was matched against one"
+        : "Reference DB: none recorded (pre-orchestrator analysis)",
+    };
+  }
+  const dbs = [...new Set(calls.map((c) => c.referenceDb))];
+  const versions = [...new Set(calls.map((c) => c.referenceDbVersion ?? ""))];
+  const roots = [...new Set(dbs.map((d) => d.split("/")[0]))];
+  if (dbs.length === 1 && versions.length === 1) return { referenceDb: dbs[0], referenceDbVersion: versions[0] || null };
+  if (roots.length === 1 && versions.length === 1) {
+    return { referenceDb: `${roots[0]} (${dbs.length} route DBs)`, referenceDbVersion: versions[0] || null };
+  }
+  return { referenceDb: `${dbs.length} reference DBs (see each sequence)`, referenceDbVersion: null };
+}
+
 export default function AnalysisResults() {
   const { user } = useAuth();
   const { analysis_id } = useParams();
@@ -244,12 +274,20 @@ export default function AnalysisResults() {
   const [downloadingFormat, setDownloadingFormat] = useState(null);
   const [hoveredRoute, setHoveredRoute] = useState(null);
   const [hoveredQcRow, setHoveredQcRow] = useState(null);
+  // Per-sequence rows (GET /analysis/{id}) without traces; SequenceCalls
+  // fetches the traces when a reader first opens "Why this answer". A
+  // failure here leaves the rest of the report usable.
+  const [analysis, setAnalysis] = useState(null);
+  const [analysisError, setAnalysisError] = useState("");
   const { threshold: noveltyThreshold } = useNoveltyThreshold();
 
   useEffect(() => {
     getReport(analysis_id)
       .then(setReport)
       .catch((e) => setError(e.message || "Failed to load report."));
+    getAnalysis(analysis_id, { includeTrace: false })
+      .then(setAnalysis)
+      .catch((e) => setAnalysisError(e.message || "request failed"));
   }, [analysis_id]);
 
   const handleExport = async (format) => {
@@ -304,6 +342,7 @@ export default function AnalysisResults() {
   const passedQcPct = qc_summary ? ((qc_summary.passed_qc / qc_summary.total_sequences) * 100).toFixed(1) : null;
   const attritionCount = qc_summary ? qc_summary.total_sequences - qc_summary.passed_qc : 0;
   const previewNovelty = possible_novelty?.slice(0, 3) ?? [];
+  const footerDb = summarizeReferenceDbs(analysis?.results);
 
   return (
     <div style={PAGE}>
@@ -606,12 +645,20 @@ export default function AnalysisResults() {
           </div>
         )}
 
+        {/* Per-sequence final calls + "Why this answer" (decision trace) */}
+        <div style={panelStyle}>
+          <span style={panelLabelStyle}>SEQUENCE CALLS</span>
+          <SequenceCalls analysisId={analysis_id} analysis={analysis} error={analysisError} />
+        </div>
+
         {context && <SampleContextPanel context={context} metadata={metadata} style={revealStyle(2)} />}
 
         {/* Provenance footer -- component 0.2, plain variant per reference mockup */}
         <div style={{ display: "flex", justifyContent: "center", padding: `${s(6)}px 0 ${s(4)}px`, borderTop: `1px solid ${tokens.sectionBorder}` }}>
           <ProvenanceTag
-            referenceDb={null}
+            referenceDb={footerDb.referenceDb}
+            referenceDbVersion={footerDb.referenceDbVersion}
+            missingLabel={footerDb.missingLabel}
             pipelineVersion={metadata?.model_version_set !== "stub_none" ? metadata?.model_version_set : null}
             matchedAt={metadata?.created_at}
             variant="plain"
