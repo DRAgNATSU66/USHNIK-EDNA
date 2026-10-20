@@ -101,13 +101,28 @@ def test_genus_key_and_names_in():
     assert et.genus_key("Candidatus Pelagibacter") == "pelagibacter"
     assert et.genus_key("uncultured") is None
     names = et.names_in([{"organism": "uncultured Bacteroides sp.", "lineage": {"superkingdom": "Bacteria"}}])
-    assert names == {"genus": {"bacteroides"}, "species": set()}
+    assert names == {"genus": {"bacteroides"}, "species": set(), "family": set()}
     names = et.names_in([{"organism": "uncultured bacterium", "lineage": {"superkingdom": "Bacteria"},
                           "path_lineage": {"genus": "Clostridium sensu stricto 1"}}])
     assert names["genus"] == {"clostridium"}
     names = et.names_in([{"organism": "Salmo trutta environmental sample", "lineage": {}}])
-    assert names == {"genus": {"salmo"}, "species": {"salmo trutta"}}
-    assert et.names_in([{"organism": "uncultured bacterium", "lineage": {}}]) == {"genus": set(), "species": set()}
+    assert names == {"genus": {"salmo"}, "species": {"salmo trutta"}, "family": set()}
+    assert et.names_in([{"organism": "uncultured bacterium", "lineage": {}}]) == {"genus": set(), "species": set(),
+                                                                                "family": set()}
+
+
+def test_names_in_family_and_higher_words_are_not_genera():
+    # 'Gobiidae environmental sample' names a family; 'Perciformes sp.' an order
+    names = et.names_in([{"organism": "Gobiidae environmental sample", "lineage": {}}])
+    assert names == {"genus": set(), "species": set(), "family": {"gobiidae"}}
+    assert et.names_in([{"organism": "Perciformes sp.", "lineage": {}}])["genus"] == set()
+    # a word the copy's own lineage holds above genus is not read as a genus
+    names = et.names_in([{"organism": "Chordata environmental sample", "lineage": {"phylum": "Chordata"}}])
+    assert names["genus"] == set()
+    # family from the lineage, skipping unresolved placeholders
+    names = et.names_in([{"organism": "", "lineage": {"family": "Salmonidae"}},
+                         {"organism": "", "lineage": {"family": "uncultured"}}])
+    assert names["family"] == {"salmonidae"}
 
 
 def test_classify_relabel_verdicts():
@@ -125,6 +140,14 @@ def test_classify_relabel_verdicts():
     assert v == "label_noise"
     v, _ = et.classify_relabel({"genus": {"bacteroides"}, "species": set()}, {"family": "Bacteroidaceae"}, cats, "no")
     assert v == "undetermined"
+    fam = {"genus": set(), "species": set(), "family": {"bacteroidaceae"}}
+    v, why = et.classify_relabel(fam, dict(hit, family="Bacteroidaceae"), cats, "no")
+    assert v == "label_noise" and "family" in why
+    v, why = et.classify_relabel(fam, dict(hit, family="Prevotellaceae"), cats, "no")
+    assert v == "real_disagreement" and "family" in why
+    v, why = et.classify_relabel({"genus": set(), "species": set(), "family": set()}, {"family": "Gobiidae"},
+                                 {"environmental sample"}, "no")
+    assert v == "undetermined" and "environmental sample" in why
     v, why = et.classify_relabel({"genus": {"bacteroides"}, "species": {"bacteroides fragilis"}}, hit, cats, "no",
                                  {"genus": {"bacteroides"}, "species": {"bacteroides fragilis"}})
     assert v == "label_noise" and "named copy" in why
