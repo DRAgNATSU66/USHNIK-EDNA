@@ -74,9 +74,12 @@ export default function DocumentHub({ reports, reportsError }) {
     }
   };
 
+  // The export is appended to the custody chain before the ZIP is sent, so a
+  // verification already on screen is re-read rather than left one event short.
   const downloadFair = () => run("fair", async () => {
     const resp = await exportReportFair(analysisId);
     saveBlob(await resp.blob(), `synthveda_fair_${analysisId}.zip`);
+    if (custody) setCustody(await getReportCustody(analysisId));
   });
   const verifyCustody = () => run("custody", async () => setCustody(await getReportCustody(analysisId)));
   const downloadAttachment = (a) => run(a.attachment_id, async () => {
