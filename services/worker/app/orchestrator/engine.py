@@ -20,7 +20,8 @@ it in the thread pool so the event loop is not blocked):
                 is loaded once per batch
   6. route      select_route()
   7. contamination, then novelty, on the final route (novelty reads the
-                contamination score, as the scorer's own gate does)
+                contamination score, as the scorer's own gate does, and the
+                final route's reference evidence for its low-identity term)
   8. combine    combine() -> "decision"; the trace is assembled
 
 Output per sequence (the shared result contract): "decision" and
@@ -46,7 +47,12 @@ logger = logging.getLogger(__name__)
 
 # Bump when a planner/combiner rule or the trace shape changes: a stored
 # decision is only comparable with decisions of the same version.
-ORCHESTRATOR_VERSION = "orchestrator-1.2.0"
+# 1.3.0 (B5, t-1024-1): the novelty provider (2.0) scores embedding isolation
+# against the routed head's known-class centroids and adds a separate
+# reference_low_identity term from the final route's reference evidence;
+# NOVELTY_THRESHOLD recalibrated on dev. Planner/combiner rules unchanged;
+# the novelty payload gains "details".
+ORCHESTRATOR_VERSION = "orchestrator-1.3.0"
 
 HUMAN_ROUTE = "human_domestic_contamination"
 
@@ -205,7 +211,8 @@ class Orchestrator:
             return {"head_ok": False}
         p = rec.payload
         return {"head_ok": True, "result_class": p.get("result_class"), "confidence": p.get("confidence", 0.0),
-                "label_scores": p.get("label_scores") or {}, "embedding": rec.artifacts.get("embedding")}
+                "label_scores": p.get("label_scores") or {}, "embedding": rec.artifacts.get("embedding"),
+                "model_version_used": p.get("model_version_used")}
 
     def _human_genome(self, st: _SeqState) -> dict | None:
         rec = st.refs.get(HUMAN_ROUTE)
@@ -231,6 +238,10 @@ class Orchestrator:
         ctx.update(self._head_fields(st))
         c = st.contamination
         ctx["contamination_score"] = float(c.payload.get("contamination_score", 0.0)) if c is not None and c.ok else 0.0
+        # The final route's reference evidence feeds the scorer's separate
+        # reference_low_identity term (B5). Absent/unavailable -> term left out.
+        ref = st.refs.get(st.final_route)
+        ctx["reference"] = ref.to_dict() if ref is not None else None
         return ctx
 
     # -- output ------------------------------------------------------------------

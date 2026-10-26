@@ -76,15 +76,17 @@ class TestBuildAutoReviews:
         reviews = _build_auto_reviews("ana_001", "job_001", results)
         assert reviews[0]["triage_priority"] == "normal"
 
-    def test_exact_threshold_045_triggers(self):
-        results = [_seq(novelty_score=0.45)]
+    def test_exact_threshold_triggers(self):
+        from app.config import NOVELTY_THRESHOLD
+        results = [_seq(novelty_score=NOVELTY_THRESHOLD)]
         reviews = _build_auto_reviews("ana_001", "job_001", results)
         assert len(reviews) == 1
         assert reviews[0]["review_type"] == "auto_novelty"
 
     def test_below_threshold_no_trigger(self):
-        # 0.449 rounds below 0.45 — should not trigger
-        results = [_seq(novelty_score=0.449)]
+        # just below the shared cutoff — should not trigger
+        from app.config import NOVELTY_THRESHOLD
+        results = [_seq(novelty_score=round(NOVELTY_THRESHOLD - 0.001, 4))]
         reviews = _build_auto_reviews("ana_001", "job_001", results)
         assert reviews == []
 
