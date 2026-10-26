@@ -562,16 +562,23 @@ export default function Upload() {
                   <div role="radiogroup" aria-label="Processing model">
                     {/* The shared radio card has a fixed 88px height; this one
                         holds the served-model list, so it grows with it. */}
-                    <div role="radio" aria-checked="true" style={{ ...modelCardStyle(true), height: "auto", cursor: "default" }}>
+                    <div
+                      role="radio"
+                      aria-checked="true"
+                      tabIndex={0}
+                      aria-labelledby="processing-model-auto-label"
+                      aria-describedby="processing-model-auto-desc"
+                      style={{ ...modelCardStyle(true), height: "auto", cursor: "default" }}
+                    >
                       <span style={modelRadioOuterStyle(true)}>
                         <span style={modelRadioDotStyle(true)} />
                       </span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                        <div id="processing-model-auto-label" style={{ display: "flex", alignItems: "center", gap: 9 }}>
                           <span style={{ fontSize: 14, fontWeight: 600, color: uploadColors.cardTitle }}>Auto</span>
                           <span style={modelTagStyle(true)}>Orchestrator</span>
                         </div>
-                        <span style={{ fontSize: 12, lineHeight: 1.5, color: uploadColors.cardDesc }}>
+                        <span id="processing-model-auto-desc" style={{ fontSize: 12, lineHeight: 1.5, color: uploadColors.cardDesc }}>
                           No manual model choice. The router ranks the routes for each sequence; when it is unsure, or
                           its pick is a route it often gets wrong, a few candidate routes are planned (default cap 3).
                           Each planned route's head runs and, when reference lookup is enabled on the worker, its

@@ -190,18 +190,23 @@ def _seq(sequence_id: str, route: str, result_class: str, *, length: int = 300, 
 RESULTS = [
     _seq("seq_e2e_tuna_001", "fish", "known_species", confidence=0.91, taxon="Thunnus albacares", gc=0.46),
     _seq("seq_e2e_lantern_002", "fish", "known_species", confidence=0.62, taxon="Myctophum punctatum", gc=0.44),
-    _seq("seq_e2e_novel_003", "fish", "possible_novel_taxon", confidence=0.21, novelty=0.83,
+    _seq("seq_e2e_novel_003", "fish", "possible_novelty", confidence=0.21, novelty=0.83,
          novelty_level="high", reasons=["low_reference_similarity"], recommendation="preserve_sample", cloud=True),
-    _seq("seq_e2e_novel_004", "bacteria", "possible_novel_taxon", confidence=0.18, novelty=0.67,
+    _seq("seq_e2e_novel_004", "bacteria_pathogen", "possible_novelty", confidence=0.18, novelty=0.67,
          novelty_level="medium", model="dnabert2_bacteria_v1", reasons=["low_reference_similarity"],
          recommendation="return_for_full_analysis", cloud=True),
-    _seq("seq_e2e_contam_005", "human_domestic", "possible_contaminant", confidence=0.88, taxon="Homo sapiens",
+    _seq("seq_e2e_contam_005", "human_domestic_contamination", "possible_contamination", confidence=0.88, taxon="Homo sapiens",
          contamination=0.94, contaminated=True, contamination_type="human", model="dnabert2_human_domestic_v1",
          reasons=["human_contaminant_match"]),
     _seq("seq_e2e_plant_006", "plant", "unknown_needs_online_confirmation", confidence=0.35, novelty=0.3,
          novelty_level="low", model="dnabert2_plant_v1"),
     _seq("seq_e2e_lowq_007", "low_quality", "low_quality_unusable", length=80, n_ratio=0.6, model="stub_none"),
 ]
+# Routes and result classes above are the API's enums (TaxonomicRoute,
+# SequenceResultClass) and every row has route_confidence, so GET
+# /analysis/{ANALYSIS_ID} validates and is recorded like the other analyses.
+for _r in RESULTS:
+    _r["route_confidence"] = 0.9
 
 UPLOAD = {
     "upload_id": UPLOAD_ID,
@@ -729,6 +734,8 @@ CAPTURES: list[tuple[str, str, str]] = [
     ("analysis_orchestrated", "researcher", f"/analysis/{ORCH_ANALYSIS_ID}?include_trace=false"),
     ("analysis_orchestrated_trace", "researcher", f"/analysis/{ORCH_ANALYSIS_ID}?include_trace=true"),
     ("analysis_legacy", "researcher", f"/analysis/{LEGACY_ANALYSIS_ID}?include_trace=false"),
+    ("report_legacy", "researcher", f"/reports/{LEGACY_ANALYSIS_ID}"),
+    ("analysis", "researcher", f"/analysis/{ANALYSIS_ID}?include_trace=false"),
     # Upload page "Auto" panel. The data root is pinned to a path that does
     # not exist (see generate()), so every head reads missing_artifacts on
     # any machine; the e2e spec edits a copy for the "served" case.

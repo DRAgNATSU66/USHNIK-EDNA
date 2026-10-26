@@ -24,21 +24,21 @@
           "contamination_type": "human",
           "flag": "contamination",
           "novelty_score": 0.1,
-          "result_class": "possible_contaminant",
+          "result_class": "possible_contamination",
           "sequence_id": "seq_e2e_contam_005"
         },
         {
           "contamination_type": null,
           "flag": "novelty",
           "novelty_score": 0.83,
-          "result_class": "possible_novel_taxon",
+          "result_class": "possible_novelty",
           "sequence_id": "seq_e2e_novel_003"
         },
         {
           "contamination_type": null,
           "flag": "novelty",
           "novelty_score": 0.67,
-          "result_class": "possible_novel_taxon",
+          "result_class": "possible_novelty",
           "sequence_id": "seq_e2e_novel_004"
         }
       ],

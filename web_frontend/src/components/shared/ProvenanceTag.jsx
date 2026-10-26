@@ -20,6 +20,9 @@ const PENDING_LABEL = "Reference DB: pending configuration";
  * @param {string} missingLabel - text when referenceDb is null
  * @param {string|null} pipelineVersion
  * @param {string|Date|null} matchedAt
+ * @param {boolean} matched - false when the DB was searched but nothing was
+ *   assigned (decision.reference_db set, predicted_taxon null): the tag then
+ *   reads "Searched [date] · no assignment" instead of "Matched [date]".
  * @param {"pill"|"plain"} variant - "pill" for table rows/cards (default),
  *   "plain" for centered footer placement -- matches the reference mockup's
  *   Analysis Report footer exactly (no border/background, just muted text).
@@ -29,6 +32,7 @@ export default function ProvenanceTag({
   referenceDbVersion = null,
   pipelineVersion = null,
   matchedAt = null,
+  matched = true,
   variant = "pill",
   missingLabel = PENDING_LABEL,
 }) {
@@ -39,7 +43,11 @@ export default function ProvenanceTag({
 
   const version = referenceDbVersion ? String(referenceDbVersion).replace(/^v/i, "") : null;
   const label = hasDb
-    ? `Reference DB: ${referenceDb}${version ? ` v${version}` : ""}${pipelineVersion ? ` · Pipeline: v${pipelineVersion}` : ""}${dateLabel ? ` · Matched ${dateLabel}` : ""}`
+    ? `Reference DB: ${referenceDb}${version ? ` v${version}` : ""}${pipelineVersion ? ` · Pipeline: v${pipelineVersion}` : ""}${
+        matched
+          ? (dateLabel ? ` · Matched ${dateLabel}` : "")
+          : `${dateLabel ? ` · Searched ${dateLabel}` : ""} · no assignment`
+      }`
     : missingLabel;
 
   if (variant === "plain") {

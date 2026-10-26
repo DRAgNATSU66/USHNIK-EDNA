@@ -12,7 +12,9 @@ import { formatIdentity, formatScore, ruleText, taxonCall } from "../../lib/deci
 // head's class score (ConfidenceChip), plus an expandable "Why this answer"
 // that renders the stored decision_trace. Traces are fetched once, on the
 // first expand, with GET /analysis/{id}?include_trace=true: the API has no
-// per-sequence trace endpoint, so one request brings every trace.
+// per-sequence trace endpoint, so one request brings every trace. The parent
+// keys this component by analysis id, so trace state never carries over from
+// one analysis to the next.
 
 const PAGE_SIZE = 20;
 const GRID = "minmax(150px, 1.1fr) minmax(200px, 1.6fr) 90px minmax(150px, 1fr) minmax(140px, 1fr) 150px";
@@ -173,6 +175,7 @@ export default function SequenceCalls({ analysisId, analysis, error }) {
                   <button
                     type="button"
                     aria-expanded={isOpen}
+                    aria-controls={`trace-${row.sequence_id}`}
                     onClick={() => toggle(row)}
                     style={{ padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(160,205,255,0.4)", background: isOpen ? "rgba(20,110,255,0.2)" : "#080F1C", color: "#BFDCFF", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
                   >
@@ -185,11 +188,12 @@ export default function SequenceCalls({ analysisId, analysis, error }) {
                     referenceDb={call.referenceDb}
                     referenceDbVersion={call.referenceDbVersion}
                     matchedAt={analysis.created_at}
+                    matched={Boolean(call.taxon)}
                     missingLabel={missingDbLabel(call)}
                   />
                 </div>
                 {isOpen && (
-                  <div style={{ padding: "0 18px 16px" }}>
+                  <div id={`trace-${row.sequence_id}`} style={{ padding: "0 18px 16px" }}>
                     <DecisionTrace
                       decision={row.decision ?? null}
                       trace={traces.byId?.[row.sequence_id] ?? null}

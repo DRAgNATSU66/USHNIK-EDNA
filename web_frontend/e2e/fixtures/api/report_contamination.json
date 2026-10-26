@@ -8,7 +8,7 @@
       "reason_codes": [
         "human_contaminant_match"
       ],
-      "route": "human_domestic",
+      "route": "human_domestic_contamination",
       "sequence_id": "seq_e2e_contam_005"
     }
   ]
