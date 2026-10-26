@@ -4,7 +4,7 @@
   "definitions": {
     "contamination_flag": "A sequence with contamination_flagged = true.",
     "incident": "An analysis in scope with at least one contamination flag, at least one novelty flag, or at least one open urgent review. Flags are as the pipeline raised them; a later review decision does not clear a flag, so open_reviews says how many reviews on that analysis are still open.",
-    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.45 (the worker's per-analysis summary rule).",
+    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.44 (the worker's per-analysis summary rule).",
     "open_review": "A review in state submitted, triaged or needs_evidence.",
     "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
     "urgent_review": "A review of an analysis in scope with triage_priority = urgent and state submitted, triaged or needs_evidence (open)."

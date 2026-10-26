@@ -24,7 +24,7 @@
     "contamination_flag": "A sequence with contamination_flagged = true.",
     "environment": "Read from environment_contexts with the same merge as GET /environment/uploads/{id}: a user-entered value counts as user_provided, a public value as ok.",
     "low_quality": "A sequence whose result_class is low_quality_unusable.",
-    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.45 (the worker's per-analysis summary rule).",
+    "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.44 (the worker's per-analysis summary rule).",
     "result_class": "Per sequence: results[].decision.result_class when present, otherwise results[].result_class.",
     "route": "Per sequence: results[].decision.final_route when the orchestrator wrote a decision, otherwise results[].route.",
     "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
