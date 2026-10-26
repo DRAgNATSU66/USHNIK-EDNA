@@ -2441,3 +2441,66 @@ The panel is titled a sampling map. A cell only shows where samples were taken a
   - ana_464b4220a9774415: 4 contamination, 4 novelty, 8 open reviews of which 4 urgent.
   - ana_f5ea2e074802479c: 2 contamination, 6 novelty, 8 open reviews of which 2 urgent.
 - This matches the 24 reviews in the database: 10 urgent auto_contamination and 14 normal auto_novelty, all submitted.
+
+## QNA-038 — 2026-10-27 — Novelty: per-head centroid cosine distance replaces the typical_norm proxy; reference low identity added; threshold recalibrated 0.45 → 0.44. The centroid term is computed but served at weight 0 (B5; tracker t-1024-1)
+
+**Commit:** `a2b0cb5` on `sprint/d11-novelty-centroid` (`44a5e75`, `ff80e69`, `5fe25eb` WIP from 2026-10-20; `51f077b`, `1de1ade`, `45a4441`, `a2b0cb5` on 2026-10-27), merged into `LATEST_USHNIK` as `c510d8a`, with partner fixtures regenerated in `873c339`. Results: `docs/ml/results/novelty_centroid_2026-10-27.{json,md}`; logs `synthveda-data/logs/novelty_centroid/{calibrate_dev_2026-10-27,report_test_2026-10-27}.{json,log}`.
+
+**Q1. Mechanism: what does the novelty scorer do with the embedding now?**
+- `services/worker/app/novelty/signals.py:196` `embedding_isolation()` takes the routed head's [CLS] embedding. It computes the cosine distance to the nearest known-class centroid of that same head (`centroids.py:80`).
+- That distance goes through the ECDF of the distances of held-out known TRAIN reads (`centroids.py:93`, 1001 quantiles), which puts it in [0, 1].
+- The head comes from `model_version_used`, which `engine.py:215` passes in. Artefacts `novelty_centroids_v1.{json,npz}` sit beside the head weights under `synthveda-data/checkpoints/*`, K=1 per known class.
+- `load_centroid_set` (`centroids.py:118`) rejects an artefact with the wrong model_id, head checksum or npz sha256.
+- Without a valid artefact, the old `typical_norm = 14.0` L2 proxy (`signals.py:178,190`) is used at weight 0.03 (`scorer.py:74,156`), with the reason code `embedding_proxy_<reason>`.
+- A separate `reference_low_identity` term (`signals.py:247`): 1.0 for no hit, linear between 90% and 80% identity, 0 at or above the family band. It is left out when the lookup didn't run.
+- Both terms and their weights go into `payload.details`. Novelty provider 2.0, `orchestrator-1.3.0`.
+- Served weights (`scorer.py:76`): 0.35 / 0.25 / 0.07 / **0 (centroid) / 0 (reference)**. `DEFAULT_NOVELTY_THRESHOLD = 0.44` (worker `app/config.py:16`, api `app/config.py:13`); it is still the one shared constant, and both grep tests pass.
+
+**Q2. Rationale: why K=1 and weights 0/0?**
+- The selection rule was fixed before the dev run: maximise the mean possible_novelty F1 of the final flag over the five novelty routes (`eval_novelty_centroid.py` calibrate).
+- K by dev AUROC: K=1 0.961, K=4 0.891, K=16 0.838, K=32 0.815, K=64 0.829 (bacteria 0.936 → 0.581 at K=64).
+- Over the 7×7×50 grid, the best dev point was 0/0 @0.44 (0.8233). Both terms @0.64 gave 0.8229, centroid only 0.8230, the old scorer 0.8223. The surface is flat to within a few rows.
+- Choosing a nonzero weight after seeing that would have overridden the rule set in advance, so the agent did not.
+- Rejected alternative: keep the L2 proxy. Its held-out AUROC is lower on every route.
+
+**Q3. Blast radius.**
+- The threshold change 0.45 → 0.44 moves the auto-review trigger, the report novelty table, the partner summaries/incidents/alerts and `/health` in both services. On test that is +7 flags (4 true, 3 false) and 0 lost.
+- At weight 0, a bad or missing artefact cannot change scores. It only switches `details.method` to `norm_proxy` and logs a warning. A newly promoted head (plant_v2 / bacteria_v2 candidates) would have no artefact and fall back silently: nothing in the promote flow builds centroids.
+- Stored decisions from 1.2.0 and 1.3.0 are not comparable.
+- The worker dispatcher was restarted on the merged tree on 2026-10-27.
+
+**Q4. Verification (held-out TEST, 3,238 rows, seed 1024).**
+- Signal AUROC, possible_novelty vs known (proxy → centroid; reference low identity):
+
+  | Route | Proxy | Centroid | Reference |
+  |---|---|---|---|
+  | fish | 0.920 | 0.922 | 0.496 |
+  | plant | 0.930 | 0.979 | 0.496 |
+  | animal | 0.742 | 0.976 | 0.549 |
+  | bacteria | 0.868 | 0.953 | 0.594 |
+  | misc | 0.924 | 0.965 | 0.785 |
+  | **mean** | **0.877** | **0.959** | **0.584** |
+
+- Final flag, mean F1: old @0.45 **0.7958**, served @0.44 **0.7964**. Paired bootstrap (2000 resamples within routes) difference +0.0006, 95% CI [−0.0012, +0.0027]. The old scorer at 0.44 alone scores 0.7962.
+- Pooled P/R/F1: .941/.745/.832 (48 FP) → .938/.749/.833 (51 FP). Human: 0 flagged on 300 known rows.
+- Dev-fixed weightings that are not served, test mean F1:
+  - both terms: 0.7961 (fish raw AUROC 0.9215 → 0.891; misc FP 15 → 23)
+  - centroid only: 0.7970
+  - reference only: 0.7955 (40 new flags, 22 of them false)
+  - Every CI of the difference vs old includes 0.
+- The served path used the centroid term on 3,234 of 3,234 usable rows, with 0 proxy fallbacks.
+- Tests: `tests/test_novelty_centroids.py:327` checks that each served head resolves a verified artefact.
+- Suites on the merged tree (2026-10-27): worker 546 passed, API 751 passed / 3 skipped, Playwright 64/64.
+
+**Q5. Defence: "The centroid has weight zero, so novelty doesn't use it."**
+Correct, and this record says so. What was delivered:
+- the proxy is out of the served path whenever an artefact exists;
+- the centroid signal is measured on held-out data (AUROC 0.959 vs 0.877; animal 0.742 → 0.976, fish 0.920 → 0.922);
+- it is recorded on every novelty record.
+
+No flag gain was delivered. The flag is dominated by the head's own possible_novelty class (OR rule) and by the reference gate (821 of 3,238 test rows suppressed). The labels follow the scheme the head was trained on, so a second signal that agrees with the head adds little on this benchmark.
+
+Whether to turn the weight on is an **owner decision**, still open on 2026-10-27. It is a one-line change: `scorer.WEIGHTS["embedding_isolation"]`.
+
+**Q6. Defence: "Is the +0.0006 F1 real?"**
+No. The CI includes 0, and the threshold change alone accounts for it. Fish recall is 0.405 on test (0.631 on dev) in every configuration; B5 neither caused nor fixed it. The test split was scored twice: the second run only added the paired statistics, and every other number was identical. The 2026-10-27 dev rerun reproduced the 2026-10-20 selection exactly.
