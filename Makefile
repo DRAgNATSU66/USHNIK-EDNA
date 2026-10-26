@@ -7,6 +7,11 @@ COMPOSE     = docker compose -f infra/docker/docker-compose.yml
 API_DIR     = services/api
 WORKER_DIR  = services/worker
 PYTHON      = python
+# Each service runs from its own venv (the worker's carries CUDA torch).
+# `make api-install` / `make worker-install` create them; override to use another interpreter.
+API_PYTHON     ?= $(API_DIR)/.venv/bin/python
+WORKER_PYTHON  ?= $(WORKER_DIR)/.venv/bin/python
+VENV_PYTHON    ?= python3.11
 PROJECT_ID ?= YOUR_PROJECT_ID
 REGION     ?= us-central1
 
@@ -36,16 +41,17 @@ ps:
 .PHONY: api-install api-run api-test api-test-cov
 
 api-install:
-	cd $(API_DIR) && pip install -r requirements-dev.txt
+	test -x $(API_PYTHON) || $(VENV_PYTHON) -m venv $(API_DIR)/.venv
+	$(API_PYTHON) -m pip install -r $(API_DIR)/requirements-dev.txt
 
 api-run:
-	cd $(API_DIR) && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd $(API_DIR) && $(abspath $(API_PYTHON)) -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 api-test:
-	cd $(API_DIR) && python -m pytest tests/ -v
+	cd $(API_DIR) && $(abspath $(API_PYTHON)) -m pytest tests/ -v
 
 api-test-cov:
-	cd $(API_DIR) && python -m pytest tests/ --cov=app --cov-report=term-missing
+	cd $(API_DIR) && $(abspath $(API_PYTHON)) -m pytest tests/ --cov=app --cov-report=term-missing
 
 # -------------------------------------------------------------------------
 # Worker dev (without Docker)
@@ -53,13 +59,14 @@ api-test-cov:
 .PHONY: worker-install worker-run worker-test
 
 worker-install:
-	cd $(WORKER_DIR) && pip install -r requirements-dev.txt
+	test -x $(WORKER_PYTHON) || $(VENV_PYTHON) -m venv $(WORKER_DIR)/.venv
+	$(WORKER_PYTHON) -m pip install -r $(WORKER_DIR)/requirements-dev.txt -r $(WORKER_DIR)/requirements-ml.txt
 
 worker-run:
-	cd $(WORKER_DIR) && python -m app.dispatcher
+	cd $(WORKER_DIR) && $(abspath $(WORKER_PYTHON)) -u -m app.dispatcher
 
 worker-test:
-	cd $(WORKER_DIR) && python -m pytest tests/ -v
+	cd $(WORKER_DIR) && $(abspath $(WORKER_PYTHON)) -m pytest tests/ -v
 
 # -------------------------------------------------------------------------
 # Full-loop integration test (t-1025-3, roadmap Day 12): upload -> worker
@@ -85,8 +92,6 @@ worker-test:
 # -------------------------------------------------------------------------
 .PHONY: test-loop
 
-API_PYTHON     ?= $(API_DIR)/.venv/bin/python
-WORKER_PYTHON  ?= $(WORKER_DIR)/.venv/bin/python
 LOOP_MONGO_URI ?= mongodb://localhost:27017
 LOOP_REDIS_URL ?= redis://localhost:6379/15
 
