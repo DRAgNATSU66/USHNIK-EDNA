@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # defines the same default in services/worker/app/config.py (the two services
 # share no package); tests/test_novelty_threshold.py checks the two are equal.
 # 0.44 since 2026-10-20 (B5, t-1024-1): recalibrated on the DEV split
-# (docs/ml/results/novelty_centroid_2026-10-20.json). Was 0.45.
+# (docs/ml/results/novelty_centroid_2026-10-27.json). Was 0.45.
 DEFAULT_NOVELTY_THRESHOLD = 0.44
 
 # JWT_SECRET startup check (B18). Outside APP_ENV=dev/test the API refuses to

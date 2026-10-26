@@ -33,7 +33,10 @@ against the dataset labels, so both are served at weight 0: they are
 computed and recorded in every novelty record (details) and their weights
 are the one place to change. The centroid signal on its own separates
 novel from known reads far better than the proxy did (dev AUROC 0.961 vs
-0.879). Test numbers: docs/ml/results/novelty_centroid_2026-10-20.json.
+0.879; held-out TEST 0.959 vs 0.877). On TEST the served flag vs the old
+one: mean F1 0.7964 vs 0.7958 (+7 flags, 4 true; paired bootstrap 95 % CI
+of the difference [-0.0012, +0.0027]); no dev-fixed nonzero weighting did
+measurably better. docs/ml/results/novelty_centroid_2026-10-27.{json,md}.
 With no centroid artifact and no reference evidence the score is exactly
 the pre-B5 one (0.35/0.25/0.07/0.03).
 

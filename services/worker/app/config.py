@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # checks the two are equal.
 # 0.44 since 2026-10-20 (B5, t-1024-1): recalibrated on the DEV split with the
 # centroid/reference novelty terms (training/eval_novelty_centroid.py
-# calibrate; docs/ml/results/novelty_centroid_2026-10-20.json). Was 0.45.
+# calibrate; docs/ml/results/novelty_centroid_2026-10-27.json). Was 0.45.
 DEFAULT_NOVELTY_THRESHOLD = 0.44
 
 
