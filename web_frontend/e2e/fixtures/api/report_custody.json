@@ -1,0 +1,118 @@
+{
+  "analysis_id": "ana_e2e0000000001",
+  "chain_id": "upload:upl_e2e0000000001",
+  "events": [
+    {
+      "actor": {
+        "id": "api-custody-backfill",
+        "type": "system"
+      },
+      "chain_id": "upload:upl_e2e0000000001",
+      "event_key": "upload_created:upl_e2e0000000001",
+      "event_type": "upload_created",
+      "hash": "ae167d9cd2d46c14a492e34b9d176b42d36cf03f8418f047770283b93b703837",
+      "payload": {
+        "checksum_sha256": null,
+        "derived": true,
+        "derived_note": "Backfilled from the upload document: no upload_created event was recorded when the file was uploaded (upload predates custody logging, or that append failed).",
+        "file_size_bytes": 18432,
+        "metadata_fields_provided": [
+          "collected_at",
+          "latitude",
+          "longitude",
+          "location_label",
+          "depth_meters",
+          "source_type",
+          "habitat",
+          "temperature_celsius",
+          "methodology",
+          "negative_control_included",
+          "collector"
+        ],
+        "metadata_sha256": "0cf5ce2da88ddc92620ec5fb46dacf61d154437b1e93b95c7eac609c3e79999e",
+        "original_filename": "e2e_arabian_sea_station7.fasta",
+        "storage_uri": null,
+        "upload_id": "upl_e2e0000000001",
+        "uploaded_at": "2026-10-10T08:00:00",
+        "uploaded_by": "usr_e2e_researcher"
+      },
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "recorded_at": "2026-10-16T09:00:00+00:00",
+      "schema": "synthveda.custody.v1",
+      "seq": 0,
+      "subject": {
+        "upload_id": "upl_e2e0000000001"
+      }
+    },
+    {
+      "actor": {
+        "id": "api-derived",
+        "type": "system"
+      },
+      "chain_id": "upload:upl_e2e0000000001",
+      "event_key": "analysis_completed:ana_e2e0000000001",
+      "event_type": "analysis_completed",
+      "hash": "24b367a2b1eb2e7d191bbef625c9aa63391ec2100d81839a7b24c132bf7b04f7",
+      "payload": {
+        "analysis_created_at": "2026-10-10T08:05:00",
+        "analysis_id": "ana_e2e0000000001",
+        "derivation": "Derived by the API from the analysis_results document the first time custody or an export read this analysis; the worker writes no custody events. results_sha256 is sha256 of the canonical JSON of the stored results list.",
+        "job_id": "job_e2e_complete1",
+        "mode": "online_full",
+        "model_version_set": "dnabert2_v1_set",
+        "result_count": 7,
+        "results_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+        "upload_id": "upl_e2e0000000001"
+      },
+      "prev_hash": "ae167d9cd2d46c14a492e34b9d176b42d36cf03f8418f047770283b93b703837",
+      "recorded_at": "2026-10-16T09:00:00+00:00",
+      "schema": "synthveda.custody.v1",
+      "seq": 1,
+      "subject": {
+        "analysis_id": "ana_e2e0000000001",
+        "upload_id": "upl_e2e0000000001"
+      }
+    }
+  ],
+  "file_integrity": {
+    "actual_sha256": null,
+    "bytes": null,
+    "expected_sha256": null,
+    "reason": "the upload record names no stored file",
+    "source": null,
+    "status": "unavailable"
+  },
+  "metadata_integrity": {
+    "baseline": "backfill",
+    "current_sha256": "0cf5ce2da88ddc92620ec5fb46dacf61d154437b1e93b95c7eac609c3e79999e",
+    "recorded_sha256": "0cf5ce2da88ddc92620ec5fb46dacf61d154437b1e93b95c7eac609c3e79999e",
+    "status": "unchanged"
+  },
+  "notes": [
+    "analysis_completed is derived by the API from the stored analysis_results document the first time custody or an export reads the analysis; its recorded_at is that first read, and analysis_created_at in its payload is when the worker stored the results.",
+    "Deleting the newest event(s) is not detectable from the chain alone; compare head_hash with the custody head recorded in any earlier export."
+  ],
+  "results_integrity": {
+    "current_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+    "recorded_at": "2026-10-16T09:00:00+00:00",
+    "recorded_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+    "status": "match"
+  },
+  "upload": {
+    "checksum_sha256": null,
+    "original_filename": "e2e_arabian_sea_station7.fasta",
+    "upload_id": "upl_e2e0000000001",
+    "uploaded_at": "2026-10-10T08:00:00",
+    "uploaded_by": "usr_e2e_researcher"
+  },
+  "verification": {
+    "algorithm": "sha256(prev_hash || canonical_json(event))",
+    "canonicalization": "JSON, keys sorted, separators (',', ':'), UTF-8, no ASCII escaping; datetimes as ISO 8601 strings; every stored field except prev_hash, hash and _id",
+    "checked_at": "2026-10-16T09:00:00",
+    "first_break": null,
+    "genesis_prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "head_hash": "24b367a2b1eb2e7d191bbef625c9aa63391ec2100d81839a7b24c132bf7b04f7",
+    "length": 2,
+    "valid": true
+  }
+}

@@ -51,10 +51,15 @@ const ROUTES = [
   ["GET", /^\/environment\/uploads\/upl_e2e0000000002$/, () => "environment_context_bay"],
   ["GET", /^\/environment\/uploads\/upl_e2e0000000003$/, () => "environment_not_applicable"],
   ["GET", /^\/environment\/uploads\/[^/]+$/, () => "environment_context"],
-  ["GET", /^\/partner\/summary$/, () => "partner_summary"],
+  ["GET", /^\/partner\/summary$/, (_m, url) =>
+    url.searchParams.get("interval") === "week" ? "partner_summary_week" : "partner_summary"],
   ["GET", /^\/partner\/cooccurrence$/, (_m, url) =>
     url.searchParams.get("rank") === "any" ? "partner_cooccurrence_any" : "partner_cooccurrence"],
   ["GET", /^\/partner\/rhythms$/, () => "partner_rhythms"],
+  // Legislative (t-1027-3)
+  ["GET", /^\/partner\/hotspots$/, () => "partner_hotspots"],
+  ["GET", /^\/partner\/alerts$/, () => "partner_alerts"],
+  ["GET", /^\/reports\/[^/]+\/custody$/, () => "report_custody"],
 ];
 
 function json(route, status, body) {

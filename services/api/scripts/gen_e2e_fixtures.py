@@ -36,6 +36,7 @@ sys.path.insert(0, str(API_DIR))
 
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
+import app.custody.chain as custody_chain  # noqa: E402
 import app.db.mongo as mongo_module  # noqa: E402
 import app.main as main_module  # noqa: E402
 from app.auth.jwt import create_access_token  # noqa: E402
@@ -43,7 +44,8 @@ from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 FIXED_TS = "2026-10-16T09:00:00"
-VOLATILE_KEYS = {"generated_at"}
+# checked_at: when GET /reports/{id}/custody re-verified the chain.
+VOLATILE_KEYS = {"generated_at", "checked_at"}
 
 ANALYSIS_ID = "ana_e2e0000000001"
 UPLOAD_ID = "upl_e2e0000000001"
@@ -113,11 +115,15 @@ class _Collection:
     def __init__(self, docs: list[dict] | None = None):
         self.docs = docs or []
 
-    async def find_one(self, query: dict, projection: Any = None):
-        for d in self.docs:
-            if _matches(d, query):
-                return copy.deepcopy(d)
-        return None
+    async def find_one(self, query: dict, projection: Any = None, sort: Any = None):
+        docs = [d for d in self.docs if _matches(d, query)]
+        if sort:  # custody/chain.py append_event: head of the chain by seq
+            docs = _Cursor(docs).sort(sort)._docs
+        return copy.deepcopy(docs[0]) if docs else None
+
+    async def insert_one(self, doc: dict):
+        # custody/chain.py append_event (GET /reports/{id}/custody derives events)
+        self.docs.append(copy.deepcopy(doc))
 
     def find(self, query: dict | None = None, projection: Any = None):
         return _Cursor([copy.deepcopy(d) for d in self.docs if _matches(d, query or {})])
@@ -423,6 +429,12 @@ CAPTURES: list[tuple[str, str, str]] = [
     ("partner_cooccurrence", "researcher", "/partner/cooccurrence?rank=species&limit=50"),
     ("partner_cooccurrence_any", "researcher", "/partner/cooccurrence?rank=any&limit=50"),
     ("partner_rhythms", "researcher", "/partner/rhythms"),
+    # Legislative page (t-1027-3)
+    ("partner_hotspots", "researcher", "/partner/hotspots?cell_deg=1"),
+    ("partner_alerts", "researcher", "/partner/alerts?limit=100"),
+    ("partner_summary_week", "researcher", "/partner/summary?interval=week&top_taxa=1"),
+    # Last: it appends the derived custody events to the in-memory DB.
+    ("report_custody", "researcher", f"/reports/{ANALYSIS_ID}/custody"),
 ]
 
 
@@ -457,7 +469,8 @@ async def generate() -> dict[str, Any]:
     no_env_lookups = defaults.model_copy(update={"environment_context_enabled": False})
     with patch.object(mongo_module, "_db", _Db(_seed())), \
             patch.object(main_module, "get_settings", lambda: defaults), \
-            patch("app.environment.router.get_settings", lambda: no_env_lookups):
+            patch("app.environment.router.get_settings", lambda: no_env_lookups), \
+            patch.object(custody_chain, "_utc_now_iso", lambda: f"{FIXED_TS}+00:00"):
         transport = ASGITransport(app=create_app())
         async with AsyncClient(transport=transport, base_url="http://api.test") as client:
             for name, role, path in CAPTURES:

@@ -1,0 +1,128 @@
+{
+  "cell_deg": 1.0,
+  "cells": [
+    {
+      "analyses": 1,
+      "cell_id": "15:68",
+      "center_lat": 15.5,
+      "center_lng": 68.5,
+      "contamination_flags": 1,
+      "distinct_taxa": 3,
+      "first_collected_at": "2026-10-09T06:30:00Z",
+      "last_collected_at": "2026-10-09T06:30:00Z",
+      "lat_max": 16.0,
+      "lat_min": 15.0,
+      "lng_max": 69.0,
+      "lng_min": 68.0,
+      "location_labels": [
+        "Arabian Sea, Station 7"
+      ],
+      "novelty_flags": 2,
+      "open_reviews": 2,
+      "open_urgent_reviews": 1,
+      "sequences": 7,
+      "sequences_with_taxon": 3,
+      "top_taxa": [
+        {
+          "sequences": 1,
+          "taxon": "Homo sapiens",
+          "taxon_rank": null
+        },
+        {
+          "sequences": 1,
+          "taxon": "Myctophum punctatum",
+          "taxon_rank": null
+        },
+        {
+          "sequences": 1,
+          "taxon": "Thunnus albacares",
+          "taxon_rank": null
+        }
+      ],
+      "upload_ids": [
+        "upl_e2e0000000001"
+      ],
+      "uploads": 1
+    },
+    {
+      "analyses": 1,
+      "cell_id": "15:82",
+      "center_lat": 15.5,
+      "center_lng": 82.5,
+      "contamination_flags": 1,
+      "distinct_taxa": 5,
+      "first_collected_at": "2026-10-01T06:00:00Z",
+      "last_collected_at": "2026-10-01T06:00:00Z",
+      "lat_max": 16.0,
+      "lat_min": 15.0,
+      "lng_max": 83.0,
+      "lng_min": 82.0,
+      "location_labels": [
+        "Bay of Bengal, off Visakhapatnam"
+      ],
+      "novelty_flags": 0,
+      "open_reviews": 0,
+      "open_urgent_reviews": 0,
+      "sequences": 6,
+      "sequences_with_taxon": 6,
+      "top_taxa": [
+        {
+          "sequences": 2,
+          "taxon": "Sardinella longiceps",
+          "taxon_rank": "species"
+        },
+        {
+          "sequences": 1,
+          "taxon": "Homo sapiens",
+          "taxon_rank": "species"
+        },
+        {
+          "sequences": 1,
+          "taxon": "Rastrelliger kanagurta",
+          "taxon_rank": "species"
+        },
+        {
+          "sequences": 1,
+          "taxon": "Stolephorus",
+          "taxon_rank": "genus"
+        },
+        {
+          "sequences": 1,
+          "taxon": "Thunnus albacares",
+          "taxon_rank": "species"
+        }
+      ],
+      "upload_ids": [
+        "upl_e2e0000000002"
+      ],
+      "uploads": 1
+    }
+  ],
+  "coverage": {
+    "analyses_in_scope": 2,
+    "analyses_mapped": 2,
+    "uploads_in_scope": 3,
+    "uploads_invalid_coordinates": 0,
+    "uploads_with_coordinates": 2,
+    "uploads_without_coordinates": 1
+  },
+  "definitions": {
+    "cell": "Each upload with a valid latitude and longitude is placed in the grid cell [floor(lat / cell_deg) * cell_deg, +cell_deg) x [floor(lon / cell_deg) * cell_deg, +cell_deg), in degrees (WGS84 as entered at upload). Latitude 90 and longitude 180 fall in the cell below. One degree of latitude is about 111 km; a degree of longitude shrinks with cos(latitude). The cell is an aggregation unit, not a detection radius or a drift model.",
+    "contamination_flag": "A sequence with contamination_flagged = true (as in GET /partner/summary).",
+    "novelty_flag": "Same rule as GET /partner/summary: result_class is not known_species and it is possible_novelty or has novelty_score >= the deployment's novelty threshold.",
+    "reviews": "open_reviews: reviews of the cell's analyses in state submitted, triaged or needs_evidence. open_urgent_reviews: those with triage_priority urgent.",
+    "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive), as in GET /partner/summary. A cell counts the in-scope analyses of the in-scope uploads that fall in it.",
+    "taxa": "distinct_taxa counts distinct (predicted_taxon, taxon_rank) pairs over the cell's sequences, read decision-first (results[].decision when the orchestrator wrote one, else results[].predicted_taxon). Sequences with no predicted taxon are not counted."
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "notes": [
+    "1 upload(s) in scope have no coordinates and are not mapped."
+  ],
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "interval": "day",
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  }
+}

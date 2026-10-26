@@ -8,6 +8,8 @@ POST /partner/audits    record an audit (t-1028-1, M1)
 GET  /partner/audits    list audits, newest first, filtered
 GET  /partner/cooccurrence  taxon pairs found in the same sample (t-1027-1, M3)
 GET  /partner/rhythms       uploads/detections by hour of day, day of week (t-1027-1)
+GET  /partner/hotspots  uploads aggregated into a lat/lon grid (t-1027-3, M2)
+GET  /partner/alerts    analyses with flags or open urgent reviews (t-1027-3, M2)
 
 Scope: by default the caller's own uploads and analyses (scope=mine). The
 whole deployment (scope=all) or another user's data (user_id=...) needs
@@ -40,6 +42,10 @@ from .community import (
     PAIRS_DEFAULT, PAIRS_MAX, CommunityScopeInfo, CooccurrenceRank, CooccurrenceResponse, RhythmsResponse,
     build_cooccurrence, build_rhythms,
 )
+from .models import AlertsResponse, HotspotsResponse
+from .regional import (
+    ALERTS_DEFAULT, ALERTS_MAX, CELL_DEG_DEFAULT, CELL_DEG_MAX, CELL_DEG_MIN, build_alerts, build_hotspots,
+)
 
 router = APIRouter(prefix="/partner", tags=["partner"])
 
@@ -70,6 +76,24 @@ async def get_partner_summary(
     counted from the database on this request; `definitions` says how and
     `notes` says what is empty or truncated.
     """
+    info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to, interval)
+    return await build_summary(
+        get_db(),
+        scope=info,
+        owner_filter=owner_filter,
+        top_taxa=top_taxa,
+    )
+
+
+def _resolve_scope(
+    current_user: UserProfile,
+    scope: SummaryScope,
+    user_id: Optional[str],
+    date_from: Optional[date],
+    date_to: Optional[date],
+    interval: SummaryInterval = "day",
+) -> tuple[SummaryScopeInfo, dict]:
+    """Access + owner filter shared by /summary, /hotspots and /alerts."""
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="date_from must be on or before date_to")
@@ -91,12 +115,7 @@ async def get_partner_summary(
         mode, owner = "mine", current_user.user_id
 
     info = SummaryScopeInfo(mode=mode, user_id=owner, date_from=date_from, date_to=date_to, interval=interval)
-    return await build_summary(
-        get_db(),
-        scope=info,
-        owner_filter={} if owner is None else {"user_id": owner},
-        top_taxa=top_taxa,
-    )
+    return info, {} if owner is None else {"user_id": owner}
 
 
 # ---------------------------------------------------------------------------
@@ -263,3 +282,46 @@ async def get_rhythms(
     """
     info, owner_filter = _community_scope(current_user, scope, user_id, date_from, date_to)
     return await build_rhythms(get_db(), scope=info, owner_filter=owner_filter)
+
+
+# ---------------------------------------------------------------------------
+# Regional views for the Legislative page (t-1027-3, M2; regional.py)
+# ---------------------------------------------------------------------------
+
+@router.get("/hotspots", response_model=HotspotsResponse)
+async def get_partner_hotspots(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    cell_deg: Annotated[float, Query(ge=CELL_DEG_MIN, le=CELL_DEG_MAX)] = CELL_DEG_DEFAULT,
+):
+    """
+    Uploads with coordinates aggregated into a cell_deg x cell_deg degree
+    grid: per cell the uploads, analyses, sequences, distinct taxa (top 5
+    listed), novelty and contamination flags and open / open urgent reviews.
+    Same scope and access rules as /partner/summary; `definitions` states
+    the cell rule and every count.
+    """
+    info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_hotspots(get_db(), scope=info, owner_filter=owner_filter, cell_deg=cell_deg)
+
+
+@router.get("/alerts", response_model=AlertsResponse)
+async def get_partner_alerts(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    limit: Annotated[int, Query(ge=1, le=ALERTS_MAX)] = ALERTS_DEFAULT,
+):
+    """
+    One alert per in-scope analysis with a novelty flag, a contamination
+    flag or an open urgent review; priority is "urgent" only when an open
+    review is triaged urgent, otherwise "flagged". Same scope and access
+    rules as /partner/summary; `definitions` states each rule.
+    """
+    info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_alerts(get_db(), scope=info, owner_filter=owner_filter, limit=limit)
