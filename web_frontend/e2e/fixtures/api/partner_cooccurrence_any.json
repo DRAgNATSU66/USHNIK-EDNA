@@ -1,0 +1,141 @@
+{
+  "contamination_sequences_excluded": 2,
+  "definitions": {
+    "interpretation": "Co-presence in the same sample is not a statistical association and not a biological interaction.",
+    "jaccard": "samples_together / samples containing either taxon.",
+    "order": "samples_together descending, then jaccard descending, then taxon names alphabetically.",
+    "rank": "Only taxa whose recorded rank equals the requested rank are paired; rank=any pairs every taxon at whatever rank it was recorded, so a genus can pair with a species.",
+    "sample": "One sample = one upload in scope (owner, upload created_at within [date_from, date_to], UTC, both days inclusive), represented by its newest stored analysis; older re-runs of the same upload are not counted.",
+    "samples_together": "Number of samples in which both taxa are present (co-presence count).",
+    "taxon": "Per sequence: results[].decision.predicted_taxon with decision.taxon_rank when the orchestrator wrote a decision, otherwise the legacy results[].predicted_taxon (rank not recorded). Sequences with contamination_flagged = true are excluded. A taxon is present in a sample when at least one remaining sequence is assigned to it."
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "nodes": [
+    {
+      "rank": "unrecorded",
+      "samples": 1,
+      "sequences": 1,
+      "taxon": "Myctophum punctatum"
+    },
+    {
+      "rank": "species",
+      "samples": 1,
+      "sequences": 1,
+      "taxon": "Rastrelliger kanagurta"
+    },
+    {
+      "rank": "species",
+      "samples": 1,
+      "sequences": 2,
+      "taxon": "Sardinella longiceps"
+    },
+    {
+      "rank": "genus",
+      "samples": 1,
+      "sequences": 1,
+      "taxon": "Stolephorus"
+    },
+    {
+      "rank": "species",
+      "samples": 1,
+      "sequences": 1,
+      "taxon": "Thunnus albacares"
+    },
+    {
+      "rank": "unrecorded",
+      "samples": 1,
+      "sequences": 1,
+      "taxon": "Thunnus albacares"
+    }
+  ],
+  "notes": [],
+  "pairs": [
+    {
+      "jaccard": 1.0,
+      "rank_a": "unrecorded",
+      "rank_b": "unrecorded",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Myctophum punctatum",
+      "taxon_b": "Thunnus albacares"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "species",
+      "rank_b": "species",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Rastrelliger kanagurta",
+      "taxon_b": "Sardinella longiceps"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "species",
+      "rank_b": "genus",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Rastrelliger kanagurta",
+      "taxon_b": "Stolephorus"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "species",
+      "rank_b": "species",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Rastrelliger kanagurta",
+      "taxon_b": "Thunnus albacares"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "species",
+      "rank_b": "genus",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Sardinella longiceps",
+      "taxon_b": "Stolephorus"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "species",
+      "rank_b": "species",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Sardinella longiceps",
+      "taxon_b": "Thunnus albacares"
+    },
+    {
+      "jaccard": 1.0,
+      "rank_a": "genus",
+      "rank_b": "species",
+      "samples_a": 1,
+      "samples_b": 1,
+      "samples_together": 1,
+      "taxon_a": "Stolephorus",
+      "taxon_b": "Thunnus albacares"
+    }
+  ],
+  "pairs_total": 7,
+  "rank": "any",
+  "samples": 2,
+  "samples_with_taxa": 2,
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  },
+  "taxa": 6,
+  "taxa_by_rank": {
+    "genus": 1,
+    "species": 3,
+    "unrecorded": 2
+  },
+  "uploads_in_scope": 3
+}

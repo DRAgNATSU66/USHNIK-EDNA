@@ -6,6 +6,8 @@ GET  /partner/summary   aggregation over uploads, analyses, reviews,
                         (t-1026-2, B16)
 POST /partner/audits    record an audit (t-1028-1, M1)
 GET  /partner/audits    list audits, newest first, filtered
+GET  /partner/cooccurrence  taxon pairs found in the same sample (t-1027-1, M3)
+GET  /partner/rhythms       uploads/detections by hour of day, day of week (t-1027-1)
 
 Scope: by default the caller's own uploads and analyses (scope=mine). The
 whole deployment (scope=all) or another user's data (user_id=...) needs
@@ -34,6 +36,10 @@ from .models import (
     SummaryScope, SummaryScopeInfo,
 )
 from .summary import AUDITS, TOP_TAXA_DEFAULT, TOP_TAXA_MAX, build_summary, date_window
+from .community import (
+    PAIRS_DEFAULT, PAIRS_MAX, CommunityScopeInfo, CooccurrenceRank, CooccurrenceResponse, RhythmsResponse,
+    build_cooccurrence, build_rhythms,
+)
 
 router = APIRouter(prefix="/partner", tags=["partner"])
 
@@ -192,3 +198,68 @@ async def list_audits(
         doc.pop("_id", None)
         docs.append(AuditDoc(**doc))
     return docs
+
+
+# ---------------------------------------------------------------------------
+# Community aggregates for the Academia page (t-1027-1, M3)
+# ---------------------------------------------------------------------------
+
+def _community_scope(current_user: UserProfile, scope: SummaryScope, user_id: Optional[str],
+                     date_from: Optional[date], date_to: Optional[date]):
+    """Same access rule as /partner/summary: own data, or anyone's for
+    admin / company_owner. Returns (scope info, owner filter)."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="date_from must be on or before date_to")
+    privileged = current_user.role in _ALL_DATA_ROLES
+    if user_id is not None and user_id != current_user.user_id:
+        if not privileged:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Only admin or company_owner can read another user's data")
+        mode, owner = "user", user_id
+    elif user_id is None and scope == "all":
+        if not privileged:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Only admin or company_owner can read all users' data")
+        mode, owner = "all", None
+    else:
+        mode, owner = "mine", current_user.user_id
+    info = CommunityScopeInfo(mode=mode, user_id=owner, date_from=date_from, date_to=date_to)
+    return info, ({} if owner is None else {"user_id": owner})
+
+
+@router.get("/cooccurrence", response_model=CooccurrenceResponse)
+async def get_cooccurrence(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    rank: CooccurrenceRank = "species",
+    limit: Annotated[int, Query(ge=1, le=PAIRS_MAX)] = PAIRS_DEFAULT,
+):
+    """
+    Taxon pairs present in the same sample (one upload, its newest analysis),
+    at one taxonomic rank, ranked by how many samples contain both. Counted
+    from stored results on this request; `definitions` says how, `notes` says
+    what is empty, tied or truncated. Co-presence, not correlation.
+    """
+    info, owner_filter = _community_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_cooccurrence(get_db(), scope=info, owner_filter=owner_filter, rank=rank, limit=limit)
+
+
+@router.get("/rhythms", response_model=RhythmsResponse)
+async def get_rhythms(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+):
+    """
+    Uploads and detections by hour of day and day of week (UTC). Each upload
+    is placed by collected_at when recorded, else by its upload time; the two
+    bases are counted separately so the page can label them.
+    """
+    info, owner_filter = _community_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_rhythms(get_db(), scope=info, owner_filter=owner_filter)

@@ -1,0 +1,399 @@
+{
+  "cache_hit": false,
+  "cache_key": "v1:15.60:82.30:2026-10-01:surface",
+  "query": {
+    "collected_at": "2026-10-01T06:00:00Z",
+    "date": "2026-10-01",
+    "depth_m": null,
+    "latitude": 15.6,
+    "longitude": 82.3,
+    "lookup_latitude": 15.6,
+    "lookup_longitude": 82.3,
+    "target_level": "surface"
+  },
+  "reason": null,
+  "requested_at": "2026-10-18T13:04:30",
+  "retrieved_at": "2026-10-18T13:04:41",
+  "sources": [
+    {
+      "attribution": "E.U. Copernicus Marine Service Information",
+      "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+      "provider": "copernicus_marine",
+      "source": "Copernicus Marine Service",
+      "terms_note": "Supported access needs a free Copernicus Marine account (COPERNICUS_MARINE_USERNAME/PASSWORD)."
+    },
+    {
+      "attribution": "Weather data by Open-Meteo.com, ECMWF ERA5 reanalysis",
+      "licence": "CC BY 4.0 (data); Open-Meteo free API terms",
+      "provider": "open_meteo",
+      "source": "Open-Meteo (ECMWF ERA5)",
+      "terms_note": "Open-Meteo free API: non-commercial use only (data CC BY 4.0). Commercial deployment: Copernicus CDS ERA5 or a paid key (Q5 user action 2)."
+    }
+  ],
+  "status": "complete",
+  "upload_id": "upl_e2e0000000002",
+  "variables": {
+    "current": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "copernicus_marine",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "anonymous_arco",
+        "attribution": "E.U. Copernicus Marine Service Information",
+        "dataset_id": "cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406",
+        "details": {
+          "direction_convention": "toward (oceanographic)",
+          "direction_deg": 258.1,
+          "query_urls": [
+            "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/uo/11.24.35.49",
+            "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/vo/11.24.35.49"
+          ],
+          "uo_m_s": -0.3439,
+          "vo_m_s": -0.0728
+        },
+        "grid_point": {
+          "depth_m": 0.494,
+          "distance_km": 4.02,
+          "latitude": 15.58334,
+          "longitude": 82.33334,
+          "time": "2026-10-01T00:00:00Z"
+        },
+        "kind": "modelled",
+        "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+        "note": "Anonymous read of the public ARCO store (undocumented access path, Q5 V2).",
+        "product_id": "GLOBAL_ANALYSISFORECAST_PHY_001_024",
+        "provider": "copernicus_marine",
+        "query_url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/uo/11.24.35.49",
+        "raw_unit": null,
+        "raw_value": null,
+        "retrieved_at": "2026-10-18T13:04:41.312723Z",
+        "series": [
+          {
+            "date": "2026-09-25",
+            "speed": 0.3151
+          },
+          {
+            "date": "2026-09-26",
+            "speed": 0.4985
+          },
+          {
+            "date": "2026-09-27",
+            "speed": 0.2842
+          },
+          {
+            "date": "2026-09-28",
+            "speed": 0.4493
+          },
+          {
+            "date": "2026-09-29",
+            "speed": 0.4363
+          },
+          {
+            "date": "2026-09-30",
+            "speed": 0.2395
+          },
+          {
+            "date": "2026-10-01",
+            "speed": 0.3516
+          }
+        ],
+        "source": "Copernicus Marine Service",
+        "source_variable": "uo,vo",
+        "unit": "m/s",
+        "value": 0.3516
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "m/s",
+      "user_value": null,
+      "value": 0.3516,
+      "value_source": "public"
+    },
+    "dissolved_oxygen": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "copernicus_marine",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "anonymous_arco",
+        "attribution": "E.U. Copernicus Marine Service Information",
+        "dataset_id": "cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311",
+        "details": {
+          "conversion": "mg/L = mmol m-3 x 0.031998"
+        },
+        "grid_point": {
+          "depth_m": 0.494,
+          "distance_km": 12.34,
+          "latitude": 15.5,
+          "longitude": 82.25,
+          "time": "2026-10-01T00:00:00Z"
+        },
+        "kind": "modelled",
+        "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+        "note": "Anonymous read of the public ARCO store (undocumented access path, Q5 V2).",
+        "product_id": "GLOBAL_ANALYSISFORECAST_BGC_001_028",
+        "provider": "copernicus_marine",
+        "query_url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/o2/11.24.11.16",
+        "raw_unit": "mmol m-3",
+        "raw_value": 207.2282,
+        "retrieved_at": "2026-10-18T13:04:41.300201Z",
+        "series": [],
+        "source": "Copernicus Marine Service",
+        "source_variable": "o2",
+        "unit": "mg/L",
+        "value": 6.6309
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "mg/L",
+      "user_value": null,
+      "value": 6.6309,
+      "value_source": "public"
+    },
+    "ph": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "copernicus_marine",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "anonymous_arco",
+        "attribution": "E.U. Copernicus Marine Service Information",
+        "dataset_id": "cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311",
+        "details": {},
+        "grid_point": {
+          "depth_m": 0.494,
+          "distance_km": 12.34,
+          "latitude": 15.5,
+          "longitude": 82.25,
+          "time": "2026-10-01T00:00:00Z"
+        },
+        "kind": "modelled",
+        "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+        "note": "Anonymous read of the public ARCO store (undocumented access path, Q5 V2).",
+        "product_id": "GLOBAL_ANALYSISFORECAST_BGC_001_028",
+        "provider": "copernicus_marine",
+        "query_url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/ph/11.24.11.16",
+        "raw_unit": "1",
+        "raw_value": null,
+        "retrieved_at": "2026-10-18T13:04:41.335583Z",
+        "series": [],
+        "source": "Copernicus Marine Service",
+        "source_variable": "ph",
+        "unit": "pH",
+        "value": 8.0317
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "pH",
+      "user_value": null,
+      "value": 8.0317,
+      "value_source": "public"
+    },
+    "salinity": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "copernicus_marine",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "anonymous_arco",
+        "attribution": "E.U. Copernicus Marine Service Information",
+        "dataset_id": "cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406",
+        "details": {},
+        "grid_point": {
+          "depth_m": 0.494,
+          "distance_km": 4.02,
+          "latitude": 15.58334,
+          "longitude": 82.33334,
+          "time": "2026-10-01T00:00:00Z"
+        },
+        "kind": "modelled",
+        "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+        "note": "Anonymous read of the public ARCO store (undocumented access path, Q5 V2).",
+        "product_id": "GLOBAL_ANALYSISFORECAST_PHY_001_024",
+        "provider": "copernicus_marine",
+        "query_url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/so/11.24.35.49",
+        "raw_unit": "1e-3",
+        "raw_value": null,
+        "retrieved_at": "2026-10-18T13:04:42.037215Z",
+        "series": [],
+        "source": "Copernicus Marine Service",
+        "source_variable": "so",
+        "unit": "PSU",
+        "value": 30.787
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "PSU",
+      "user_value": null,
+      "value": 30.787,
+      "value_source": "public"
+    },
+    "temperature": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "copernicus_marine",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "anonymous_arco",
+        "attribution": "E.U. Copernicus Marine Service Information",
+        "dataset_id": "cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406",
+        "details": {},
+        "grid_point": {
+          "depth_m": 0.494,
+          "distance_km": 4.02,
+          "latitude": 15.58334,
+          "longitude": 82.33334,
+          "time": "2026-10-01T00:00:00Z"
+        },
+        "kind": "modelled",
+        "licence": "Copernicus Marine Service licence: free of charge, attribution required",
+        "note": "Anonymous read of the public ARCO store (undocumented access path, Q5 V2).",
+        "product_id": "GLOBAL_ANALYSISFORECAST_PHY_001_024",
+        "provider": "copernicus_marine",
+        "query_url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/thetao/11.24.35.49",
+        "raw_unit": null,
+        "raw_value": null,
+        "retrieved_at": "2026-10-18T13:04:41.431078Z",
+        "series": [],
+        "source": "Copernicus Marine Service",
+        "source_variable": "thetao",
+        "unit": "°C",
+        "value": 30.2808
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "°C",
+      "user_value": null,
+      "value": 30.2808,
+      "value_source": "public"
+    },
+    "wind": {
+      "attempts": [
+        {
+          "ok": true,
+          "provider": "open_meteo",
+          "reason": null,
+          "transient": false
+        }
+      ],
+      "public": {
+        "access": "public_api",
+        "attribution": "Weather data by Open-Meteo.com, ECMWF ERA5 reanalysis",
+        "dataset_id": "open-meteo era5 hourly",
+        "details": {
+          "direction_convention": "from (meteorological)",
+          "direction_deg": 177,
+          "height_m": 10,
+          "units_hourly": {
+            "time": "iso8601",
+            "wind_direction_10m": "°",
+            "wind_speed_10m": "m/s"
+          }
+        },
+        "grid_point": {
+          "depth_m": null,
+          "distance_km": null,
+          "latitude": 15.5711775,
+          "longitude": 82.29539,
+          "time": "2026-10-01T06:00:00Z"
+        },
+        "kind": "reanalysis",
+        "licence": "CC BY 4.0 (data); Open-Meteo free API terms",
+        "note": "Open-Meteo free API: non-commercial use only (data CC BY 4.0).",
+        "product_id": "ECMWF ERA5",
+        "provider": "open_meteo",
+        "query_url": "https://archive-api.open-meteo.com/v1/era5?latitude=15.6&longitude=82.3&start_date=2026-09-25&end_date=2026-10-01&hourly=wind_speed_10m%2Cwind_direction_10m&wind_speed_unit=ms&timezone=UTC",
+        "raw_unit": null,
+        "raw_value": null,
+        "retrieved_at": "2026-10-18T13:04:38.830747Z",
+        "series": [
+          {
+            "date": "2026-09-25",
+            "hours": 24,
+            "max": 11.46,
+            "mean": 9.604
+          },
+          {
+            "date": "2026-09-26",
+            "hours": 24,
+            "max": 9.33,
+            "mean": 5.708
+          },
+          {
+            "date": "2026-09-27",
+            "hours": 24,
+            "max": 5.11,
+            "mean": 3.66
+          },
+          {
+            "date": "2026-09-28",
+            "hours": 24,
+            "max": 4.55,
+            "mean": 2.99
+          },
+          {
+            "date": "2026-09-29",
+            "hours": 24,
+            "max": 4.2,
+            "mean": 2.37
+          },
+          {
+            "date": "2026-09-30",
+            "hours": 24,
+            "max": 5.14,
+            "mean": 2.602
+          },
+          {
+            "date": "2026-10-01",
+            "hours": 24,
+            "max": 2.34,
+            "mean": 1.763
+          }
+        ],
+        "source": "Open-Meteo (ECMWF ERA5)",
+        "source_variable": "wind_speed_10m,wind_direction_10m",
+        "unit": "m/s",
+        "value": 1.85
+      },
+      "public_reason": null,
+      "public_status": "ok",
+      "reason": null,
+      "status": "ok",
+      "unit": "m/s",
+      "user_value": null,
+      "value": 1.85,
+      "value_source": "public"
+    }
+  }
+}

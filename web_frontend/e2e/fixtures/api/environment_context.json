@@ -1,0 +1,98 @@
+{
+  "cache_hit": null,
+  "cache_key": null,
+  "query": {
+    "collected_at": "2026-10-09T06:30:00Z",
+    "date": "2026-10-09",
+    "depth_m": 1850.0,
+    "latitude": 15.52,
+    "longitude": 68.21,
+    "lookup_latitude": 15.52,
+    "lookup_longitude": 68.21,
+    "target_level": "sample_depth"
+  },
+  "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+  "requested_at": null,
+  "retrieved_at": null,
+  "sources": [],
+  "status": "pending",
+  "upload_id": "upl_e2e0000000001",
+  "variables": {
+    "current": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "status": "unavailable",
+      "unit": "m/s",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "dissolved_oxygen": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "status": "unavailable",
+      "unit": "mg/L",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "ph": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "status": "unavailable",
+      "unit": "pH",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "salinity": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "status": "unavailable",
+      "unit": "PSU",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "temperature": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": null,
+      "status": "user_provided",
+      "unit": "°C",
+      "user_value": {
+        "field": "temperature_celsius",
+        "unit": "°C",
+        "value": 4.2
+      },
+      "value": 4.2,
+      "value_source": "user"
+    },
+    "wind": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "public_status": "pending",
+      "reason": "Environmental lookups are disabled on this server (ENVIRONMENT_CONTEXT_ENABLED=false).",
+      "status": "unavailable",
+      "unit": "m/s",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    }
+  }
+}

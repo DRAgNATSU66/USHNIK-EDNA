@@ -47,6 +47,14 @@ const ROUTES = [
   ["GET", /^\/models\/registry$/, () => "models_registry"],
   ["GET", /^\/models\/promotions$/, () => "models_promotions"],
   ["GET", /^\/abyss\/expeditions$/, () => "abyss_expeditions"],
+  // Academia (t-1027-1)
+  ["GET", /^\/environment\/uploads\/upl_e2e0000000002$/, () => "environment_context_bay"],
+  ["GET", /^\/environment\/uploads\/upl_e2e0000000003$/, () => "environment_not_applicable"],
+  ["GET", /^\/environment\/uploads\/[^/]+$/, () => "environment_context"],
+  ["GET", /^\/partner\/summary$/, () => "partner_summary"],
+  ["GET", /^\/partner\/cooccurrence$/, (_m, url) =>
+    url.searchParams.get("rank") === "any" ? "partner_cooccurrence_any" : "partner_cooccurrence"],
+  ["GET", /^\/partner\/rhythms$/, () => "partner_rhythms"],
 ];
 
 function json(route, status, body) {
@@ -94,6 +102,15 @@ export const test = base.extend({
           if (!m) continue;
           const out = typeof handler === "function" ? handler(m, url, role) : handler;
           if (typeof out === "string") return json(route, 200, fixture(out));
+          // Non-JSON body (a file download): {status?, contentType, headers?, body}.
+          if (out.contentType) {
+            return route.fulfill({
+              status: out.status ?? 200,
+              contentType: out.contentType,
+              headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "Content-Disposition", ...out.headers },
+              body: out.body,
+            });
+          }
           return json(route, out.status ?? 200, out.body);
         }
         unmocked.push(`${req.method()} ${url.pathname}`);

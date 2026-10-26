@@ -294,10 +294,95 @@ AUDIT_LOGS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Academia page (t-1027-1): a second, older sample whose results carry
+# orchestrator decisions (so species co-occurrence has pairs), its
+# environmental context, and a third upload with no coordinates or date.
+# ---------------------------------------------------------------------------
+
+ANALYSIS_BAY_ID = "ana_e2e0000000002"
+UPLOAD_BAY_ID = "upl_e2e0000000002"
+UPLOAD_BARE_ID = "upl_e2e0000000003"
+# Real provider responses recorded live on 2026-10-18 for 15.6 N, 82.3 E,
+# 2026-10-01, surface (tests/fixtures/environment/record_fixtures.py); the
+# upload below is placed at exactly that point so the context is its own.
+ENV_RECORDING = API_DIR / "tests" / "fixtures" / "environment" / "bay_of_bengal" / "live_results.json"
+
+
+def _decided(sequence_id: str, taxon: str | None, rank: str | None, **kw) -> dict:
+    r = _seq(sequence_id, kw.pop("route", "fish"), kw.pop("result_class", "known_species"), taxon=taxon, **kw)
+    r["decision"] = {
+        "final_route": r["route"], "result_class": r["result_class"], "predicted_taxon": taxon,
+        "taxon_rank": rank, "percent_identity": None, "reference_db": None, "reference_db_version": None,
+        "confidence": r["confidence"], "rule": "e2e_fixture",
+    }
+    return r
+
+
+UPLOAD_BAY = {
+    "upload_id": UPLOAD_BAY_ID,
+    "user_id": OWNER,
+    "original_filename": "e2e_bay_of_bengal_vizag.fasta",
+    "file_size_bytes": 9_216,
+    "status": "stored",
+    "collected_at": datetime(2026, 10, 1, 6, 0),
+    "latitude": 15.6,
+    "longitude": 82.3,
+    "location_label": "Bay of Bengal, off Visakhapatnam",
+    "source_type": "seawater",
+    "methodology": "metabarcoding",
+    "created_at": _ts(2, 11),
+}
+
+UPLOAD_BARE = {
+    "upload_id": UPLOAD_BARE_ID,
+    "user_id": OWNER,
+    "original_filename": "e2e_no_metadata.fasta",
+    "file_size_bytes": 4_096,
+    "status": "stored",
+    "created_at": _ts(12, 14, 20),
+}
+
+ANALYSIS_BAY = {
+    "analysis_id": ANALYSIS_BAY_ID,
+    "job_id": "job_e2e_bay00001",
+    "upload_id": UPLOAD_BAY_ID,
+    "user_id": OWNER,
+    "mode": "online_full",
+    "model_version_set": "orchestrator-1.2.0",
+    "results": [
+        _decided("seq_e2e_bay_001", "Sardinella longiceps", "species", confidence=0.93),
+        _decided("seq_e2e_bay_002", "Sardinella longiceps", "species", confidence=0.9),
+        _decided("seq_e2e_bay_003", "Rastrelliger kanagurta", "species", confidence=0.88),
+        _decided("seq_e2e_bay_004", "Thunnus albacares", "species", confidence=0.86),
+        _decided("seq_e2e_bay_005", "Stolephorus", "genus", confidence=0.7),
+        _decided("seq_e2e_bay_006", "Homo sapiens", "species", route="human_domestic",
+                 result_class="possible_contaminant", confidence=0.97, contamination=0.95, contaminated=True,
+                 contamination_type="human", model="dnabert2_human_domestic_v1"),
+    ],
+    "created_at": _ts(2, 11, 6),
+}
+
+
+def _env_context_bay() -> dict:
+    public = {k: v for k, v in json.loads(ENV_RECORDING.read_text(encoding="utf-8"))["surface"].items()
+              if k != "transient"}
+    ok = sum(1 for v in public.values() if v["status"] == "ok")
+    return {
+        "upload_id": UPLOAD_BAY_ID, "user_id": OWNER, "status": "complete" if ok == len(public) else "partial",
+        "query": {"latitude": 15.6, "longitude": 82.3, "lookup_latitude": 15.6, "lookup_longitude": 82.3,
+                  "collected_at": "2026-10-01T06:00:00+00:00", "date": "2026-10-01", "depth_m": None,
+                  "target_level": "surface"},
+        "cache_key": "v1:15.60:82.30:2026-10-01:surface", "cache_hit": False, "public": public,
+        "requested_at": datetime(2026, 10, 18, 13, 4, 30), "retrieved_at": datetime(2026, 10, 18, 13, 4, 41),
+    }
+
+
 def _seed() -> dict[str, list[dict]]:
     return {
-        "uploads": [UPLOAD],
-        "analysis_results": [ANALYSIS],
+        "uploads": [UPLOAD, UPLOAD_BAY, UPLOAD_BARE],
+        "analysis_results": [ANALYSIS, ANALYSIS_BAY],
+        "environment_contexts": [_env_context_bay()],
         "reviews": REVIEWS,
         "field_log_entries": FIELD_ENTRIES,
         "field_log_attachments": ATTACHMENTS,
@@ -330,6 +415,14 @@ CAPTURES: list[tuple[str, str, str]] = [
     ("models_registry", "admin", "/models/registry"),
     ("models_promotions", "admin", "/models/promotions?limit=10"),
     ("abyss_expeditions", "researcher", "/abyss/expeditions"),
+    # Academia page (t-1027-1)
+    ("environment_context", "researcher", f"/environment/uploads/{UPLOAD_ID}"),
+    ("environment_context_bay", "researcher", f"/environment/uploads/{UPLOAD_BAY_ID}"),
+    ("environment_not_applicable", "researcher", f"/environment/uploads/{UPLOAD_BARE_ID}"),
+    ("partner_summary", "researcher", "/partner/summary"),
+    ("partner_cooccurrence", "researcher", "/partner/cooccurrence?rank=species&limit=50"),
+    ("partner_cooccurrence_any", "researcher", "/partner/cooccurrence?rank=any&limit=50"),
+    ("partner_rhythms", "researcher", "/partner/rhythms"),
 ]
 
 
@@ -358,8 +451,13 @@ async def generate() -> dict[str, Any]:
     # defaults so a developer's services/api/.env cannot make fixtures differ
     # between machines.
     defaults = Settings(_env_file=None)
+    # GET /environment/uploads/{id} would schedule a live provider lookup for
+    # an upload without a context doc; the recorder never goes online, so it
+    # records the API's own "lookups disabled" answer instead.
+    no_env_lookups = defaults.model_copy(update={"environment_context_enabled": False})
     with patch.object(mongo_module, "_db", _Db(_seed())), \
-            patch.object(main_module, "get_settings", lambda: defaults):
+            patch.object(main_module, "get_settings", lambda: defaults), \
+            patch("app.environment.router.get_settings", lambda: no_env_lookups):
         transport = ASGITransport(app=create_app())
         async with AsyncClient(transport=transport, base_url="http://api.test") as client:
             for name, role, path in CAPTURES:

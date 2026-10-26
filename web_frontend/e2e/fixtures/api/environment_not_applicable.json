@@ -1,0 +1,85 @@
+{
+  "cache_hit": null,
+  "cache_key": null,
+  "query": null,
+  "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+  "requested_at": null,
+  "retrieved_at": null,
+  "sources": [],
+  "status": "not_applicable",
+  "upload_id": "upl_e2e0000000003",
+  "variables": {
+    "current": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "m/s",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "dissolved_oxygen": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "mg/L",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "ph": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "pH",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "salinity": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "PSU",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "temperature": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "°C",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    },
+    "wind": {
+      "attempts": [],
+      "public": null,
+      "public_reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "public_status": "not_applicable",
+      "reason": "No public environmental lookup: latitude, longitude, collected_at not recorded on the upload (it needs latitude, longitude and collected_at).",
+      "status": "unavailable",
+      "unit": "m/s",
+      "user_value": null,
+      "value": null,
+      "value_source": null
+    }
+  }
+}
