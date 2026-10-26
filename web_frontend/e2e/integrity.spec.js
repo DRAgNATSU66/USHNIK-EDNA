@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { test, expect, fixture, ANALYSIS_ID, ORCH_ANALYSIS_ID, API_ORIGIN } from "./support/mockApi.js";
 
-const NOVELTY_CHIP = "Modeled estimate — based on 6 expert-weighted signals · Confidence: uncalibrated score";
+const NOVELTY_CHIP = "Modeled estimate — based on expert-weighted signals · Confidence: uncalibrated score";
 const CONTAMINATION_CHIP = "Modeled estimate — based on route, marker and composition signals · Confidence: uncalibrated score";
 const WINDOW = "trace consistent with presence ~1–14 days prior to collection";
 

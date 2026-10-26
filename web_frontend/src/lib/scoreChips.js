@@ -2,11 +2,12 @@
 // (D6, t-1028-3). One place for the wording so every page qualifies the same
 // score the same way. Each basis names how the worker actually produces it:
 //
-//   novelty_score        services/worker/app/novelty/scorer.py -- expert-set
-//                        weights over six signals (route-head class and
-//                        confidence, read quality, contamination gate, label
-//                        entropy, embedding isolation); not fitted, not
-//                        calibrated.
+//   novelty_score        services/worker/app/novelty/scorer.py -- hand-set
+//                        weights (WEIGHTS) over route-head class, confidence
+//                        and label entropy, with quality/contamination gates;
+//                        the centroid and reference-identity terms are
+//                        computed but dev-calibrated to weight 0 (QNA-038);
+//                        not calibrated as a probability.
 //   contamination_score  services/worker/app/novelty/contamination.py --
 //                        route, marker-motif and sequence-composition signals
 //                        combined by hand-set rules; not calibrated.
@@ -17,7 +18,7 @@
 // Route-head class scores have their own wording in
 // components/results/SequenceCalls.jsx (confidenceProps).
 
-export const NOVELTY_CHIP = { basis: "6 expert-weighted signals", confidence: "uncalibrated score" };
+export const NOVELTY_CHIP = { basis: "expert-weighted signals", confidence: "uncalibrated score" };
 
 export const CONTAMINATION_CHIP = { basis: "route, marker and composition signals", confidence: "uncalibrated score" };
 
