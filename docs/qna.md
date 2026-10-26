@@ -2504,3 +2504,46 @@ Whether to turn the weight on is an **owner decision**, still open on 2026-10-27
 
 **Q6. Defence: "Is the +0.0006 F1 real?"**
 No. The CI includes 0, and the threshold change alone accounts for it. Fish recall is 0.405 on test (0.631 on dev) in every configuration; B5 neither caused nor fixed it. The test split was scored twice: the second run only added the paired statistics, and every other number was identical. The 2026-10-27 dev rerun reproduced the 2026-10-20 selection exactly.
+
+## QNA-039 — 2026-10-27 — Integrity sweep: MockTag deleted, the Novelty DNA "no alignment step" text replaced by the stored decision, ConfidenceChip on model scores, DetectionWindowBadge on Legislative, partner-page stale-response and CSV-formula fixes (D6; tracker t-1028-3)
+
+**Commit:** `b503d2a` on `sprint/d15-integrity-sweep` (`576403e` chips + Novelty DNA + MockTag deletion, `72e6c2b` Legislative, `d089aec` Industrial, `1ea42f0` Academia, `b503d2a` e2e), cut from `d59be3a`. Merged into `LATEST_USHNIK` as `77e950c`, with a follow-up wording fix in `af8e796`.
+
+**Q1. Mechanism: how does the Novelty DNA drawer get the closest match now?**
+- The first time a drawer opens for an analysis, `web_frontend/src/pages/researcher/NoveltyDNA.jsx` calls `getAnalysis(id, {includeTrace:false})` once. It maps `sequence_id` to the result row.
+- `ReferenceLookup` (~:185–250) renders the row's `decision`: final_route, result_class, rule, reference_db(_version), predicted_taxon/taxon_rank and percent_identity.
+- Stale replies are dropped: the state is tagged with its analysis id, and a reply is applied only while the tag still matches.
+- If there is no match, the panel says why: the analysis predates the orchestrator, the database was searched with no assignment, there is no stored row, or the load failed.
+- Coverage and E-value exist only in the trace, so the panel points to Results › Why this answer.
+- ConfidenceChip wording lives in `src/lib/scoreChips.js`.
+  - Placements: NoveltyDNA :154/:231/:315/:317, AnalysisResults :630, ReviewQueue :135/:141, Industrial :290–291.
+  - DetectionWindowBadge: Legislative :682 (alert card) and :786 (dialog), fed by the alert's own `collected_at`.
+
+**Q2. Rationale.**
+- **MockTag:** the roadmap premise was wrong. At `d59be3a` MockTag was imported nowhere; `NoveltyDNA.jsx:47` only named it in a comment. What that comment marked was the drawer's fixed text saying the tool "doesn't run a reference alignment step", which is false for orchestrator-1.x analyses: `seq_e2e_orch_tuna_01` has 99.84% against `synthveda-reference/fish` v2. The stored decision replaced it, so no new API was needed.
+- **Chips:** they went only on model or evidence scores (novelty, contamination, identity). Plain counts and count ratios (Legislative flag rates, KPIs, Jaccard), external environmental values (which already carry source lines) and evaluation metrics were excluded on purpose. A chip that says "Modeled estimate" on a count would itself be misleading.
+- **Wording fix at merge (`af8e796`):** the agent's novelty basis said "6 expert-weighted signals". After QNA-038 only 3 terms carry weight (`scorer.py:76-82`); centroid and reference identity are at 0. The basis now says "expert-weighted signals", and the comment names the weight-0 terms.
+
+**Q3. Blast radius.**
+- **CSV guard:** `Legislative.jsx` `csvCell` prefixes `'` to any non-numeric cell that starts with `= + - @`, a tab or a CR. Worst case, a text cell gains a visible `'`. Real numbers are never changed (`-12.5` stays `-12.5`). A southern or western `cell_id` such as `-13:68` exports as `'-13:68`, on purpose.
+- **Race fixes:** a wrong fix would show the previous scope's or upload's data under the new label. That is the bug being fixed, and the tests in Q4 check it.
+- **Academia copy button:** the one `setTimeout` that faked success. It showed "Copied ✓" before `writeText` resolved; now it shows only on success. Audited and not faking: JobProgress (:146/:156), ResetPassword (:151).
+- **Custody:** after every FAIR export (even a failed one, since the server records the export before streaming), custody is re-read on Legislative and Industrial `DocumentHub.jsx`.
+
+**Q4. Verification.**
+- New `web_frontend/e2e/integrity.spec.js`, 16 tests. Superseded responses are held back with a 1500 ms page-level route delay.
+- Against base source `d59be3a` (`git checkout d59be3a -- web_frontend/src`), **15 of 16 failed for the expected reason**:
+  - 3 stale "STALE-MINE.fasta" rows on Industrial;
+  - the old pending reason left beside the new error on Academia;
+  - the chain stuck at "2 event(s)" after a FAIR export on Legislative.
+  The one that passed is the successful-copy case, which the old code also handles.
+- On the merged tree (`af8e796`): `npm run build` OK, Playwright **80/80**, `grep -rn MockTag web_frontend/src` → 0 matches. No API change, so pytest and fixtures were not affected.
+
+**Q5. Defence: "ConfidenceChip on every computed number, yet Legislative has none?"** Legislative shows no model score; its numbers are counts and flag rates (flagged ÷ analysed). It gets the DetectionWindowBadge instead, which qualifies a detection in time. Its 1–14 day window is the spec's frontend default; the backend has no degradation model, and the badge shows "unavailable (no sample timestamp)" when collected_at is missing.
+
+**Q6. Open (as reported by the agent, 2026-10-27).**
+- The Novelty DNA header and footer still say "Reference DB: pending configuration" (`referenceDb={null}`), which is misleading for orchestrated analyses.
+- Academia's `getReport` effect (~:432) has no stale guard.
+- Human-route contamination still shows as a red Industrial incident until `sprint/d15-review-fixes` lands.
+- ConfidenceChip always reads "Modeled estimate", even for an alignment identity.
+- Six pre-existing ESLint errors remain in `main.jsx` and `AuthContext.jsx`.
