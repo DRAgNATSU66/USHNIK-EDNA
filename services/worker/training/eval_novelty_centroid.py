@@ -285,6 +285,35 @@ def raw_score_auroc(rows: list[dict], scored: list[dict]) -> dict:
     return out
 
 
+def paired_vs_old(rows: list[dict], old_scored: list[dict], t_old: float, scored: list[dict], t: float,
+                  n_boot: int = 2000, seed: int = 1024) -> dict:
+    """Paired comparison with the old flag on the same rows: which rows flip
+    (and whether each flip is a possible_novelty row), and a paired bootstrap
+    (rows resampled within each route) of the mean-over-novelty-routes F1
+    difference, new - old."""
+    y = np.array([r["label"] == POS for r in rows])
+    rt = np.array([r["true_route"] for r in rows])
+    fo, fn_ = flags(old_scored, t_old), flags(scored, t)
+    gained, lost = fn_ & ~fo, fo & ~fn_
+    flips = {"gained_flags": int(gained.sum()), "gained_true_pos": int((gained & y).sum()),
+             "gained_false_pos": int((gained & ~y).sum()), "lost_flags": int(lost.sum()),
+             "lost_true_pos": int((lost & y).sum()), "lost_false_pos": int((lost & ~y).sum())}
+    rng = np.random.default_rng(seed)
+    idx = {r: np.flatnonzero(rt == r) for r in NOVELTY_ROUTES}
+    diffs = []
+    for _ in range(n_boot):
+        d = []
+        for r, ix in idx.items():
+            b = rng.choice(ix, size=len(ix), replace=True)
+            d.append(prf(y[b], fn_[b])["f1"] - prf(y[b], fo[b])["f1"])
+        diffs.append(float(np.mean(d)))
+    diffs = np.array(diffs)
+    return {**flips, "mean_f1_diff_bootstrap": {
+        "n_boot": n_boot, "median": round(float(np.median(diffs)), 4),
+        "ci95": [round(float(np.percentile(diffs, 2.5)), 4), round(float(np.percentile(diffs, 97.5)), 4)],
+        "share_gt_0": round(float((diffs > 0).mean()), 3)}}
+
+
 def legacy_resolver(_model_id):
     return None, "legacy_eval"
 
@@ -384,14 +413,20 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
               "embedding_isolation": best["w_emb"], "reference_low_identity": best["w_ref"]}
     new_scored = score_rows(rows, weights=w_best, resolver=resolver, use_reference=True, settings=settings)
     new_dev = per_route_metrics(rows, new_scored, best["threshold"])
-    # Ablations at their own dev-best threshold: centroid only, reference only.
+    # Ablations, each at its own dev-best weight and threshold: neither new
+    # term, the centroid term alone (w_emb > 0, w_ref = 0), the reference term
+    # alone (w_emb = 0, w_ref > 0). (Before 2026-10-27 these took the chosen
+    # point's weights, which are both 0, so all three rows were identical.)
     ablations = {}
-    for name, we, wr in (("centroid_only", best["w_emb"], 0.0), ("reference_only", 0.0, best["w_ref"])):
-        cand = [g for g in grid if g["w_emb"] == we and g["w_ref"] == wr]
+    for name, keep in (("neither", lambda g: g["w_emb"] == 0 and g["w_ref"] == 0),
+                       ("centroid_only", lambda g: g["w_emb"] > 0 and g["w_ref"] == 0),
+                       ("reference_only", lambda g: g["w_emb"] == 0 and g["w_ref"] > 0)):
+        cand = [g for g in grid if keep(g)]
         if cand:
             b = max(cand, key=lambda g: (g["mean_f1"], g["pooled_f1"]))
-            ablations[name] = {"w_emb": we, "w_ref": wr, "threshold": b["threshold"], "mean_f1": b["mean_f1"],
-                               "per_route_f1": b["per_route_f1"]}
+            ablations[name] = {"w_emb": b["w_emb"], "w_ref": b["w_ref"], "threshold": b["threshold"],
+                               "mean_f1": b["mean_f1"], "pooled_f1": b["pooled_f1"],
+                               "per_route_f1": b["per_route_f1"], "raw_score_auroc_mean": b["raw_score_auroc_mean"]}
     top = sorted(grid, key=lambda g: (-g["mean_f1"], -g["pooled_f1"]))[:15]
     # For the record (not the choice): the best grid point that gives BOTH new
     # terms a weight, and the best by the score-only flag.
@@ -463,20 +498,29 @@ def cmd_report(args: argparse.Namespace) -> None:
         "score_only_mean_f1": {"old@0.45": score_only_mean_f1(rows, old_scored, OLD_THRESHOLD),
                                "new@served": score_only_mean_f1(rows, new_scored, NOVELTY_THRESHOLD)},
         "gate_rules_new": dict(Counter(x["gate_rule"] for x in new_scored)),
+        "paired_new_vs_old": paired_vs_old(rows, old_scored, OLD_THRESHOLD, new_scored, NOVELTY_THRESHOLD),
         "result_class_counts": dict(Counter(x["result_class"] for x in new_scored)),
     }
     if args.dev_json:
-        # Secondary, fixed on dev before this split was scored: the best dev
-        # grid point that gives both new terms a weight (not served).
-        alt = json.loads(Path(args.dev_json).read_text()).get("best_with_both_new_terms")
-        if alt:
+        # Secondary rows, each fixed on dev before this split was scored (not
+        # served): the best dev grid point that gives both new terms a weight,
+        # and the dev-best centroid-only / reference-only ablations.
+        dev = json.loads(Path(args.dev_json).read_text())
+        alts = {"alt_both_terms_not_served": dev.get("best_with_both_new_terms")}
+        for name in ("centroid_only", "reference_only"):
+            alts[f"alt_{name}_not_served"] = (dev.get("ablations") or {}).get(name)
+        for key, alt in alts.items():
+            if not alt:
+                continue
             w = {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
                  "embedding_isolation": alt["w_emb"], "reference_low_identity": alt["w_ref"]}
             alt_scored = score_rows(rows, weights=w, resolver=None, use_reference=True, settings=settings)
-            out["alt_both_terms_not_served"] = {
+            out[key] = {
                 "weights": w, "threshold": alt["threshold"],
                 "metrics": per_route_metrics(rows, alt_scored, alt["threshold"]),
-                "raw_score_auroc": raw_score_auroc(rows, alt_scored)}
+                "raw_score_auroc": raw_score_auroc(rows, alt_scored),
+                "score_only_mean_f1": score_only_mean_f1(rows, alt_scored, alt["threshold"]),
+                "paired_vs_old": paired_vs_old(rows, old_scored, OLD_THRESHOLD, alt_scored, alt["threshold"])}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(out, indent=2))
     for name in ("old", "new"):
