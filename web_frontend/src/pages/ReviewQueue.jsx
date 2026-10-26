@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import SidebarMenu from "../components/sidebar/SidebarMenu";
 import { useAuth } from "../contexts/AuthContext";
+import ConfidenceChip from "../components/shared/ConfidenceChip";
+import { CONTAMINATION_CHIP, NOVELTY_CHIP } from "../lib/scoreChips";
 import {
   getReviewStats, getReviewQueue, triageReview,
   addEvidence, makeDecision,
@@ -128,10 +130,16 @@ function ReviewCard({ review, onRefresh }) {
         <span><strong style={{ color: "#b3d9ff" }}>Review:</strong> {review.review_id}</span>
         <span><strong style={{ color: "#b3d9ff" }}>Seq:</strong> {review.sequence_id || "—"}</span>
         {review.novelty_score != null && (
-          <span><strong style={{ color: "#ffd700" }}>Novelty:</strong> {(review.novelty_score * 100).toFixed(1)}%</span>
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span><strong style={{ color: "#ffd700" }}>Novelty:</strong> {(review.novelty_score * 100).toFixed(1)}%</span>
+            <ConfidenceChip {...NOVELTY_CHIP} />
+          </span>
         )}
         {review.contamination_score != null && (
-          <span><strong style={{ color: "#ff9b9b" }}>Contam:</strong> {(review.contamination_score * 100).toFixed(1)}%</span>
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span><strong style={{ color: "#ff9b9b" }}>Contam:</strong> {(review.contamination_score * 100).toFixed(1)}%</span>
+            <ConfidenceChip {...CONTAMINATION_CHIP} />
+          </span>
         )}
       </div>
 
