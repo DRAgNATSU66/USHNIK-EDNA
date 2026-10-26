@@ -1,0 +1,24 @@
+[
+  {
+    "audit_id": "aud_e2e000000001",
+    "completed_at": null,
+    "created_at": "2026-10-12T09:00:00",
+    "created_by": "usr_e2e_researcher",
+    "created_by_name": "Rhea Researcher",
+    "due_date": "2099-03-01",
+    "findings": [
+      {
+        "description": "No negative control included",
+        "reference": null,
+        "severity": "high"
+      }
+    ],
+    "scope": "Contamination controls for the Station 7 extraction batch",
+    "status": "scheduled",
+    "target": {
+      "kind": "analysis",
+      "label": "Station 7 run",
+      "ref": "ana_e2e0000000001"
+    }
+  }
+]

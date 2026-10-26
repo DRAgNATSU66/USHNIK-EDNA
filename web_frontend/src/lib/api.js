@@ -52,14 +52,20 @@ async function request(method, path, opts = {}) {
 
   if (!resp.ok) {
     let detail = `HTTP ${resp.status}`;
+    let rawDetail;
     try {
       const err = await resp.json();
+      rawDetail = err.detail;
       detail = err.detail || err.message || detail;
     } catch {
       // Error body wasn't JSON -- keep the generic "HTTP {status}" detail.
     }
+    // FastAPI 422s carry detail as [{loc, msg, type}]; keep the list on
+    // e.detail for field-level display and give the message readable text.
+    if (Array.isArray(detail)) detail = detail.map((d) => d?.msg || String(d)).join("; ");
     const e = new Error(detail);
     e.status = resp.status;
+    e.detail = rawDetail;
     throw e;
   }
 
@@ -311,7 +317,7 @@ export const syncExpedition = (expedition_id, syncData) =>
 export const healthCheck = () => request("GET", "/health");
 
 // ---------------------------------------------------------------------------
-// Partner pages: Academia (t-1027-1), Legislative (t-1027-3)
+// Partner pages: Academia (t-1027-1), Legislative (t-1027-3), Industrial (t-1028-2)
 // ---------------------------------------------------------------------------
 
 /** Cross-run counts + time series incl. environmental-context coverage ({scope, user_id, date_from, date_to, interval, top_taxa}). */
@@ -333,6 +339,21 @@ export const getPartnerHotspots = (params) =>
 /** Analyses with novelty/contamination flags or open urgent reviews ({scope, date_from, date_to, limit}). */
 export const getPartnerAlerts = (params) =>
   request("GET", "/partner/alerts", { params });
+
+/** Analyses with contamination/novelty flags or open urgent reviews, plus those reviews. */
+export const getPartnerIncidents = (params) =>
+  request("GET", "/partner/incidents", { params });
+
+/** Field-log tasks (kind=task) across the analyses in scope. */
+export const getPartnerTasks = (params) =>
+  request("GET", "/partner/tasks", { params });
+
+export const listPartnerAudits = (params) =>
+  request("GET", "/partner/audits", { params });
+
+/** 422 detail is FastAPI's [{loc, msg, ...}] list; see formatApiError on the Industrial page. */
+export const createPartnerAudit = (data) =>
+  request("POST", "/partner/audits", { body: data });
 
 /** Hash-chained chain of custody for an analysis's sample, verified on the server. */
 export const getReportCustody = (analysis_id) =>

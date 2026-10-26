@@ -10,6 +10,9 @@ GET  /partner/cooccurrence  taxon pairs found in the same sample (t-1027-1, M3)
 GET  /partner/rhythms       uploads/detections by hour of day, day of week (t-1027-1)
 GET  /partner/hotspots  uploads aggregated into a lat/lon grid (t-1027-3, M2)
 GET  /partner/alerts    analyses with flags or open urgent reviews (t-1027-3, M2)
+GET  /partner/incidents analyses with contamination/novelty flags or open
+                        urgent reviews, plus those reviews (t-1028-2)
+GET  /partner/tasks     field-log tasks on the analyses in scope (t-1028-2)
 
 Scope: by default the caller's own uploads and analyses (scope=mine). The
 whole deployment (scope=all) or another user's data (user_id=...) needs
@@ -33,9 +36,11 @@ from ..auth.deps import get_current_user
 from ..db import get_db
 from ..models.user import UserProfile, UserRole
 from ..uploads.access import can_view_upload
+from ..models.field_log import TaskStatus
+from .incidents import build_incidents, build_tasks
 from .models import (
-    AuditDoc, AuditStatus, AuditTargetKind, CreateAuditRequest, PartnerSummary, SummaryInterval,
-    SummaryScope, SummaryScopeInfo,
+    AuditDoc, AuditStatus, AuditTargetKind, CreateAuditRequest, ListScopeInfo, PartnerIncidents, PartnerSummary,
+    PartnerTasks, SummaryInterval, SummaryScope, SummaryScopeInfo,
 )
 from .summary import AUDITS, TOP_TAXA_DEFAULT, TOP_TAXA_MAX, build_summary, date_window
 from .community import (
@@ -93,7 +98,7 @@ def _resolve_scope(
     date_to: Optional[date],
     interval: SummaryInterval = "day",
 ) -> tuple[SummaryScopeInfo, dict]:
-    """Access + owner filter shared by /summary, /hotspots and /alerts."""
+    """Access + owner filter shared by /summary, /hotspots, /alerts, /incidents and /tasks."""
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="date_from must be on or before date_to")
@@ -325,3 +330,61 @@ async def get_partner_alerts(
     """
     info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to)
     return await build_alerts(get_db(), scope=info, owner_filter=owner_filter, limit=limit)
+
+
+# ---------------------------------------------------------------------------
+# Incidents + field-log tasks (t-1028-2, Industrial page)
+# ---------------------------------------------------------------------------
+
+INCIDENT_LIST_DEFAULT = 50
+INCIDENT_LIST_MAX = 200
+
+
+@router.get("/incidents", response_model=PartnerIncidents)
+async def list_incidents(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    limit: Annotated[int, Query(ge=1, le=INCIDENT_LIST_MAX)] = INCIDENT_LIST_DEFAULT,
+):
+    """
+    Analyses in scope that carry a contamination flag, a novelty flag or an
+    open urgent review (newest first), with the flag counts, contamination
+    types, open/urgent review counts and the first flagged sequences; plus
+    the open urgent reviews themselves (oldest first). Same scope and flag
+    rules as GET /partner/summary; `definitions` states them.
+    """
+    info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_incidents(
+        get_db(),
+        scope=ListScopeInfo(mode=info.mode, user_id=info.user_id, date_from=date_from, date_to=date_to),
+        owner_filter=owner_filter,
+        limit=limit,
+    )
+
+
+@router.get("/tasks", response_model=PartnerTasks)
+async def list_partner_tasks(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    scope: SummaryScope = "mine",
+    user_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    status_: Annotated[Optional[TaskStatus], Query(alias="status")] = None,
+    limit: Annotated[int, Query(ge=1, le=INCIDENT_LIST_MAX)] = INCIDENT_LIST_DEFAULT,
+):
+    """
+    Field-log tasks (kind=task) on the analyses in scope, without edit
+    history: not-done first, then by due date, then newest. Tasks are
+    created and edited through /field-log/entries; this is read-only.
+    """
+    info, owner_filter = _resolve_scope(current_user, scope, user_id, date_from, date_to)
+    return await build_tasks(
+        get_db(),
+        scope=ListScopeInfo(mode=info.mode, user_id=info.user_id, date_from=date_from, date_to=date_to),
+        owner_filter=owner_filter,
+        status=status_,
+        limit=limit,
+    )

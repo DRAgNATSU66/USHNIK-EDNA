@@ -4,20 +4,20 @@
       "cancelled": 0,
       "completed": 0,
       "in_progress": 0,
-      "scheduled": 0
+      "scheduled": 1
     },
     "findings_by_severity": {
       "critical": 0,
-      "high": 0,
+      "high": 1,
       "info": 0,
       "low": 0,
       "medium": 0
     },
     "last_completed_at": null,
-    "next_due_date": null,
+    "next_due_date": "2099-03-01",
     "overdue": 0,
-    "pending": 0,
-    "total": 0
+    "pending": 1,
+    "total": 1
   },
   "definitions": {
     "audits": "Audit records created by the scoped user (all users for scope=all), in their current state and not date-filtered; pending = scheduled or in_progress.",
@@ -183,13 +183,13 @@
   "sites_truncated": false,
   "tasks": {
     "by_status": {
-      "done": 0,
+      "done": 1,
       "in_progress": 0,
-      "open": 0
+      "open": 1
     },
-    "next_due_date": null,
-    "overdue": 0,
-    "total": 0
+    "next_due_date": "2020-01-15",
+    "overdue": 1,
+    "total": 2
   },
   "time_series": [
     {

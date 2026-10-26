@@ -60,6 +60,10 @@ const ROUTES = [
   ["GET", /^\/partner\/hotspots$/, () => "partner_hotspots"],
   ["GET", /^\/partner\/alerts$/, () => "partner_alerts"],
   ["GET", /^\/reports\/[^/]+\/custody$/, () => "report_custody"],
+  // Industrial (t-1028-2)
+  ["GET", /^\/partner\/incidents$/, () => "partner_incidents"],
+  ["GET", /^\/partner\/tasks$/, () => "partner_tasks"],
+  ["GET", /^\/partner\/audits$/, () => "partner_audits"],
 ];
 
 function json(route, status, body) {
