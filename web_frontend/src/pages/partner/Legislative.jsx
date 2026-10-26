@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Rectangle, CircleMarker, Popup, useMap } from 
 import "leaflet/dist/leaflet.css";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import { tokens } from "../../components/shared/tokens";
+import DetectionWindowBadge from "../../components/shared/DetectionWindowBadge";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getPartnerAlerts,
@@ -94,9 +95,21 @@ function saveBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+// CSV/formula injection guard (OWASP "CSV Injection"): a text cell starting
+// with = + - @, or with a tab / carriage return, is read by Excel, Sheets and
+// LibreOffice as a formula. location_label and original_filename are free
+// text typed by any uploader (and an admin's scope=all export holds other
+// users' text), so such cells get a leading apostrophe and open as plain
+// text. Numbers stay numbers (a negative latitude is written -12.5); any
+// other value is guarded, including a southern/western cell_id such as
+// "-3:-5", which a spreadsheet would otherwise also try to evaluate.
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+
 function csvCell(v) {
   if (v === null || v === undefined) return "";
-  const str = String(v);
+  let str = String(v);
+  if (FORMULA_START.test(str) && !(typeof v === "number" || PLAIN_NUMBER.test(str))) str = `'${str}`;
   return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 }
 
@@ -438,6 +451,11 @@ function IntegrityLine({ kind, status, reason }) {
 function CustodyPanel({ analysisId }) {
   const [state, setState] = useState({ loading: true, data: null, error: "" });
   const [busy, setBusy] = useState("");
+  // Bumped after each FAIR export: the server appends an export event to the
+  // chain before sending the ZIP, so the snapshot shown (and the custody JSON
+  // offered for download) must be re-read or it predates that export.
+  const [revision, setRevision] = useState(0);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -448,7 +466,7 @@ function CustodyPanel({ analysisId }) {
     return () => {
       live = false;
     };
-  }, [analysisId]);
+  }, [analysisId, revision]);
 
   const downloadCustody = () => {
     saveBlob(
@@ -459,13 +477,17 @@ function CustodyPanel({ analysisId }) {
 
   const downloadFair = async () => {
     setBusy("fair");
+    setExportError("");
     try {
       const resp = await exportReportFair(analysisId);
       saveBlob(await resp.blob(), `synthveda_fair_${analysisId}.zip`);
     } catch (e) {
-      setState((st) => ({ ...st, error: `FAIR export failed: ${e.message}` }));
+      setExportError(`FAIR export failed: ${e.message}`);
     } finally {
       setBusy("");
+      // Re-read even after a failure: the export event may already be on
+      // the chain if the request failed after the server recorded it.
+      setRevision((r) => r + 1);
     }
   };
 
@@ -476,6 +498,7 @@ function CustodyPanel({ analysisId }) {
       <span style={{ ...panelLabelStyle, fontSize: s(10.5) }}>CHAIN OF CUSTODY</span>
       {state.loading && <span style={captionStyle}>Verifying chain of custody…</span>}
       {state.error && <span style={{ fontSize: s(11.5), color: tokens.danger }}>{state.error}</span>}
+      {exportError && <span role="alert" style={{ fontSize: s(11.5), color: tokens.danger }}>{exportError}</span>}
       {d && (
         <div style={{ display: "flex", flexDirection: "column", gap: s(5), fontSize: s(11.5), fontFamily: "ui-monospace,monospace", color: tokens.wordmark }}>
           {d.upload && (
@@ -655,6 +678,9 @@ export default function Legislative() {
                       {a.collected_at ? ` · collected ${fmtDate(a.collected_at)}` : ""}
                       {a.latitude != null ? ` · ${fmtCoord(a.latitude, "N", "S")}, ${fmtCoord(a.longitude, "E", "W")}` : " · no coordinates"}
                     </span>
+                    <span data-testid="alert-detection-window">
+                      <DetectionWindowBadge sampleTimestamp={asDate(a.collected_at)} />
+                    </span>
                   </button>
                 );
               })}
@@ -755,6 +781,9 @@ export default function Legislative() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: s(4), fontSize: s(12), color: tokens.wordmark, lineHeight: 1.55 }}>
               <span>Why listed: {activeAlert.reasons.map((r) => REASON_LABEL[r] || r).join(", ")}.</span>
+              {/* Detection window (component 0.3) from this upload's own
+                  collected_at; without one the badge says it is unavailable. */}
+              <span><DetectionWindowBadge sampleTimestamp={asDate(activeAlert.collected_at)} /></span>
               {Object.keys(activeAlert.contamination_types).length > 0 && (
                 <span>Contamination types: {Object.entries(activeAlert.contamination_types).map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(", ")}.</span>
               )}

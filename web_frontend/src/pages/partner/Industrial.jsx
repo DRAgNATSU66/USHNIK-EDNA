@@ -11,10 +11,12 @@
 // impact metrics, remediation plan, predictive biofouling threshold,
 // remediation ROI and the hard-coded reference-DB footer. Nothing on this
 // page is a placeholder: a panel with no data says so.
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import Dropdown from "../../components/shared/Dropdown";
+import ConfidenceChip from "../../components/shared/ConfidenceChip";
+import { CONTAMINATION_CHIP, NOVELTY_CHIP } from "../../lib/scoreChips";
 import { tokens } from "../../components/shared/tokens";
 import { useAuth } from "../../contexts/AuthContext";
 import { getPartnerIncidents, getPartnerSummary, getPartnerTasks, listPartnerAudits, listReports } from "../../lib/api";
@@ -123,7 +125,15 @@ export default function Industrial() {
   const [reports, setReports] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const load = useCallback(async () => {
+  // The scope the panels currently show; a summary refresh after recording
+  // an audit is applied only if the scope has not changed since it was sent.
+  const scopeRef = useRef(scope);
+  useEffect(() => { scopeRef.current = scope; }, [scope]);
+
+  useEffect(() => {
+    // A batch for a scope the user has since switched away from must not
+    // overwrite the current one (same guard as DocumentHub's attachments).
+    let live = true;
     const params = { scope };
     // /partner/audits returns everyone's audits to admin/company_owner;
     // "My data" narrows it to the caller like the other panels.
@@ -132,26 +142,27 @@ export default function Industrial() {
     setIncidents(null);
     setTasks(null);
     setAudits(null);
-    const [sm, inc, tk, au] = await Promise.allSettled([
+    Promise.allSettled([
       getPartnerSummary(params),
       getPartnerIncidents(params),
       getPartnerTasks(params),
       listPartnerAudits(auditParams),
-    ]);
-    setSummary(sm.status === "fulfilled" ? sm.value : null);
-    setIncidents(inc.status === "fulfilled" ? inc.value : null);
-    setTasks(tk.status === "fulfilled" ? tk.value : null);
-    setAudits(au.status === "fulfilled" ? au.value : null);
-    setErrors((e) => ({
-      ...e,
-      summary: sm.reason || null,
-      incidents: inc.reason || null,
-      tasks: tk.reason || null,
-      audits: au.reason || null,
-    }));
+    ]).then(([sm, inc, tk, au]) => {
+      if (!live) return;
+      setSummary(sm.status === "fulfilled" ? sm.value : null);
+      setIncidents(inc.status === "fulfilled" ? inc.value : null);
+      setTasks(tk.status === "fulfilled" ? tk.value : null);
+      setAudits(au.status === "fulfilled" ? au.value : null);
+      setErrors((e) => ({
+        ...e,
+        summary: sm.reason || null,
+        incidents: inc.reason || null,
+        tasks: tk.reason || null,
+        audits: au.reason || null,
+      }));
+    });
+    return () => { live = false; };
   }, [scope, user?.user_id]);
-
-  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     listReports(20)
@@ -161,7 +172,10 @@ export default function Industrial() {
 
   const onRecorded = (audit) => {
     setAudits((list) => [audit, ...(list || [])]);
-    getPartnerSummary({ scope }).then(setSummary).catch((e) => setErrors((x) => ({ ...x, summary: e })));
+    const sent = scope;
+    getPartnerSummary({ scope: sent })
+      .then((sm) => { if (scopeRef.current === sent) setSummary(sm); })
+      .catch((e) => { if (scopeRef.current === sent) setErrors((x) => ({ ...x, summary: e })); });
   };
 
   const auditSum = summary?.audits;
@@ -273,6 +287,8 @@ export default function Industrial() {
                         {r.contamination_score != null ? ` · contamination score ${r.contamination_score.toFixed(2)}` : ""}
                         {r.novelty_score != null ? ` · novelty score ${r.novelty_score.toFixed(2)}` : ""}
                       </span>
+                      {r.contamination_score != null && <ConfidenceChip {...CONTAMINATION_CHIP} />}
+                      {r.novelty_score != null && <ConfidenceChip {...NOVELTY_CHIP} />}
                       <Link to={`/analysis/${r.analysis_id}`} style={{ ...linkStyle, fontSize: s(10.5) }}>results →</Link>
                     </div>
                   ))}

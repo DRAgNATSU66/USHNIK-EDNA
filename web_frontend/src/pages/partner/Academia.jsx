@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import { tokens, pillStyle } from "../../components/shared/tokens";
@@ -412,7 +412,9 @@ export default function Academia() {
   const [rhythmsError, setRhythmsError] = useState("");
   const [rhythmMetric, setRhythmMetric] = useState("uploads");
 
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(null); // null | "copied" | "failed"
+  const copyTimer = useRef(null);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
   const [downloadingFormat, setDownloadingFormat] = useState(null);
   const [exportStatus, setExportStatus] = useState(null); // {ok, text}
 
@@ -435,12 +437,31 @@ export default function Academia() {
   }, [analysisId]);
 
   const uploadId = report?.metadata?.upload_id;
-  const loadEnv = useCallback(() => {
+  // Every request is numbered; only the newest one may set env/envError, so
+  // a slow reply for a previous upload (or an earlier "Check again") can
+  // never overwrite the current upload's context.
+  const envRequest = useRef(0);
+  const loadEnv = useCallback(({ clear }) => {
     if (!uploadId) return;
+    const n = ++envRequest.current;
+    // A new upload starts from nothing, so the previous sample's context is
+    // never shown beside the new one's error. "Check again" on the same
+    // upload keeps the pending card on screen while it re-asks.
+    if (clear) setEnv(null);
     setEnvError("");
-    getEnvironmentContext(uploadId).then(setEnv).catch((e) => setEnvError(e.message || "Failed to load environmental context."));
+    getEnvironmentContext(uploadId)
+      .then((r) => { if (n === envRequest.current) setEnv(r); })
+      .catch((e) => {
+        if (n !== envRequest.current) return;
+        setEnv(null);
+        setEnvError(e.message || "Failed to load environmental context.");
+      });
   }, [uploadId]);
-  useEffect(() => { loadEnv(); }, [loadEnv]);
+  useEffect(() => {
+    loadEnv({ clear: true });
+    // Leaving the page or switching upload: drop whatever is still in flight.
+    return () => { envRequest.current += 1; };
+  }, [loadEnv]);
 
   useEffect(() => {
     setSummary(null);
@@ -497,11 +518,21 @@ export default function Academia() {
     ? `SynthVeda eDNA Analysis Platform ${report.metadata.model_version_set || "(model version not recorded)"} (${new Date(report.generated_at).getFullYear()}). Sequences routed by DNABERT2-based classifiers; taxonomic assignments from reference-database lookup where the orchestrator recorded a decision (reference databases and versions per sequence are listed in provenance.json of the FAIR export). Run ${report.metadata.analysis_id}; parameters: novelty threshold ${noveltyParam}, contamination gate ≥ 0.50.`
     : "";
 
-  const copyCitation = () => {
+  // "Copied ✓" only after the clipboard write resolves. navigator.clipboard
+  // is undefined outside a secure context and writeText rejects when the
+  // browser denies permission; both say the copy failed instead of claiming
+  // success. The timeout only resets the label after a real success.
+  const copyCitation = async () => {
     if (!citation) return;
-    navigator.clipboard?.writeText(citation);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    clearTimeout(copyTimer.current);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(citation);
+      setCopied("copied");
+      copyTimer.current = setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setCopied("failed");
+    }
   };
 
   if (error) {
@@ -611,7 +642,7 @@ export default function Academia() {
                   </div>
                 )}
                 {env.status === "pending" && (
-                  <button type="button" onClick={loadEnv} style={{ ...smallBtn, alignSelf: "flex-start" }}>Check again</button>
+                  <button type="button" onClick={() => loadEnv({ clear: false })} style={{ ...smallBtn, alignSelf: "flex-start" }}>Check again</button>
                 )}
               </>
             )}
@@ -709,7 +740,14 @@ export default function Academia() {
           {cooc && (
             <>
               <span data-testid="cooccurrence-basis" style={{ fontSize: s(11.5), color: tokens.sectionSubtext, lineHeight: 1.6 }}>
-                Taxa at {cooc.rank === "any" ? "any recorded rank" : <>rank <strong>{cooc.rank}</strong></>} (decision.predicted_taxon) present in the same sample. {cooc.samples_with_taxa} of {cooc.samples} analysed sample{cooc.samples === 1 ? "" : "s"} have taxa at this rank; {cooc.taxa} distinct taxa; {cooc.pairs_total} pair{cooc.pairs_total === 1 ? "" : "s"}, showing {cooc.pairs.length}. {cooc.contamination_sequences_excluded} contamination-flagged sequence{cooc.contamination_sequences_excluded === 1 ? "" : "s"} excluded.
+                {/* Source per community.py TAXON_DEFINITION: a specific rank
+                    can only match decision.taxon_rank, but rank=any also
+                    pairs legacy results[].predicted_taxon (rank "unrecorded"). */}
+                {cooc.rank === "any" ? (
+                  <>Taxa at any recorded rank (decision.predicted_taxon, plus {cooc.taxa_by_rank?.unrecorded ?? 0} legacy results[].predicted_taxon taxa whose rank was never recorded) present in the same sample. {cooc.samples_with_taxa} of {cooc.samples} analysed sample{cooc.samples === 1 ? "" : "s"} have taxa;</>
+                ) : (
+                  <>Taxa at rank <strong>{cooc.rank}</strong> (decision.predicted_taxon with decision.taxon_rank = {cooc.rank}) present in the same sample. {cooc.samples_with_taxa} of {cooc.samples} analysed sample{cooc.samples === 1 ? "" : "s"} have taxa at this rank;</>
+                )} {cooc.taxa} distinct taxa; {cooc.pairs_total} pair{cooc.pairs_total === 1 ? "" : "s"}, showing {cooc.pairs.length}. {cooc.contamination_sequences_excluded} contamination-flagged sequence{cooc.contamination_sequences_excluded === 1 ? "" : "s"} excluded.
               </span>
               {cooc.pairs.length > 0 ? (
                 <>
@@ -783,8 +821,13 @@ export default function Academia() {
               style={{ width: "100%", boxSizing: "border-box", padding: `${s(12)}px ${s(14)}px`, border: `1px solid ${tokens.sectionBorder}`, borderRadius: s(3), background: "#04070E", color: tokens.accentCyan, fontFamily: "ui-monospace,monospace", fontSize: s(11.5), lineHeight: 1.7, resize: "vertical", outline: "none" }}
             />
             <button onClick={copyCitation} style={{ ...smallBtn, alignSelf: "flex-start", padding: `${s(6)}px ${s(14)}px`, fontSize: s(11.5) }}>
-              {copied ? "Copied ✓" : "Copy citation"}
+              {copied === "copied" ? "Copied ✓" : "Copy citation"}
             </button>
+            {copied === "failed" && (
+              <span role="alert" style={{ fontSize: s(11), color: tokens.danger }}>
+                Could not copy to the clipboard (permission denied or not available here). Select the text above and copy it manually.
+              </span>
+            )}
           </div>
           <span style={{ fontSize: s(10), color: tokens.pending, fontFamily: "ui-monospace,monospace" }}>
             Novelty threshold {noveltyParam} · Contamination gate ≥ 0.50 · Models: {report.model_versions_used.map((m) => m.model_version_used).join(", ") || "none recorded"}
