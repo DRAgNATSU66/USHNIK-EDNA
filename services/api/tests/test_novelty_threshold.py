@@ -20,10 +20,12 @@ import app.config as api_config
 API_APP = Path(__file__).resolve().parents[1] / "app"
 WORKER_CONFIG = Path(__file__).resolve().parents[2] / "worker" / "app" / "config.py"
 
-# A bare 0.45 number token (not 0.450, 10.45, 0.455).
-_BARE = re.compile(r"(?<![\d.])0\.45(?![\d])")
-# A comparison against it: `>= 0.45`, `< 0.45`, `0.45 <=`, ...
-_CMP = re.compile(r"(?:[<>]=?|==)\s*0\.45(?![\d])|(?<![\d.])0\.45\s*(?:[<>]=?|==)")
+# A bare 0.44 (current cutoff, B5 recalibration 2026-10-20) or 0.45 (pre-B5)
+# number token (not 0.450, 10.45, 0.455).
+_VAL = r"0\.4[45]"
+_BARE = re.compile(rf"(?<![\d.]){_VAL}(?![\d])")
+# A comparison against it: `>= 0.45`, `< 0.44`, `0.45 <=`, ...
+_CMP = re.compile(rf"(?:[<>]=?|==)\s*{_VAL}(?![\d])|(?<![\d.]){_VAL}\s*(?:[<>]=?|==)")
 
 
 def _module_constant(path: Path, name: str) -> float:
@@ -63,7 +65,8 @@ def test_api_and_worker_defaults_are_equal():
 
 @pytest.mark.skipif("NOVELTY_THRESHOLD" in os.environ, reason="threshold overridden by env")
 def test_constant_resolves_to_default():
-    assert api_config.NOVELTY_THRESHOLD == api_config.DEFAULT_NOVELTY_THRESHOLD == 0.45
+    # 0.44: dev-recalibrated 2026-10-20 (B5, t-1024-1), was 0.45.
+    assert api_config.NOVELTY_THRESHOLD == api_config.DEFAULT_NOVELTY_THRESHOLD == 0.44
 
 
 def test_settings_field_reads_env(monkeypatch):
@@ -87,6 +90,7 @@ def test_grep_catches_the_old_literals():
         '            "is_novelty": novelty_score >= 0.45,',
         "_NOVELTY_THRESHOLD = 0.45",
         "        if score >= 0.45:",
+        "    if novelty_score >= 0.44:",
     ]
     assert len(_offending_lines("\n".join(old))) == len(old)
     assert _offending_lines("    if 0.38 <= gc_ratio <= 0.45:\n        gc_mean=0.45,") == []

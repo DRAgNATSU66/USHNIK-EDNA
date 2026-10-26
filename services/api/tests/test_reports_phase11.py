@@ -256,10 +256,11 @@ class TestTaxonomicAssignments:
 # ---------------------------------------------------------------------------
 
 class TestNoveltyTable:
-    def test_threshold_045_included(self):
+    def test_threshold_included(self):
+        from app.config import NOVELTY_THRESHOLD
         results = [
-            _seq("s1", novelty_score=0.45),
-            _seq("s2", novelty_score=0.44),
+            _seq("s1", novelty_score=NOVELTY_THRESHOLD),
+            _seq("s2", novelty_score=round(NOVELTY_THRESHOLD - 0.01, 4)),
         ]
         table = _build_novelty_table(results)
         assert len(table) == 1

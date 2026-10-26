@@ -24,8 +24,11 @@ from app.novelty.scorer import _novelty_level  # noqa: E402
 WORKER_APP = Path(__file__).resolve().parents[1] / "app"
 API_CONFIG = Path(__file__).resolve().parents[2] / "api" / "app" / "config.py"
 
-_BARE = re.compile(r"(?<![\d.])0\.45(?![\d])")
-_CMP = re.compile(r"(?:[<>]=?|==)\s*0\.45(?![\d])|(?<![\d.])0\.45\s*(?:[<>]=?|==)")
+# The current cutoff (0.44 since the B5 recalibration, 2026-10-20) and the
+# pre-B5 0.45: neither may appear as a bare novelty literal in app code.
+_VAL = r"0\.4[45]"
+_BARE = re.compile(rf"(?<![\d.]){_VAL}(?![\d])")
+_CMP = re.compile(rf"(?:[<>]=?|==)\s*{_VAL}(?![\d])|(?<![\d.]){_VAL}\s*(?:[<>]=?|==)")
 
 
 def _module_constant(path: Path, name: str) -> float:
@@ -59,7 +62,8 @@ def test_worker_and_api_defaults_are_equal():
 
 @pytest.mark.skipif("NOVELTY_THRESHOLD" in os.environ, reason="threshold overridden by env")
 def test_constant_resolves_to_default():
-    assert worker_config.NOVELTY_THRESHOLD == worker_config.DEFAULT_NOVELTY_THRESHOLD == 0.45
+    # 0.44: dev-recalibrated 2026-10-20 (B5, t-1024-1), was 0.45.
+    assert worker_config.NOVELTY_THRESHOLD == worker_config.DEFAULT_NOVELTY_THRESHOLD == 0.44
 
 
 def test_settings_field_reads_env(monkeypatch):
@@ -73,6 +77,7 @@ def test_grep_catches_the_old_literals():
         '        elif rc == "possible_novelty" or r.get("novelty_score", 0.0) >= 0.45:',
         '                "is_novelty": novelty_score >= 0.45,',
         "    NoveltyLevel.medium: (0.45, 0.70),",
+        "        if nr.novelty_score >= 0.44:",
     ]
     assert len(_offending_lines("\n".join(old))) == len(old)
     # Unrelated 0.45s in worker/app stay legal.

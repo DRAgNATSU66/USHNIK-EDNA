@@ -23,11 +23,19 @@ w_i / sum of the present w_i):
                                  unavailable, so its absence is not novelty.
 
 W_EMB and W_REF, and the shared NOVELTY_THRESHOLD, were chosen together on
-the DEV split (training/eval_novelty_centroid.py calibrate; criterion: mean
-over routes of the possible_novelty F1 of the orchestrator's final flag).
-Test numbers: docs/ml/results/novelty_centroid_2026-10-20.json. With no
-centroid artifact and no reference evidence the score is exactly the
-pre-B5 one (0.35/0.25/0.07/0.03).
+the DEV split (training/eval_novelty_centroid.py calibrate, 2026-10-20;
+criterion stated before the run: max mean over the five novelty-labelled
+routes of the possible_novelty F1 of the orchestrator's final flag). The
+grid's best point was W_EMB = 0, W_REF = 0, threshold 0.44 (mean F1 0.8233
+vs 0.8223 for the old scorer at 0.45); the best point giving both new terms
+a weight (0.50 / 0.05 @ 0.64) scored 0.8229. Neither term moves the flag
+against the dataset labels, so both are served at weight 0: they are
+computed and recorded in every novelty record (details) and their weights
+are the one place to change. The centroid signal on its own separates
+novel from known reads far better than the proxy did (dev AUROC 0.961 vs
+0.879). Test numbers: docs/ml/results/novelty_centroid_2026-10-20.json.
+With no centroid artifact and no reference evidence the score is exactly
+the pre-B5 one (0.35/0.25/0.07/0.03).
 
 high_quality and not_contamination are not weights: they multiply.
 
@@ -66,8 +74,8 @@ WEIGHTS: dict[str, float] = {
     "result_class":           0.35,
     "low_confidence":         0.25,
     "label_entropy":          0.07,
-    "embedding_isolation":    0.20,   # W_EMB (dev-calibrated, see module docstring)
-    "reference_low_identity": 0.20,   # W_REF (dev-calibrated)
+    "embedding_isolation":    0.0,    # W_EMB: dev-calibrated to 0 (module docstring)
+    "reference_low_identity": 0.0,    # W_REF: dev-calibrated to 0 (module docstring)
 }
 
 # Novelty thresholds. The low/medium boundary is the shared possible-novelty

@@ -214,14 +214,44 @@ class TestReferenceLowIdentity:
         assert "reference_unavailable" in unavailable.reason_codes
 
     def test_no_hit_raises_and_family_hit_lowers_the_score(self):
+        w = {**WEIGHTS, "reference_low_identity": 0.2}
         seq = _seq(embedding=None)
-        none = score_sequence(seq).novelty_score
-        no_hit = score_sequence({**seq, "reference": _ref(ref_status="no_hit")})
-        fam = score_sequence({**seq, "reference": _ref(ref_status="assigned", identity=92.0)})
+        none = score_sequence(seq, weights=w).novelty_score
+        no_hit = score_sequence({**seq, "reference": _ref(ref_status="no_hit")}, weights=w)
+        fam = score_sequence({**seq, "reference": _ref(ref_status="assigned", identity=92.0)}, weights=w)
         assert no_hit.novelty_score > none > fam.novelty_score
         assert no_hit.signals["reference_low_identity"] == 1.0
-        assert no_hit.details["reference_low_identity"]["weight"] == WEIGHTS["reference_low_identity"]
+        assert no_hit.details["reference_low_identity"]["weight"] == 0.2
         assert "reference_no_hit" in no_hit.reason_codes
+
+
+class TestServedWeights:
+    def test_dev_calibrated_values(self):
+        # 2026-10-20 dev calibration (docs/ml/results/novelty_centroid_2026-10-20.json):
+        # both new terms at weight 0; the old three unchanged.
+        assert WEIGHTS == {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
+                           "embedding_isolation": 0.0, "reference_low_identity": 0.0}
+
+    def test_terms_are_recorded_even_at_weight_zero(self):
+        cs = _set()
+        seq = {**_seq(embedding=[0.0, 0.0, 1.0, 0.0], model_version_used="m1"), "reference": _ref()}
+        r = score_sequence(seq, resolver=lambda mid: (cs, None))
+        assert r.signals["embedding_isolation"] == 1.0 and r.signals["reference_low_identity"] == 1.0
+        assert r.details["embedding_isolation"]["method"] == METHOD_CENTROID
+        assert r.details["embedding_isolation"]["weight"] == 0.0
+        near_no_ref = score_sequence(_seq(embedding=[1.0, 0.0, 0.0, 0.0], model_version_used="m1"),
+                                     resolver=lambda mid: (cs, None))
+        assert near_no_ref.signals["embedding_isolation"] == 0.0
+        assert r.novelty_score == near_no_ref.novelty_score   # weight 0: neither term moves the score
+
+    def test_centroid_term_moves_the_score_when_weighted(self):
+        cs = _set()
+        w = {**WEIGHTS, "embedding_isolation": 0.5}
+        far = score_sequence(_seq(embedding=[0.0, 0.0, 1.0, 0.0], model_version_used="m1"), weights=w,
+                             resolver=lambda mid: (cs, None)).novelty_score
+        near = score_sequence(_seq(embedding=[1.0, 0.0, 0.0, 0.0], model_version_used="m1"), weights=w,
+                              resolver=lambda mid: (cs, None)).novelty_score
+        assert far > near
 
     def test_uses_the_configured_bands(self):
         s = get_worker_settings().model_copy(update={"reference_family_identity": 95.0,

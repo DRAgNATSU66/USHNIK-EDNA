@@ -265,6 +265,26 @@ def per_route_metrics(rows: list[dict], scored: list[dict], t: float) -> dict:
     return out
 
 
+def score_only_mean_f1(rows: list[dict], scored: list[dict], t: float) -> float:
+    """Secondary view: the flag that the auto_novelty review and the report's
+    novelty table use (final gated score >= T only, no result_class OR)."""
+    y = np.array([r["label"] == POS for r in rows])
+    rt = np.array([r["true_route"] for r in rows])
+    f = np.array([x["final_score"] >= t for x in scored])
+    return round(float(np.mean([prf(y[rt == r], f[rt == r])["f1"] for r in NOVELTY_ROUTES])), 4)
+
+
+def raw_score_auroc(rows: list[dict], scored: list[dict]) -> dict:
+    """AUROC of the scorer's raw (pre-reference-gate) score, per route."""
+    y = np.array([r["label"] == POS for r in rows])
+    rt = np.array([r["true_route"] for r in rows])
+    s = np.array([x["raw"] or 0.0 for x in scored])
+    out = {r: auroc(y[rt == r], s[rt == r]) for r in NOVELTY_ROUTES}
+    vals = [v for v in out.values() if v is not None]
+    out["_mean"] = round(float(np.mean(vals)), 4) if vals else None
+    return out
+
+
 def legacy_resolver(_model_id):
     return None, "legacy_eval"
 
@@ -349,12 +369,15 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
             w = {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
                  "embedding_isolation": we, "reference_low_identity": wr}
             scored = score_rows(rows, weights=w, resolver=resolver, use_reference=True, settings=settings)
+            raw_auc = raw_score_auroc(rows, scored)
             for t in T_GRID:
                 m = per_route_metrics(rows, scored, t)
+                so = score_only_mean_f1(rows, scored, t)
                 grid.append({"w_emb": we, "w_ref": wr, "threshold": t,
                              "mean_f1": m["_mean_f1_novelty_routes"],
                              "pooled_f1": m["_pooled_novelty_routes"]["f1"],
-                             "per_route_f1": {r: m[r]["f1"] for r in NOVELTY_ROUTES}})
+                             "per_route_f1": {r: m[r]["f1"] for r in NOVELTY_ROUTES},
+                             "score_only_mean_f1": so, "raw_score_auroc_mean": raw_auc["_mean"]})
         print(f"w_emb={we} done ({time.perf_counter() - t0:.0f}s)", flush=True)
     best = max(grid, key=lambda g: (g["mean_f1"], g["pooled_f1"], -abs(g["threshold"] - OLD_THRESHOLD)))
     w_best = {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
@@ -370,6 +393,13 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
             ablations[name] = {"w_emb": we, "w_ref": wr, "threshold": b["threshold"], "mean_f1": b["mean_f1"],
                                "per_route_f1": b["per_route_f1"]}
     top = sorted(grid, key=lambda g: (-g["mean_f1"], -g["pooled_f1"]))[:15]
+    # For the record (not the choice): the best grid point that gives BOTH new
+    # terms a weight, and the best by the score-only flag.
+    both = [g for g in grid if g["w_emb"] > 0 and g["w_ref"] > 0]
+    best_both = max(both, key=lambda g: (g["mean_f1"], g["pooled_f1"])) if both else None
+    best_score_only = max(grid, key=lambda g: (g["score_only_mean_f1"], g["mean_f1"]))
+    old_so = score_only_mean_f1(rows, old_scored, OLD_THRESHOLD)
+    old_raw_auc = raw_score_auroc(rows, old_scored)
     out = {
         "split": "dev", "rows": len(rows), "seed": data["seed"], "cap": data["cap"],
         "collect_timing": data["timing"], "qc_dropped": data["qc_dropped"],
@@ -383,6 +413,8 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
                 "old_scorer_dev_best_threshold": old_best_t},
         "chosen": {"weights": w_best, "threshold": best["threshold"], "metrics": new_dev},
         "ablations": ablations, "top15": top, "grid_size": len(grid),
+        "best_with_both_new_terms": best_both, "best_by_score_only_flag": best_score_only,
+        "old_score_only_mean_f1_at_045": old_so, "old_raw_score_auroc": old_raw_auc,
         "seconds": round(time.perf_counter() - t0, 1),
     }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -427,9 +459,24 @@ def cmd_report(args: argparse.Namespace) -> None:
         "signal_auroc": {"norm_proxy": _signal_auroc(rows, _proxy_signal),
                          "centroid": _signal_auroc(rows, _centroid_signal(sets)),
                          "reference_low_identity": _signal_auroc(rows, _ref_signal(settings))},
+        "raw_score_auroc": {"old": raw_score_auroc(rows, old_scored), "new": raw_score_auroc(rows, new_scored)},
+        "score_only_mean_f1": {"old@0.45": score_only_mean_f1(rows, old_scored, OLD_THRESHOLD),
+                               "new@served": score_only_mean_f1(rows, new_scored, NOVELTY_THRESHOLD)},
         "gate_rules_new": dict(Counter(x["gate_rule"] for x in new_scored)),
         "result_class_counts": dict(Counter(x["result_class"] for x in new_scored)),
     }
+    if args.dev_json:
+        # Secondary, fixed on dev before this split was scored: the best dev
+        # grid point that gives both new terms a weight (not served).
+        alt = json.loads(Path(args.dev_json).read_text()).get("best_with_both_new_terms")
+        if alt:
+            w = {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
+                 "embedding_isolation": alt["w_emb"], "reference_low_identity": alt["w_ref"]}
+            alt_scored = score_rows(rows, weights=w, resolver=None, use_reference=True, settings=settings)
+            out["alt_both_terms_not_served"] = {
+                "weights": w, "threshold": alt["threshold"],
+                "metrics": per_route_metrics(rows, alt_scored, alt["threshold"]),
+                "raw_score_auroc": raw_score_auroc(rows, alt_scored)}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(out, indent=2))
     for name in ("old", "new"):
@@ -455,6 +502,7 @@ def main() -> None:
     r = sub.add_parser("report")
     r.add_argument("--split", default="test", choices=["dev", "test"])
     r.add_argument("--out", required=True)
+    r.add_argument("--dev-json", default="", help="calibrate output; adds its best_with_both_new_terms as a secondary row")
     args = ap.parse_args()
     {"collect": cmd_collect, "calibrate": cmd_calibrate, "report": cmd_report}[args.cmd](args)
 
