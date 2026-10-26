@@ -26,12 +26,23 @@ export function fixture(name) {
 }
 
 export const ANALYSIS_ID = fixture("report").metadata.analysis_id;
+// Orchestrated analysis with decisions + traces (t-1023-2).
+export const ORCH_ANALYSIS_ID = fixture("analysis_orchestrated").analysis_id;
 
 // [method, pathname regex, (match, url, role) => fixture name | {status, body}]
 const ROUTES = [
   ["GET", /^\/health$/, () => "health"],
   ["GET", /^\/auth\/me$/, (_m, _u, role) => `auth_me_${role}`],
   ["GET", /^\/reports$/, () => "reports_list"],
+  // Results page per-sequence rows (t-1023-2). The orchestrated analysis
+  // has its own report; GET /analysis/{id} for any other id serves the
+  // pre-orchestrator rows (no decision, no trace) -- the stored state of
+  // every analysis written before orchestrator-1.2.0.
+  ["GET", new RegExp(`^/reports/${ORCH_ANALYSIS_ID}$`), () => "report_orchestrated"],
+  ["GET", new RegExp(`^/analysis/${ORCH_ANALYSIS_ID}$`), (_m, url) =>
+    url.searchParams.get("include_trace") === "false" ? "analysis_orchestrated" : "analysis_orchestrated_trace"],
+  ["GET", /^\/analysis\/[^/]+$/, () => "analysis_legacy"],
+  ["GET", /^\/models\/status$/, () => "models_status"],
   ["GET", /^\/reports\/[^/]+$/, () => "report"],
   ["GET", /^\/reports\/[^/]+\/summary$/, () => "report_summary"],
   ["GET", /^\/reports\/[^/]+\/novelty$/, () => "report_novelty"],

@@ -98,15 +98,15 @@
   "generated_at": "2026-10-16T09:00:00",
   "notes": [],
   "result_class_distribution": {
-    "known_species": 7,
+    "known_species": 10,
     "known_species_not_novelty": 0,
-    "likely_taxonomic_group": 0,
+    "likely_taxonomic_group": 1,
     "low_quality_unusable": 1,
-    "possible_contaminant": 2,
-    "possible_contamination": 0,
+    "possible_contaminant": 1,
+    "possible_contamination": 1,
     "possible_novel_taxon": 2,
-    "possible_novelty": 0,
-    "unknown_needs_online_confirmation": 1
+    "possible_novelty": 1,
+    "unknown_needs_online_confirmation": 2
   },
   "reviews": {
     "by_state": {
@@ -128,15 +128,15 @@
     "total": 3
   },
   "route_distribution": {
-    "animal_general": 0,
+    "animal_general": 1,
     "bacteria": 1,
-    "bacteria_pathogen": 0,
-    "fish": 8,
-    "human_domestic": 2,
-    "human_domestic_contamination": 0,
+    "bacteria_pathogen": 1,
+    "fish": 10,
+    "human_domestic": 1,
+    "human_domestic_contamination": 1,
     "low_quality": 1,
-    "misc_unknown": 0,
-    "plant": 1
+    "misc_unknown": 1,
+    "plant": 2
   },
   "scope": {
     "date_from": null,
@@ -147,7 +147,7 @@
   },
   "sites": [
     {
-      "analyses": 1,
+      "analyses": 3,
       "collected_at": "2026-10-09T06:30:00Z",
       "contamination_flags": 1,
       "created_at": "2026-10-10T08:00:00Z",
@@ -157,8 +157,8 @@
       "latitude": 15.52,
       "location_label": "Arabian Sea, Station 7",
       "longitude": 68.21,
-      "novelty_flags": 2,
-      "sequences": 7,
+      "novelty_flags": 4,
+      "sequences": 13,
       "upload_id": "upl_e2e0000000001"
     },
     {
@@ -241,19 +241,19 @@
       "uploads": 0
     },
     {
-      "analyses": 0,
+      "analyses": 1,
       "contamination_flags": 0,
       "novelty_flags": 0,
       "period_start": "2026-10-08",
-      "sequences": 0,
+      "sequences": 2,
       "uploads": 0
     },
     {
-      "analyses": 0,
+      "analyses": 1,
       "contamination_flags": 0,
-      "novelty_flags": 0,
+      "novelty_flags": 2,
       "period_start": "2026-10-09",
-      "sequences": 0,
+      "sequences": 4,
       "uploads": 0
     },
     {
@@ -289,6 +289,12 @@
       "taxon_rank": "species"
     },
     {
+      "analyses": 2,
+      "sequences": 2,
+      "taxon": "Thunnus albacares",
+      "taxon_rank": "species"
+    },
+    {
       "analyses": 1,
       "sequences": 1,
       "taxon": "Homo sapiens",
@@ -309,6 +315,18 @@
     {
       "analyses": 1,
       "sequences": 1,
+      "taxon": "Ptychobranchus jonesi",
+      "taxon_rank": "species"
+    },
+    {
+      "analyses": 1,
+      "sequences": 1,
+      "taxon": "Quercus",
+      "taxon_rank": "genus"
+    },
+    {
+      "analyses": 1,
+      "sequences": 1,
       "taxon": "Rastrelliger kanagurta",
       "taxon_rank": "species"
     },
@@ -323,23 +341,17 @@
       "sequences": 1,
       "taxon": "Thunnus albacares",
       "taxon_rank": null
-    },
-    {
-      "analyses": 1,
-      "sequences": 1,
-      "taxon": "Thunnus albacares",
-      "taxon_rank": "species"
     }
   ],
   "totals": {
-    "analyses": 2,
+    "analyses": 4,
     "analyses_with_contamination_flags": 2,
-    "analyses_with_novelty_flags": 1,
+    "analyses_with_novelty_flags": 2,
     "contamination_flags": 2,
     "low_quality": 1,
-    "novelty_flags": 2,
-    "sequences": 13,
-    "sequences_with_taxon": 9,
+    "novelty_flags": 4,
+    "sequences": 19,
+    "sequences_with_taxon": 12,
     "uploads": 3
   }
 }

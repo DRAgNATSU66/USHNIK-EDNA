@@ -39,6 +39,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 import app.custody.chain as custody_chain  # noqa: E402
 import app.db.mongo as mongo_module  # noqa: E402
 import app.main as main_module  # noqa: E402
+import app.models.router as models_router_module  # noqa: E402
 from app.auth.jwt import create_access_token  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -233,6 +234,272 @@ ANALYSIS = {
     "created_at": _ts(10, 8, 5),
 }
 
+# ---------------------------------------------------------------------------
+# Orchestrated analysis (decision Q7, orchestrator-1.2.0) for the Results
+# page's per-sequence calls and "Why this answer" trace (t-1023-2). Rows use
+# the stored shape the worker writes (services/worker/app/orchestrator/
+# engine.py; a real stored trace was read from local Mongo for the shape):
+# legacy fields + "decision" + "decision_trace" {orchestrator_version, plan,
+# evidence, combine}. Four cases: confident single route; plant genus cap
+# with novelty downgraded; reference overriding the router with novelty
+# suppressed; and a reference miss with a provider unavailable. A second,
+# pre-orchestrator analysis (no decision, no trace) checks the empty state.
+# Both are older than ANALYSIS, so "latest analysis" fixtures are unchanged.
+# ---------------------------------------------------------------------------
+
+ORCH_ANALYSIS_ID = "ana_e2e0000000002"
+LEGACY_ANALYSIS_ID = "ana_e2e0000000003"
+ORCH_VERSION = "orchestrator-1.2.0"
+REF_DB_VERSION = "v2"
+
+
+def _ev(provider: str, sid: str, route: str, payload: dict | None, *, status: str = "ok",
+        reason: str | None = None, elapsed_ms: float = 12.0) -> dict:
+    return {"provider": provider, "provider_version": "1.0", "sequence_id": sid, "route": route,
+            "status": status, "reason": reason, "elapsed_ms": elapsed_ms, "payload": payload}
+
+
+def _head_ev(sid: str, route: str, result_class: str, confidence: float, model: str) -> dict:
+    return _ev("route_head", sid, route, {
+        "result_class": result_class, "confidence": confidence,
+        "label_scores": {result_class: confidence}, "model_version_used": model,
+        "inference_mode": "model", "stub_reason": None})
+
+
+def _ref_ev(sid: str, route: str, status: str, *, taxon: str | None = None, rank: str | None = None,
+            identity: float | None = None, lineage: dict | None = None, hits: list[dict] | None = None,
+            reason: str | None = None) -> dict:
+    return _ev("reference_lookup", sid, route, {
+        "status": status, "taxon": taxon, "rank": rank, "identity": identity,
+        "query_coverage": 100.0 if identity is not None else None, "identity_rank": rank,
+        "lineage": lineage or {}, "tied_hits": 1 if hits else 0, "tied_taxa": 1 if hits else 0,
+        "lca_applied": False, "reason": reason, "hits": hits or [], "method": "blast",
+        "reference_db": f"synthveda-reference/{route}", "reference_db_version": REF_DB_VERSION,
+        "reference_db_sha256": "0" * 64, "batch_seconds": 0.4, "human_genome": None}, elapsed_ms=150.0)
+
+
+def _hit(accession: str, taxon: str, identity: float, marker: str, source: str = "midori2") -> dict:
+    return {"accession": accession, "source": source, "marker": marker, "identity": identity,
+            "query_coverage": 100.0, "alignment_length": 300, "taxon": taxon, "rank": "species"}
+
+
+def _contam_ev(sid: str, route: str) -> dict:
+    return _ev("contamination", sid, route, {
+        "contamination_score": 0.01, "heuristic_flagged": False, "grch38_contamination": False,
+        "flagged": False, "contamination_type": None, "signals": {"route": 0.0, "lab_motif": 0.0},
+        "reason_codes": ["clean_sequence"], "human_genome": None}, elapsed_ms=0.02)
+
+
+def _novelty_ev(sid: str, route: str, score: float, level: str) -> dict:
+    return _ev("novelty", sid, route, {
+        "novelty_score": score, "novelty_level": level, "signals": {}, "reason_codes": [],
+        "abyss_recommendation": "continue_sampling", "requires_cloud_confirmation": False}, elapsed_ms=0.04)
+
+
+def _step(step: str, rule: str, outcome: Any, detail: str | None = None) -> dict:
+    return {"step": step, "rule": rule, "outcome": outcome, "detail": detail}
+
+
+def _novelty_step(rule: str, raw: float, gate: float, *, raw_flag: bool, final_flag: bool,
+                  suppressed: bool = False, downgraded: bool = False, detail: str | None = None) -> dict:
+    gate_rule = rule if rule not in ("novelty_ungated", "novelty_unscored") else None
+    return _step("novelty", rule, {
+        "raw_score": raw, "gate": gate, "final_score": round(raw * gate, 4), "gate_rule": gate_rule,
+        "raw_flag": raw_flag, "final_flag": final_flag, "suppressed_by_reference": suppressed,
+        "downgraded_by_reference": downgraded}, detail)
+
+
+def _plan(primary: str, routes: list[str], rules: list[dict], ranked: list[list]) -> dict:
+    return {"primary_route": primary, "routes": routes, "rules_fired": rules, "max_routes": 3,
+            "router": {"method": "learned", "version": "v2", "calibrated": True,
+                       "top_probability": ranked[0][1], "margin": round(ranked[0][1] - ranked[1][1], 4),
+                       "ranked": ranked}}
+
+
+def _orch_seq(sid: str, *, route: str, router_route: str, result_class: str, taxon: str | None,
+              rank: str | None, identity: float | None, head_conf: float, model: str, rule: str,
+              novelty: float, plan: dict, evidence: list[dict], combine: list[dict],
+              reasons: list[str] | None = None) -> dict:
+    row = _seq(sid, route, result_class, confidence=head_conf, taxon=taxon, novelty=novelty, model=model,
+               reasons=reasons)
+    row.update({
+        "route_confidence": plan["router"]["ranked"][0][1] if route == router_route else 0.1,
+        "router_route": router_route, "router_method": "learned", "router_version": "v2",
+        "route_probabilities_calibrated": True, "inference_mode": "model",
+        "decision": {"final_route": route, "result_class": result_class, "predicted_taxon": taxon,
+                     "taxon_rank": rank, "percent_identity": identity,
+                     "reference_db": f"synthveda-reference/{route}", "reference_db_version": REF_DB_VERSION,
+                     "confidence": head_conf, "rule": rule},
+        "decision_trace": {"orchestrator_version": ORCH_VERSION, "plan": plan, "evidence": evidence,
+                           "combine": combine},
+    })
+    return row
+
+
+_TUNA = {"superkingdom": "Eukaryota", "kingdom": "Metazoa", "phylum": "Chordata", "class": "Actinopteri",
+         "order": "Scombriformes", "family": "Scombridae", "genus": "Thunnus", "species": "Thunnus albacares"}
+_OAK = {"superkingdom": "Eukaryota", "kingdom": "Viridiplantae", "phylum": "Streptophyta",
+        "order": "Fagales", "family": "Fagaceae", "genus": "Quercus", "species": "Quercus robur"}
+_MUSSEL = {"superkingdom": "Eukaryota", "kingdom": "Metazoa", "phylum": "Mollusca", "class": "Bivalvia",
+           "order": "Unionida", "family": "Unionidae", "genus": "Ptychobranchus",
+           "species": "Ptychobranchus jonesi"}
+
+ORCH_RESULTS = [
+    _orch_seq(
+        "seq_e2e_orch_tuna_01", route="fish", router_route="fish", result_class="known_species",
+        taxon="Thunnus albacares", rank="species", identity=99.84, head_conf=0.97, model="dnabert2_fish_v2",
+        rule="head_class", novelty=0.0,
+        plan=_plan("fish", ["fish"], [{"rule": "confident_router", "stage": "router",
+                                        "detail": "no wide-plan rule fired", "added": []}],
+                   [["fish", 0.96], ["animal_general", 0.02], ["misc_unknown", 0.01]]),
+        evidence=[
+            _head_ev("seq_e2e_orch_tuna_01", "fish", "known_species", 0.97, "dnabert2_fish_v2"),
+            _ref_ev("seq_e2e_orch_tuna_01", "fish", "assigned", taxon="Thunnus albacares", rank="species",
+                    identity=99.84, lineage=_TUNA, hits=[_hit("AB000001.1", "Thunnus albacares", 99.84, "COI")]),
+            _contam_ev("seq_e2e_orch_tuna_01", "fish"),
+            _novelty_ev("seq_e2e_orch_tuna_01", "fish", 0.04, "none"),
+        ],
+        combine=[
+            _step("route", "single_route", "fish"),
+            _step("taxon", "reference_taxon", {"taxon": "Thunnus albacares", "rank": "species"},
+                  "99.84% identity, synthveda-reference/fish v2"),
+            _step("class", "head_class", "known_species"),
+            _novelty_step("novelty_suppressed_by_reference", 0.04, 0.0, raw_flag=False, final_flag=False,
+                          detail="reference names Thunnus albacares at 99.84% (QNA-020 Q4)"),
+        ]),
+    _orch_seq(
+        "seq_e2e_orch_oak_02", route="plant", router_route="plant", result_class="likely_taxonomic_group",
+        taxon="Quercus", rank="genus", identity=98.9, head_conf=0.71, model="dnabert2_plant_v1",
+        rule="novelty_downgraded_by_reference", novelty=0.74,
+        plan=_plan("plant", ["plant", "misc_unknown", "animal_general"],
+                   [{"rule": "low_confidence", "stage": "router", "detail": "top probability 0.58 < 0.7",
+                     "added": ["misc_unknown", "animal_general"]}],
+                   [["plant", 0.58], ["misc_unknown", 0.31], ["animal_general", 0.06]]),
+        evidence=[
+            _head_ev("seq_e2e_orch_oak_02", "plant", "possible_novelty", 0.71, "dnabert2_plant_v1"),
+            _ref_ev("seq_e2e_orch_oak_02", "plant", "assigned", taxon="Quercus robur", rank="species",
+                    identity=98.9, lineage=_OAK, hits=[_hit("MN000002.1", "Quercus robur", 98.9, "rbcL", "ncbi")]),
+            _head_ev("seq_e2e_orch_oak_02", "misc_unknown", "unknown_needs_online_confirmation", 0.88,
+                     "dnabert2_misc_unknown_v2"),
+            _ev("reference_lookup", "seq_e2e_orch_oak_02", "misc_unknown", None, status="unavailable",
+                reason="BLAST database for misc_unknown not found on the worker", elapsed_ms=0.5),
+            _head_ev("seq_e2e_orch_oak_02", "animal_general", "known_species", 0.64, "dnabert2_animal_v2"),
+            _ref_ev("seq_e2e_orch_oak_02", "animal_general", "no_hit", reason="no reference hit"),
+            _contam_ev("seq_e2e_orch_oak_02", "plant"),
+            _novelty_ev("seq_e2e_orch_oak_02", "plant", 0.74, "high"),
+        ],
+        combine=[
+            _step("disagreement", "heads_disagree",
+                  {"plant": "possible_novelty", "misc_unknown": "unknown_needs_online_confirmation",
+                   "animal_general": "known_species"},
+                  "candidate heads give different classes; heads do not choose the route"),
+            _step("route", "reference_confirms_router", "plant",
+                  "plant reference identity 98.9% is within 0.5 of the best (98.9%)"),
+            _step("taxon", "genus_cap", {"from": "Quercus robur", "to": "Quercus"},
+                  "plant species names are capped at genus (species precision 51.9%, QNA-020 Q4)"),
+            _step("taxon", "reference_taxon", {"taxon": "Quercus", "rank": "genus"},
+                  "98.9% identity, synthveda-reference/plant v2"),
+            _step("class", "novelty_downgraded_by_reference", "likely_taxonomic_group",
+                  "head said possible_novelty; reference Quercus (genus) at 98.9% counts against novelty (QNA-020 Q4)"),
+            _novelty_step("novelty_downgraded_by_reference", 0.74, 1.0, raw_flag=True, final_flag=True,
+                          downgraded=True, detail="flag kept for review: the reference cannot resolve the species"),
+        ]),
+    _orch_seq(
+        "seq_e2e_orch_mussel_03", route="animal_general", router_route="misc_unknown",
+        result_class="known_species", taxon="Ptychobranchus jonesi", rank="species", identity=99.67,
+        head_conf=0.66, model="dnabert2_animal_v2", rule="novelty_suppressed_by_reference", novelty=0.0,
+        plan=_plan("misc_unknown", ["misc_unknown", "animal_general", "fish"],
+                   [{"rule": "weak_route", "stage": "router", "detail": "misc_unknown is a weak route for the router",
+                     "added": ["animal_general", "fish"]}],
+                   [["misc_unknown", 0.82], ["animal_general", 0.11], ["fish", 0.04]]),
+        evidence=[
+            _head_ev("seq_e2e_orch_mussel_03", "misc_unknown", "unknown_needs_online_confirmation", 0.9,
+                     "dnabert2_misc_unknown_v2"),
+            _ref_ev("seq_e2e_orch_mussel_03", "misc_unknown", "below_threshold", reason="best hit below 80% identity"),
+            _head_ev("seq_e2e_orch_mussel_03", "animal_general", "possible_novelty", 0.66, "dnabert2_animal_v2"),
+            _ref_ev("seq_e2e_orch_mussel_03", "animal_general", "assigned", taxon="Ptychobranchus jonesi",
+                    rank="species", identity=99.67, lineage=_MUSSEL,
+                    hits=[_hit("JX311522.1", "Ptychobranchus jonesi", 99.67, "ND1"),
+                          _hit("JX311518.1", "Ptychobranchus greenii", 90.5, "ND1")]),
+            _head_ev("seq_e2e_orch_mussel_03", "fish", "known_species", 0.55, "dnabert2_fish_v2"),
+            _ref_ev("seq_e2e_orch_mussel_03", "fish", "no_hit", reason="no reference hit"),
+            _contam_ev("seq_e2e_orch_mussel_03", "animal_general"),
+            _novelty_ev("seq_e2e_orch_mussel_03", "animal_general", 0.69, "medium"),
+        ],
+        combine=[
+            _step("disagreement", "heads_disagree",
+                  {"misc_unknown": "unknown_needs_online_confirmation", "animal_general": "possible_novelty",
+                   "fish": "known_species"}, "candidate heads give different classes; heads do not choose the route"),
+            _step("route", "reference_overrides_router", "animal_general",
+                  "animal_general reference identity 99.67% beats misc_unknown by more than 0.5"),
+            _step("taxon", "reference_taxon", {"taxon": "Ptychobranchus jonesi", "rank": "species"},
+                  "99.67% identity, synthveda-reference/animal_general v2"),
+            _step("class", "novelty_suppressed_by_reference", "known_species",
+                  "head said possible_novelty; reference Ptychobranchus jonesi (species) at 99.67% counts against "
+                  "novelty (QNA-020 Q4)"),
+            _novelty_step("novelty_suppressed_by_reference", 0.69, 0.0, raw_flag=True, final_flag=False,
+                          suppressed=True, detail="reference names Ptychobranchus jonesi at 99.67% (QNA-020 Q4)"),
+        ]),
+    _orch_seq(
+        "seq_e2e_orch_vent_04", route="bacteria_pathogen", router_route="bacteria_pathogen",
+        result_class="possible_novelty", taxon=None, rank=None, identity=None, head_conf=0.81,
+        model="dnabert2_bacteria_v1", rule="head_class", novelty=0.78,
+        plan=_plan("bacteria_pathogen", ["bacteria_pathogen", "misc_unknown"],
+                   [{"rule": "confident_router", "stage": "router", "detail": "no wide-plan rule fired", "added": []},
+                    {"rule": "reference_miss", "stage": "post_reference",
+                     "detail": "bacteria_pathogen reference: no_hit; adding the router's next route misc_unknown",
+                     "added": ["misc_unknown"]}],
+                   [["bacteria_pathogen", 0.93], ["misc_unknown", 0.05], ["plant", 0.01]]),
+        evidence=[
+            _head_ev("seq_e2e_orch_vent_04", "bacteria_pathogen", "possible_novelty", 0.81, "dnabert2_bacteria_v1"),
+            _ref_ev("seq_e2e_orch_vent_04", "bacteria_pathogen", "no_hit", reason="no reference hit"),
+            _head_ev("seq_e2e_orch_vent_04", "misc_unknown", "possible_novelty", 0.62, "dnabert2_misc_unknown_v2"),
+            _ref_ev("seq_e2e_orch_vent_04", "misc_unknown", "no_hit", reason="no reference hit"),
+            _contam_ev("seq_e2e_orch_vent_04", "bacteria_pathogen"),
+            _novelty_ev("seq_e2e_orch_vent_04", "bacteria_pathogen", 0.78, "high"),
+        ],
+        combine=[
+            _step("route", "router_primary", "bacteria_pathogen", "no candidate has a reference assignment"),
+            _step("taxon", "no_reference_assignment", "no_hit", "no reference hit"),
+            _step("class", "head_class", "possible_novelty"),
+            _novelty_step("novelty_ungated", 0.78, 1.0, raw_flag=True, final_flag=True),
+        ]),
+]
+
+ORCH_ANALYSIS = {
+    "analysis_id": ORCH_ANALYSIS_ID,
+    "job_id": "job_e2e_orch00001",
+    "upload_id": UPLOAD_ID,
+    "user_id": OWNER,
+    "mode": "online_full",
+    "model_version_set": "stub_none",
+    "orchestrator_version": ORCH_VERSION,
+    "results": ORCH_RESULTS,
+    "created_at": _ts(9, 8),
+}
+
+
+def _legacy_seq(sid: str, route: str, result_class: str, confidence: float, model: str, mode: str) -> dict:
+    row = _seq(sid, route, result_class, confidence=confidence, model=model)
+    row.update({"route_confidence": 0.9, "inference_mode": mode})
+    return row
+
+
+LEGACY_ANALYSIS = {
+    "analysis_id": LEGACY_ANALYSIS_ID,
+    "job_id": "job_e2e_legacy001",
+    "upload_id": UPLOAD_ID,
+    "user_id": OWNER,
+    "mode": "online_full",
+    "model_version_set": "stub_none",
+    "results": [
+        _legacy_seq("seq_e2e_old_01", "fish", "known_species", 0.93, "dnabert2_fish_v1", "model"),
+        _legacy_seq("seq_e2e_old_02", "misc_unknown", "unknown_needs_online_confirmation", 0.0,
+                    "dnabert2_misc_unknown_v1:stub_no_weights", "stub"),
+    ],
+    "created_at": _ts(8, 8),
+}
+
 REVIEWS = [
     {"review_id": "rev_e2e_novelty01", "analysis_id": ANALYSIS_ID, "sequence_id": "seq_e2e_novel_003",
      "submitted_by": "system", "state": "submitted", "review_type": "auto_novelty", "triage_priority": "urgent",
@@ -325,7 +592,7 @@ AUDIT_LOGS = [
 # environmental context, and a third upload with no coordinates or date.
 # ---------------------------------------------------------------------------
 
-ANALYSIS_BAY_ID = "ana_e2e0000000002"
+ANALYSIS_BAY_ID = "ana_e2e0000000004"
 UPLOAD_BAY_ID = "upl_e2e0000000002"
 UPLOAD_BARE_ID = "upl_e2e0000000003"
 # Real provider responses recorded live on 2026-10-18 for 15.6 N, 82.3 E,
@@ -381,8 +648,8 @@ ANALYSIS_BAY = {
         _decided("seq_e2e_bay_003", "Rastrelliger kanagurta", "species", confidence=0.88),
         _decided("seq_e2e_bay_004", "Thunnus albacares", "species", confidence=0.86),
         _decided("seq_e2e_bay_005", "Stolephorus", "genus", confidence=0.7),
-        _decided("seq_e2e_bay_006", "Homo sapiens", "species", route="human_domestic",
-                 result_class="possible_contaminant", confidence=0.97, contamination=0.95, contaminated=True,
+        _decided("seq_e2e_bay_006", "Homo sapiens", "species", route="human_domestic_contamination",
+                 result_class="possible_contamination", confidence=0.97, contamination=0.95, contaminated=True,
                  contamination_type="human", model="dnabert2_human_domestic_v1"),
     ],
     "created_at": _ts(2, 11, 6),
@@ -406,7 +673,7 @@ def _env_context_bay() -> dict:
 def _seed() -> dict[str, list[dict]]:
     return {
         "uploads": [UPLOAD, UPLOAD_BAY, UPLOAD_BARE],
-        "analysis_results": [ANALYSIS, ANALYSIS_BAY],
+        "analysis_results": [ANALYSIS, ANALYSIS_BAY, ORCH_ANALYSIS, LEGACY_ANALYSIS],
         "environment_contexts": [_env_context_bay()],
         "reviews": REVIEWS,
         "field_log_entries": FIELD_ENTRIES,
@@ -457,6 +724,15 @@ CAPTURES: list[tuple[str, str, str]] = [
     ("partner_incidents", "researcher", "/partner/incidents?scope=mine"),
     ("partner_tasks", "researcher", "/partner/tasks?scope=mine"),
     ("partner_audits", "researcher", f"/partner/audits?created_by={OWNER}"),
+    # Results page per-sequence calls + decision trace (t-1023-2).
+    ("report_orchestrated", "researcher", f"/reports/{ORCH_ANALYSIS_ID}"),
+    ("analysis_orchestrated", "researcher", f"/analysis/{ORCH_ANALYSIS_ID}?include_trace=false"),
+    ("analysis_orchestrated_trace", "researcher", f"/analysis/{ORCH_ANALYSIS_ID}?include_trace=true"),
+    ("analysis_legacy", "researcher", f"/analysis/{LEGACY_ANALYSIS_ID}?include_trace=false"),
+    # Upload page "Auto" panel. The data root is pinned to a path that does
+    # not exist (see generate()), so every head reads missing_artifacts on
+    # any machine; the e2e spec edits a copy for the "served" case.
+    ("models_status", "researcher", "/models/status"),
     # Last: it appends the derived custody events to the in-memory DB.
     ("report_custody", "researcher", f"/reports/{ANALYSIS_ID}/custody"),
 ]
@@ -469,6 +745,10 @@ POST_CAPTURES: list[tuple[str, str, str, dict, int]] = [
     ("partner_audit_create_422", "researcher", "/partner/audits",
      {"target": {"kind": "analysis", "label": ""}, "scope": "", "status": "scheduled", "findings": []}, 422),
 ]
+
+# /models/status checks artifacts under the data root; pin it so the fixture
+# does not depend on whether this machine has synthveda-data.
+E2E_DATA_ROOT = Path("/nonexistent-e2e-data-root")
 
 
 def _normalise(name: str, body: Any) -> Any:
@@ -503,7 +783,8 @@ async def generate() -> dict[str, Any]:
     with patch.object(mongo_module, "_db", _Db(_seed())), \
             patch.object(main_module, "get_settings", lambda: defaults), \
             patch("app.environment.router.get_settings", lambda: no_env_lookups), \
-            patch.object(custody_chain, "_utc_now_iso", lambda: f"{FIXED_TS}+00:00"):
+            patch.object(custody_chain, "_utc_now_iso", lambda: f"{FIXED_TS}+00:00"), \
+            patch.object(models_router_module, "_resolve_data_root", lambda: E2E_DATA_ROOT):
         transport = ASGITransport(app=create_app())
         async with AsyncClient(transport=transport, base_url="http://api.test") as client:
             for name, role, path in CAPTURES:

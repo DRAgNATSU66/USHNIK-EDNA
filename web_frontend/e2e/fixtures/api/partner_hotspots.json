@@ -2,12 +2,12 @@
   "cell_deg": 1.0,
   "cells": [
     {
-      "analyses": 1,
+      "analyses": 3,
       "cell_id": "15:68",
       "center_lat": 15.5,
       "center_lng": 68.5,
       "contamination_flags": 1,
-      "distinct_taxa": 3,
+      "distinct_taxa": 6,
       "first_collected_at": "2026-10-09T06:30:00Z",
       "last_collected_at": "2026-10-09T06:30:00Z",
       "lat_max": 16.0,
@@ -17,11 +17,11 @@
       "location_labels": [
         "Arabian Sea, Station 7"
       ],
-      "novelty_flags": 2,
+      "novelty_flags": 4,
       "open_reviews": 2,
       "open_urgent_reviews": 1,
-      "sequences": 7,
-      "sequences_with_taxon": 3,
+      "sequences": 13,
+      "sequences_with_taxon": 6,
       "top_taxa": [
         {
           "sequences": 1,
@@ -32,6 +32,16 @@
           "sequences": 1,
           "taxon": "Myctophum punctatum",
           "taxon_rank": null
+        },
+        {
+          "sequences": 1,
+          "taxon": "Ptychobranchus jonesi",
+          "taxon_rank": "species"
+        },
+        {
+          "sequences": 1,
+          "taxon": "Quercus",
+          "taxon_rank": "genus"
         },
         {
           "sequences": 1,
@@ -99,8 +109,8 @@
     }
   ],
   "coverage": {
-    "analyses_in_scope": 2,
-    "analyses_mapped": 2,
+    "analyses_in_scope": 4,
+    "analyses_mapped": 4,
     "uploads_in_scope": 3,
     "uploads_invalid_coordinates": 0,
     "uploads_with_coordinates": 2,

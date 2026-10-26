@@ -25,7 +25,8 @@ test.describe("legislative partner report", () => {
 
     // Alerts: from real flags, with the counts the API returned.
     await expect(page.getByText(`ALERTS · ${alerts.total} (${alerts.urgent} URGENT)`)).toBeVisible();
-    const card = page.getByRole("button", { name: new RegExp(alert.location_label) });
+    // Cards render in API order; two analyses share this upload's label, so take the first.
+    const card = page.getByRole("button", { name: new RegExp(alert.location_label) }).first();
     await expect(card).toContainText(`${alert.open_urgent_reviews} open urgent review(s)`);
     await expect(card).toContainText(`${alert.contamination_flags} contamination flag(s)`);
     await expect(card).toContainText(`${alert.novelty_flags} novelty flag(s)`);
@@ -74,7 +75,7 @@ test.describe("legislative partner report", () => {
       body: "PK-e2e",
     });
     await page.goto(PATH);
-    await page.getByRole("button", { name: new RegExp(alert.location_label) }).click();
+    await page.getByRole("button", { name: new RegExp(alert.location_label) }).first().click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText(`Analysis ${ANALYSIS_ID}`);

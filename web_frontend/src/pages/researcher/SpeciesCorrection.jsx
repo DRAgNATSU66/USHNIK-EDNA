@@ -7,6 +7,7 @@ import { tokens } from "../../components/shared/tokens";
 import Dropdown from "../../components/shared/Dropdown";
 import { useAuth } from "../../contexts/AuthContext";
 import { getReport, listReports, listReviewsForSequence, submitReview } from "../../lib/api";
+import { formatIdentity, taxonCall } from "../../lib/decision";
 
 const TIER_COLOR = { green: tokens.success, amber: tokens.warningAlt, red: tokens.danger };
 const TIER_LABEL = { green: "● Green", amber: "● Amber", red: "● Red" };
@@ -58,6 +59,26 @@ const panelStyle = {
 };
 
 const GRID_COLS = "26px 200px 1.4fr 110px 110px 1fr 130px";
+
+// The orchestrator's reference match for a row: decision.* first, then the
+// flat report fields (taxon_rank, percent_identity, reference_db,
+// reference_db_version), else "not recorded" -- rows analysed before the
+// orchestrator, or report rows without those fields, have none.
+function MatchedAgainst({ row }) {
+  const c = taxonCall(row);
+  if (!c.referenceDb) {
+    return <span style={{ fontSize: 13, color: tokens.pending, fontFamily: "ui-monospace,monospace" }}>not recorded</span>;
+  }
+  const version = c.referenceDbVersion ? ` v${String(c.referenceDbVersion).replace(/^v/i, "")}` : "";
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ fontSize: 13, color: tokens.wordmark, fontFamily: "ui-monospace,monospace", overflowWrap: "anywhere" }}>{c.referenceDb}{version}</span>
+      <span style={{ fontSize: 12, color: tokens.pending }}>
+        {[formatIdentity(c.percentIdentity) && `${formatIdentity(c.percentIdentity)} identity`, c.rank].filter(Boolean).join(" · ") || "no assignment"}
+      </span>
+    </span>
+  );
+}
 
 function SolidButton({ children, onClick, disabled, title, tone = "accent" }) {
   const bg =
@@ -517,7 +538,7 @@ export default function SpeciesCorrection() {
                       </span>
                       <span style={{ fontSize: 15.5, fontWeight: 600, color: TIER_COLOR[r.confidence_tier] }}>{(r.confidence * 100).toFixed(1)}%</span>
                       <span style={{ fontSize: 14.5, color: tokens.sectionSubtext }}>{r.length.toLocaleString()} bp</span>
-                      <span style={{ fontSize: 13, color: tokens.pending, fontFamily: "ui-monospace,monospace" }}>pending configuration</span>
+                      <MatchedAgainst row={r} />
                       <button
                         onClick={(e) => { e.stopPropagation(); setDrawerSeqId(r.sequence_id); }}
                         style={
