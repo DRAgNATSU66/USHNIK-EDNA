@@ -227,7 +227,7 @@ class TestReferenceLowIdentity:
 
 class TestServedWeights:
     def test_dev_calibrated_values(self):
-        # 2026-10-20 dev calibration (docs/ml/results/novelty_centroid_2026-10-20.json):
+        # 2026-10-20 dev calibration (docs/ml/results/novelty_centroid_2026-10-27.json):
         # both new terms at weight 0; the old three unchanged.
         assert WEIGHTS == {"result_class": 0.35, "low_confidence": 0.25, "label_entropy": 0.07,
                            "embedding_isolation": 0.0, "reference_low_identity": 0.0}
@@ -314,3 +314,27 @@ def test_engine_passes_model_id_and_final_route_reference_to_novelty():
     nov = [e for e in seq["decision_trace"]["evidence"] if e["provider"] == "novelty"][0]
     assert nov["payload"]["signals"]["reference_low_identity"] == pytest.approx(0.6)
     assert nov["payload"]["details"]["embedding_isolation"]["method"] == METHOD_PROXY
+
+
+# ---------------------------------------------------------------------------
+# serving path: the heads the registry serves have a verified artifact
+# ---------------------------------------------------------------------------
+
+ROUTES = ("fish", "plant", "animal_general", "bacteria_pathogen", "human_domestic_contamination", "misc_unknown")
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_served_head_loads_its_centroids(route):
+    """With the real registry and data root, the head best_available() serves
+    on each route resolves to a checksum-verified centroid set (not the
+    proxy fallback). Skipped where the head weights are not on disk (CI)."""
+    from app.inference.registry import get_registry
+
+    entry = get_registry().best_available(route)
+    if entry is None or not entry.artifact_uri or not os.path.isfile(entry.artifact_uri):
+        pytest.skip(f"{route}: served head weights not on disk")
+    cmod.clear_cache()
+    cs, why = centroids_for_model(entry.model_id)
+    assert why is None, f"{route} ({entry.model_id}): centroids unavailable: {why}"
+    assert cs.model_id == entry.model_id and cs.route == route
+    assert cs.manifest.get("head_checksum") == entry.checksum
