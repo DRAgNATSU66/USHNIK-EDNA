@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional, Any
-from pydantic import BaseModel, Field
+from collections.abc import Mapping
+from typing import Literal, Optional, Any
+from pydantic import BaseModel, Field, model_validator
 import uuid
 
 
@@ -41,6 +42,35 @@ class SequenceDecision(BaseModel):
     rule: Optional[str] = None
 
 
+TAXON_FIELDS = ("predicted_taxon", "taxon_rank", "percent_identity", "reference_db", "reference_db_version")
+
+TaxonSource = Literal["decision", "legacy"]
+
+
+def resolve_taxon_fields(result: Mapping[str, Any]) -> dict[str, Any]:
+    """The flat taxon fields of one stored per-sequence result (t-1023-1).
+
+    Decision-first, the same rule as partner/summary.py _effective: when the
+    orchestrator wrote results[].decision, all five fields come from it
+    (a None there means the decision has no value, e.g. no reference
+    assignment, and is kept as None). Otherwise only the legacy top-level
+    predicted_taxon exists; taxon_rank, percent_identity, reference_db and
+    reference_db_version were never recorded before the orchestrator and are
+    None. taxon_source says which of the two applied.
+    """
+    dec = result.get("decision")
+    if isinstance(dec, Mapping):
+        out: dict[str, Any] = {f: dec.get(f) for f in TAXON_FIELDS}
+        out["taxon_source"] = "decision"
+    else:
+        out = {f: None for f in TAXON_FIELDS}
+        out["predicted_taxon"] = result.get("predicted_taxon")
+        out["taxon_source"] = "legacy"
+    if out["percent_identity"] is not None:
+        out["percent_identity"] = float(out["percent_identity"])
+    return out
+
+
 class SequenceResult(BaseModel):
     sequence_id: str
     sequence: str
@@ -76,6 +106,24 @@ class SequenceResult(BaseModel):
     router_route: Optional[str] = None
     decision: Optional[SequenceDecision] = None
     decision_trace: Optional[dict[str, Any]] = None
+    # Flat, typed taxon fields (t-1023-1), derived on read by
+    # resolve_taxon_fields from `decision` when present, else from the legacy
+    # predicted_taxon; never stored by the worker. predicted_taxon (above) is
+    # set the same way. All None on pre-orchestrator results except
+    # predicted_taxon, with taxon_source = "legacy".
+    taxon_rank: Optional[str] = None
+    percent_identity: Optional[float] = None
+    reference_db: Optional[str] = None
+    reference_db_version: Optional[str] = None
+    taxon_source: Optional[TaxonSource] = None
+
+    @model_validator(mode="after")
+    def _derive_taxon_fields(self) -> "SequenceResult":
+        src = {"predicted_taxon": self.predicted_taxon,
+               "decision": self.decision.model_dump() if self.decision is not None else None}
+        for field, value in resolve_taxon_fields(src).items():
+            setattr(self, field, value)
+        return self
 
 
 class AnalysisSummary(BaseModel):

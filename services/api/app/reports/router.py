@@ -171,6 +171,7 @@ async def get_report_summary(
         "metadata": report.metadata.model_dump(),
         "qc_summary": report.qc_summary.model_dump(),
         "biodiversity": report.biodiversity.model_dump(),
+        "taxa": report.taxa.model_dump() if report.taxa else None,
         "review_status": report.review_status.model_dump(),
         "context": report.context.model_dump() if report.context else None,
         "disclaimer": REPORT_DISCLAIMER,

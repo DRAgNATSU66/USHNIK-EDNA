@@ -76,6 +76,13 @@ class KnownSpeciesEntry(BaseModel):
     confidence: float
     model_version_used: Optional[str]
     reason_codes: list[str]
+    # Flat taxon fields (t-1023-1), app/models/analysis.py resolve_taxon_fields:
+    # from results[].decision when present, None on pre-orchestrator results.
+    taxon_rank: Optional[str] = None
+    percent_identity: Optional[float] = None
+    reference_db: Optional[str] = None
+    reference_db_version: Optional[str] = None
+    taxon_source: Optional[str] = None  # "decision" | "legacy"
 
 
 class TaxonomicAssignmentEntry(BaseModel):
@@ -97,6 +104,13 @@ class TaxonomicAssignmentEntry(BaseModel):
     contamination_flagged: bool
     model_version_used: Optional[str]
     reason_codes: list[str]
+    # As on KnownSpeciesEntry (t-1023-1).
+    result_class: Optional[str] = None
+    taxon_rank: Optional[str] = None
+    percent_identity: Optional[float] = None
+    reference_db: Optional[str] = None
+    reference_db_version: Optional[str] = None
+    taxon_source: Optional[str] = None
 
 
 class PossibleNoveltyEntry(BaseModel):
@@ -126,7 +140,11 @@ class BiodiversitySummary(BaseModel):
     """
     total_sequences: int
     route_richness: int          # number of distinct non-low-quality routes
-    predicted_taxon_richness: int  # number of distinct predicted_taxon values
+    # Number of distinct predicted_taxon strings, all ranks mixed and 0 when
+    # no taxon was recorded (including pre-orchestrator analyses). Kept for
+    # existing readers; AnalysisReport.taxa is the rank-aware, availability-
+    # aware replacement.
+    predicted_taxon_richness: int
     shannon_diversity_index: float  # H = -Σ p_i * ln(p_i) over route groups
     dominant_route: Optional[str]
     novelty_fraction: float      # fraction of sequences with novelty_score >= config.NOVELTY_THRESHOLD
@@ -153,12 +171,87 @@ class ReviewStatusSummary(BaseModel):
     auto_contamination_reviews: int
 
 
+class RankRichness(BaseModel):
+    rank: str              # decision.taxon_rank; "unranked" when the decision named a taxon without a rank
+    distinct_taxa: int     # distinct predicted_taxon names at this rank only
+    sequences: int         # sequences whose taxon is at this rank
+
+
+class TopTaxonEntry(BaseModel):
+    taxon: str
+    taxon_rank: Optional[str]
+    sequences: int
+    fraction_of_assigned: float          # sequences / TaxaSummary.sequences_with_taxon
+    mean_percent_identity: Optional[float]  # over the sequences that carry an identity
+    min_percent_identity: Optional[float]
+    max_percent_identity: Optional[float]
+    sequences_with_identity: int
+    routes: list[str]                     # decision.final_route values, sorted
+    reference_db_versions: list[str]      # "<reference_db> <version>", sorted
+
+
+class ReferenceDbUsage(BaseModel):
+    reference_db: Optional[str]
+    reference_db_version: Optional[str]
+    sequences: int            # decisions naming this pair (assigned or not)
+    sequences_with_taxon: int  # of which carried a taxon
+
+
+class ContaminationFlaggedTaxon(BaseModel):
+    """A taxon named only by contamination-flagged sequences' decisions; kept
+    out of richness_by_rank and top_taxa (see TaxaSummary.definitions)."""
+    taxon: str
+    taxon_rank: Optional[str]
+    sequences: int
+    result_classes: list[str]          # decision.result_class values, sorted
+    contamination_types: list[str]     # results[].contamination_type values, sorted
+
+
+class TaxaSummary(BaseModel):
+    """
+    Taxon richness and top taxa (t-1023-1), counted from results[].decision.
+    available=False (with unavailable_reason) when no sequence carries a
+    decision: those analyses predate the orchestrator, never recorded rank,
+    identity or reference DB, and are reported as unavailable, not as zero.
+    Every count below is None when unavailable. See `definitions`.
+
+    Contamination-flagged sequences are not observed taxa: they are counted in
+    sequences_contamination_flagged and listed in contamination_flagged_taxa,
+    never in richness_by_rank / top_taxa / sequences_with_taxon. Invariant:
+    with_taxon + without_taxon + contamination_flagged == with_decision.
+    """
+    available: bool
+    unavailable_reason: Optional[str] = None
+    orchestrator_version: Optional[str] = None
+    total_sequences: int
+    sequences_with_decision: int
+    sequences_with_taxon: Optional[int] = None
+    sequences_without_taxon: Optional[int] = None
+    sequences_contamination_flagged: Optional[int] = None
+    sequences_contamination_flagged_with_taxon: Optional[int] = None
+    fraction_with_taxon: Optional[float] = None
+    # Why a decided sequence has no taxon: the taxon step's combine rule from
+    # decision_trace (heads_only, no_reference_assignment), "low_quality",
+    # or "not_recorded" when the trace has no taxon step.
+    without_taxon_reasons: dict[str, int] = Field(default_factory=dict)
+    richness_by_rank: list[RankRichness] = Field(default_factory=list)
+    top_taxa: list[TopTaxonEntry] = Field(default_factory=list)
+    top_taxa_limit: int
+    # Number of (taxon, rank) groups top_taxa is cut from: a row count, not a
+    # richness (it mixes ranks; use richness_by_rank).
+    taxon_groups: Optional[int] = None
+    contamination_flagged_taxa: list[ContaminationFlaggedTaxon] = Field(default_factory=list)
+    reference_dbs: list[ReferenceDbUsage] = Field(default_factory=list)
+    definitions: dict[str, str] = Field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # Top-level report
 # ---------------------------------------------------------------------------
 
 class AnalysisReport(BaseModel):
-    report_version: str = "1.0"
+    # 1.1: taxa section and flat taxon fields on assignments (t-1023-1).
+    report_version: str = "1.1"
     metadata: SampleMetadata
     qc_summary: QCSummary
     route_distribution: list[RouteDistributionEntry]
@@ -167,6 +260,7 @@ class AnalysisReport(BaseModel):
     possible_novelty: list[PossibleNoveltyEntry]
     contamination_warnings: list[ContaminationWarning]
     biodiversity: BiodiversitySummary
+    taxa: Optional[TaxaSummary] = None
     model_versions_used: list[ModelVersionEntry]
     review_status: ReviewStatusSummary
     # Which optional upload metadata was provided vs missing, partner-report
