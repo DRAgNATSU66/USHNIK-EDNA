@@ -258,6 +258,11 @@ export default function Industrial() {
           {incidents && (
             <>
               <span style={{ ...noteStyle, color: tokens.sectionSubtext }}>{incidents.definitions.incident}</span>
+              {incidents.expected_contamination_flags > 0 && (
+                <span style={noteStyle} data-testid="expected-contamination">
+                  Not counted as incidents: {plural(incidents.expected_contamination_flags, "expected contamination flag")}. {incidents.definitions.expected_contamination}
+                </span>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: s(10) }}>
                 {incidents.incidents.map((inc) => <IncidentRow key={inc.analysis_id} inc={inc} />)}
               </div>

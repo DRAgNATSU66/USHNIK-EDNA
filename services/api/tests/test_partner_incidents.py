@@ -7,7 +7,9 @@ documents, so a change to the incident or flag rules shows up here.
 """
 from __future__ import annotations
 
+import ast
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -125,6 +127,7 @@ async def test_incidents_own_scope(client, researcher_token, db):
     assert [i["analysis_id"] for i in body["incidents"]] == ["ana_b", "ana_a"]
     assert body["total"] == 2 and body["truncated"] is False
     assert body["contamination_flags"] == 2 and body["novelty_flags"] == 1
+    assert body["expected_contamination_flags"] == 0  # "human" on the fish route is not expected
 
     b, a = body["incidents"]
     assert a["source_file"] == "outfall_a.fasta" and a["location_label"] == "Outfall A"
@@ -188,6 +191,79 @@ async def test_incidents_none_flagged_note(client, researcher_token, db):
 async def test_incidents_validation(client, researcher_token, params):
     resp = await client.get("/partner/incidents", params=params, headers=_auth(researcher_token))
     assert resp.status_code == 422, resp.text
+
+
+# ---------------------------------------------------------------------------
+# Expected-by-route contamination (QNA-030): flagged, never an incident
+# ---------------------------------------------------------------------------
+
+WORKER_JOB_RUNNER = Path(__file__).resolve().parents[2] / "worker" / "app" / "job_runner.py"
+
+
+def _worker_constant(name: str):
+    tree = ast.parse(WORKER_JOB_RUNNER.read_text(encoding="utf-8"))
+    for node in tree.body:
+        target = node.target if isinstance(node, ast.AnnAssign) else (
+            node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
+        if isinstance(target, ast.Name) and target.id == name:
+            return eval(compile(ast.Expression(node.value), str(WORKER_JOB_RUNNER), "eval"),
+                        {"__builtins__": {}, "frozenset": frozenset})
+    raise AssertionError(f"{name} not defined at module level in {WORKER_JOB_RUNNER}")
+
+
+def test_expected_contamination_mirrors_worker():
+    from app.partner.incidents import EXPECTED_CONTAMINATION_BY_ROUTE
+    assert WORKER_JOB_RUNNER.is_file()
+    assert EXPECTED_CONTAMINATION_BY_ROUTE == _worker_constant("EXPECTED_CONTAMINATION_BY_ROUTE")
+
+
+def _hr(seq, *, route, ctype, decision_route=None):
+    out = {"sequence_id": seq, "route": route, "result_class": "possible_contamination", "novelty_score": 0.0,
+           "contamination_flagged": True, "contamination_type": ctype}
+    if decision_route is not None:
+        out["decision"] = {"final_route": decision_route, "result_class": "possible_contamination"}
+    return out
+
+
+@pytest.fixture
+def human_route_db():
+    fake = _FakeDb()
+    fake["analysis_results"].docs.extend([
+        # Only expected contamination: human DNA on the human route -> not an incident.
+        {"analysis_id": "ana_h", "upload_id": "upl_h", "user_id": OWNER, "created_at": datetime(2026, 10, 5, 9),
+         "results": [
+             _hr("h1", route="human_domestic_contamination", ctype="human_dna"),
+             _hr("h2", route="fish", ctype="human_dna", decision_route="human_domestic_contamination"),
+         ]},
+        # Mixed: one expected, one human_dna off the human route (a real flag),
+        # one other type on the human route (also a real flag).
+        {"analysis_id": "ana_m", "upload_id": "upl_m", "user_id": OWNER, "created_at": datetime(2026, 10, 6, 9),
+         "results": [
+             _hr("m1", route="human_domestic_contamination", ctype="human_dna"),
+             _hr("m2", route="fish", ctype="human_dna"),
+             _hr("m3", route="human_domestic_contamination", ctype="lab_vector"),
+         ]},
+    ])
+    with patch.object(_mongo_module, "_db", fake):
+        yield fake
+
+
+@pytest.mark.anyio
+async def test_expected_contamination_is_not_an_incident(client, researcher_token, human_route_db):
+    body = (await client.get("/partner/incidents", headers=_auth(researcher_token))).json()
+    assert body["analyses_in_scope"] == 2
+    # ana_h has only expected contamination (h2's decision.final_route is read first).
+    assert [i["analysis_id"] for i in body["incidents"]] == ["ana_m"]
+    assert body["total"] == 1
+    (m,) = body["incidents"]
+    assert m["contamination_flags"] == 2 and m["expected_contamination_flags"] == 1
+    assert m["contamination_types"] == {"human_dna": 1, "lab_vector": 1}
+    assert [f["sequence_id"] for f in m["flagged_sequences"]] == ["m2", "m3"]
+    assert body["contamination_flags"] == 2
+    # Over every analysis in scope: h1, h2 and m1.
+    assert body["expected_contamination_flags"] == 3
+    assert "human_dna on human_domestic_contamination" in body["definitions"]["expected_contamination"]
+    assert "not expected for its route" in body["definitions"]["contamination_flag"]
 
 
 # ---------------------------------------------------------------------------

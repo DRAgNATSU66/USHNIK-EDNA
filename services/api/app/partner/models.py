@@ -366,9 +366,11 @@ class IncidentAnalysis(BaseModel):
     collected_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     sequences: int = 0
-    contamination_flags: int = 0
+    contamination_flags: int = 0  # not expected for the route (see definitions)
+    # Flagged, but the expected finding on its route; never makes an incident.
+    expected_contamination_flags: int = 0
     novelty_flags: int = 0
-    contamination_types: dict[str, int] = Field(default_factory=dict)
+    contamination_types: dict[str, int] = Field(default_factory=dict)  # of contamination_flags
     open_reviews: int = 0
     urgent_open_reviews: int = 0
     # The first few flagged sequences, contamination first, for traceability.
@@ -394,6 +396,8 @@ class PartnerIncidents(BaseModel):
     analyses_in_scope: int = 0
     total: int = 0  # analyses meeting the incident definition
     contamination_flags: int = 0  # summed over those analyses
+    # Summed over every analysis in scope, incident or not.
+    expected_contamination_flags: int = 0
     novelty_flags: int = 0
     incidents: list[IncidentAnalysis] = Field(default_factory=list)  # newest first, capped by limit
     truncated: bool = False
