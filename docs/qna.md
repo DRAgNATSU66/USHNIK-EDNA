@@ -2672,3 +2672,57 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - These are corrected in the docs. The superseded QNA entries are unaffected, because none of them made these claims.
 
 **QNA-041 correction (2026-10-27, same session):** Q4's command is wrong. `git diff --stat 6af0ffd 9145dde` also includes `9298c18` (the Species Correction drawer fix, `web_frontend/src/pages/researcher/SpeciesCorrection.jsx`). The check that supports "docs only" is `git diff --name-only 9298c18 9145dde`, which lists 14 files, all under `docs/`.
+
+## QNA-042 — 2026-10-27 — Fresh clone → make up → full flow: the compose worker image was stub-only (no torch, BLAST missing libgomp); fixed and re-verified on the final tree (tracker t-1031-1)
+
+**Commit:** `1a7d698` on `sprint/d18-worker-image` (`services/worker/Dockerfile`), merged into `LATEST_USHNIK` as `42844aa`. README and memory.md notes are in `78884f2`. Measured run: `docs/ml/results/fresh_clone_rc_2026-10-27.json`.
+
+**Q1. Mechanism: what was run, step by step?**
+1. `git clone -b LATEST_USHNIK` into a scratch directory, then `cp .env.example .env`.
+2. `make up COMPOSE="docker compose -p synthveda-rc -f infra/docker/docker-compose.yml"` with `SYNTHVEDA_DATA_HOST_DIR=<repo>/synthveda-data`.
+   - The project name gives fresh named volumes. The dev stack's containers were renamed `*-devhold` to free their fixed `container_name`s and ports.
+   - The data root is mounted read-only at `/data`, as compose already does.
+3. Logged in as a researcher. The only login paths are Google and Supabase, and the Supabase host does not resolve (QNA-023), so the orchestrator minted a JWT inside the API container with `create_access_token`, the same way earlier checks did. The browser login round-trip was not exercised.
+4. `POST /uploads` with a 12-sequence FASTA: 2 rows per route from `processed/<route>/test.csv`, seed 1031, length 200–1500. The upload landed in MinIO (`s3://synthveda-uploads/upl_…`).
+5. `POST /analysis/jobs`, then the job was polled to completion and `GET /analysis/{id}` was read.
+6. From the same fresh clone, `make test-loop` was run against the compose Mongo and Redis (Redis db 15): upload → orchestrator → review → batch → freeze → register → promote.
+
+**Q2. What failed, and why?**
+- **First run, on clone `9298c18` with the old image:**
+  - All 12 sequences were `inference_mode: "stub"`, `stub_reason: "torch_unavailable"`.
+  - The trace showed `reference_lookup … unavailable: blast exited 127: /data/tools/blast/bin/blastn: error while loading shared libraries: libgomp.so.1`.
+  - No row had a taxon. The orchestrator ran at 184.67 ms/sequence.
+- **Cause:** the worker `Dockerfile` installed only `requirements.txt`, never `requirements-ml.txt`, on a `python:3.11-slim` base without OpenMP. Every earlier real-data result in this sprint came from the native GPU worker venv. `make up`, the documented quick start, has always shipped a stub worker. Neither the exit criteria nor any test noticed, because no test builds and runs the image.
+- **Fix (`1a7d698`):**
+  - `apt-get install libgomp1`.
+  - `ARG WITH_ML=1` installs `torch==2.14.1` from the CPU wheel index (`TORCH_INDEX_URL`, overridable to CUDA wheels), then `requirements-ml.txt`.
+  - `ENV HF_HOME=/tmp/hf_home`, because DNABERT-2's `trust_remote_code` writes into the modules cache, the worker user has no home directory and `/data` is read-only.
+- **Why CPU wheels:** `docker info` on gojo lists only `runc` runtimes. There is no NVIDIA container runtime, so CUDA wheels would not help this host. The rejected alternative was to document `make up` as infrastructure-only and require the native worker. That would make the roadmap's "make up → full flow" false.
+
+**Q3. Blast radius.**
+- **Image size:** the worker image is now 2.01 GB (`docker images`). CI's `docker-build` job (`.github/workflows/ci.yml:197`) builds it, so CI gets slower and downloads the CPU torch wheel.
+- **Cloud Run:** `infra/terraform/main.tf:292` uses the same image, so it now serves model inference on CPU instead of stubs. That is slower per sequence but correct.
+- **Escape hatch:** `WITH_ML=0` restores the old stub-only image.
+- **Not tested:** a GPU-in-Docker build, since there is no runtime for it here.
+
+**Q4. Verification (measured, final tree `78884f2`).**
+- **Clone and stack:** fresh clone, fresh volumes, `make up` exit 0, all six containers healthy. `GET /health` → `{"status":"ok", …, "novelty_threshold":0.44}`. Frontend :3000 → 200.
+- **Job:** completed about 20 s after it was queued. The worker log reads `orchestrator-1.3.0: 12 sequences, 4 planned on >1 route, 0 final route != router route, head modes {'model': 12}, 1 possible_novelty, 1 contamination flags (1395.65 ms/sequence)`. On the earlier patched-image run of clone `9298c18` it was 1394.75 ms/sequence; the native GPU worker in `make test-loop` ran at 911.93 ms/sequence.
+- **Final routes:** `model` mode on all 6: fish 2, plant 2, animal_general 2, bacteria_pathogen 2, human 1, misc_unknown 3.
+- **Taxon fields:** 9 of 12 rows have predicted_taxon, rank, identity and reference DB version. Examples: *Indostomus paradoxus* species 100.0, *Daphnia magna* species 100.0, Pinaceae family 90.4, *Dickeya* genus 100.0, all on `synthveda-reference/<route> v2`.
+- **The 3 rows without a taxon:**
+  - `rc_human_domestic_contamination_0`: the router sent it to misc_unknown and it came out **possible_novelty**. That is a wrong answer for a human-route read (QNA-024/025: the misc route is the weak one).
+  - `rc_human_domestic_contamination_1`: possible_contamination, with no taxon by design (QNA-033: the GRCh38 screen sets no taxon).
+  - `rc_misc_unknown_1`: no reference assignment.
+- **`make test-loop`** (fresh clone's own API venv; worker = the main checkout's native GPU venv, because the fresh clone has no worker venv): `1 passed in 14.49s`. The orchestrator line was `4 sequences … head modes {'model': 4} … 911.93 ms/sequence` and it promoted `loop_fish_5dfc98ac`.
+  - `make api-install` needed `VENV_PYTHON=~/.pyenv/versions/3.11.16/bin/python3.11`, because pyenv on gojo has no global 3.11. This is a machine quirk, not a repo defect.
+
+**Q5. Defence: "12 sequences with 100% identities proves nothing."**
+- This run checks plumbing, not accuracy: the documented install path produces real model and reference evidence end to end.
+- Accuracy is QNA-033: 8,668 held-out rows, species P/R 89.1/34.0, with 444 leaky rows measured.
+- The 100.0 identities here are expected for the same reason QNA-033 counts same-specimen copies under other accessions. Exact held-out sequences are excluded from reference v2 (QNA-016).
+
+**Q6. Open.**
+- The native dispatcher does not reconnect after a Redis disconnect. At 21:31:59 IST the Docker daemon restarted on its own, which stopped the dev Mongo and Redis containers (restart policy "no"). The native worker exited with `redis.exceptions.ConnectionError: Connection closed by server` and did not come back. The compose worker has a healthcheck and a restart path; the native one has neither.
+- The browser Google/Supabase login was not exercised in the fresh stack (Supabase host unresolvable, QNA-023).
+- No CI job runs the built worker image against a real job.
