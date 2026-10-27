@@ -9,6 +9,7 @@ import Dropdown from "../../components/shared/Dropdown";
 import { getAnalysis, getReportSummary, getNoveltyTable, getContaminationWarnings, listReports } from "../../lib/api";
 import { useNoveltyThreshold } from "../../lib/noveltyThreshold";
 import { CONTAMINATION_CHIP, NOVELTY_CHIP, identityChip } from "../../lib/scoreChips";
+import { summarizeTaxaReferenceDbs } from "../../lib/decision";
 
 // The backend only returns novelty entries already at or above its flagging
 // threshold, so the slider's floor is that threshold -- there's no real data
@@ -363,7 +364,7 @@ export default function NoveltyDNA() {
   const requestedId = searchParams.get("analysis_id");
 
   const [analysisId, setAnalysisId] = useState(requestedId);
-  // { metadata, candidates, contaminatedIds } -- assembled from the three
+  // { metadata, referenceDbs, candidates, contaminatedIds } -- assembled from the three
   // narrow report endpoints instead of the full report.
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
@@ -419,6 +420,7 @@ export default function NoveltyDNA() {
         if (!live) return;
         setReport({
           metadata: summary.metadata,
+          referenceDbs: summarizeTaxaReferenceDbs(summary.taxa),
           candidates: novelty.entries ?? [],
           contaminatedIds: new Set((contamination.warnings ?? []).map((w) => w.sequence_id)),
         });
@@ -516,7 +518,7 @@ export default function NoveltyDNA() {
               {report.metadata.depth_meters != null && ` · ${report.metadata.depth_meters.toLocaleString()} m`}
             </span>
             <span style={{ color: tokens.headerDot }}>·</span>
-            <ProvenanceTag referenceDb={null} variant="plain" />
+            <ProvenanceTag {...report.referenceDbs} variant="plain" />
           </div>
         </div>
 
@@ -669,7 +671,7 @@ export default function NoveltyDNA() {
         {/* Provenance footer */}
         <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 2px", borderTop: `1px solid ${tokens.sectionBorder}` }}>
           <ProvenanceTag
-            referenceDb={null}
+            {...report.referenceDbs}
             pipelineVersion={report.metadata.model_version_set !== "stub_none" ? report.metadata.model_version_set : null}
             matchedAt={report.metadata.created_at}
             variant="plain"
