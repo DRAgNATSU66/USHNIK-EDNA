@@ -1,0 +1,42 @@
+{
+ "file": "BOLD_Public.23-Oct-2026.parquet",
+ "rows": 24503138,
+ "kept": 11336476,
+ "dropped": {
+  "null_or_empty_nuc": 2337046,
+  "no_genus": 10790728,
+  "mixture_or_unknown_kingdom": 38871,
+  "invalid_chars": 17
+ },
+ "route": {
+  "animal_general": 9878294,
+  "plant": 565504,
+  "fish": 464609,
+  "misc_unknown": 327637,
+  "human_domestic_contamination": 79641,
+  "bacteria_pathogen": 20791
+ },
+ "label_by_route": {
+  "animal_general/known_species": 5578831,
+  "animal_general/likely_taxonomic_group": 4299154,
+  "plant/known_species": 565080,
+  "fish/known_species": 464538,
+  "misc_unknown/unknown_needs_online_confirmation": 327474,
+  "human_domestic_contamination/known_species": 79641,
+  "bacteria_pathogen/known_species": 17003,
+  "bacteria_pathogen/likely_taxonomic_group": 3788,
+  "plant/low_quality_unusable": 422,
+  "animal_general/possible_novelty": 309,
+  "misc_unknown/low_quality_unusable": 149,
+  "fish/low_quality_unusable": 71,
+  "misc_unknown/possible_novelty": 14,
+  "plant/possible_novelty": 2
+ },
+ "degapped_length_p5_p50_p95": [
+  418,
+  654,
+  822
+ ],
+ "fixes": "pass2: gaps stripped (bold_sequence), BOLD fish classes mapped to NCBI; labels use the real sequence",
+ "seconds": 249.5
+}

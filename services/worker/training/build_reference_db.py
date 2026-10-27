@@ -480,39 +480,55 @@ def iter_univec_ref(univec_path: Path) -> Iterator[RefRecord]:
                             forced_route="human_domestic_contamination")
 
 
-def bold_rows_to_records(rows: Iterable[dict]) -> Iterator[RefRecord]:
-    """BOLD hook. BOLD is not downloaded yet (owner login); when
-    raw/bold/*.parquet appears it is read through this. Rows are dicts with
-    the BOLD_Public column names (kingdom..species, nuc, processid,
-    marker_code)."""
+def bold_rows_to_records(rows: Iterable[dict], names: NameResolver | None = None) -> Iterator[RefRecord]:
+    """BOLD rows from raw/bold/BOLD_Public.<date>.parquet (owner download,
+    login required), normalised by sources.bold_lineage. Rows are dicts with
+    the BOLD_Public column names (kingdom..species, identification_rank,
+    nuc, processid, marker_code).
+
+    With `names`, the accepted name (species, else genus) is looked up in
+    NCBI taxonomy and the NCBI lineage replaces BOLD's, as for SILVA/UNITE.
+    BOLD's orders and families differ from NCBI's (Eupercaria_incertae_sedis
+    vs Lutjaniformes, Cyprinidae vs Leuciscidae), and lca_lineage cuts a
+    merged entry at the first disagreeing rank, so a sequence present in
+    both MIDORI2 and BOLD lost its genus and species. Names NCBI does not
+    know keep the normalised BOLD lineage."""
     for row in rows:
-        seq = sources._clean_sequence(row.get("nuc") or "")
+        seq = sources.bold_sequence(row.get("nuc"))
         if not seq:
             continue
-        lineage = {r: row[r] for r in ("kingdom", "phylum", "class", "order", "family", "genus", "species") if row.get(r)}
-        if lineage.get("kingdom") in ("Animalia",):
-            lineage["kingdom"] = "Metazoa"
-        if lineage.get("kingdom") == "Plantae":
-            lineage["kingdom"] = "Viridiplantae"
-        if lineage:
-            lineage.setdefault("superkingdom", "Eukaryota")
-        organism = row.get("species") or row.get("genus") or ""
+        parsed = sources.bold_lineage(row)
+        if parsed is None:
+            continue
+        lineage, _ = parsed
+        taxid = None
+        if names is not None:
+            domain = lineage["superkingdom"]
+            species = lineage.get("species")
+            taxid = (names.resolve(species, domain) if species else None) or names.resolve(lineage["genus"], domain)
+            if taxid is not None:
+                ncbi = dict(names.tax.lineage(taxid))
+                if species and "species" not in ncbi:
+                    ncbi["species"] = species
+                lineage = ncbi
+        organism = lineage.get("species") or lineage.get("genus") or ""
         if not organism:
             continue
-        yield RefRecord(seq, lineage, None, row.get("processid") or "NA", "bold",
+        yield RefRecord(seq, lineage, taxid, row.get("processid") or "NA", "bold",
                         row.get("marker_code") or "barcode", organism)
 
 
-def iter_bold_ref(parquet_path: Path, batch_size: int = 50_000) -> Iterator[RefRecord]:
-    import pyarrow.parquet as pq  # only needed once BOLD exists
+def iter_bold_ref(parquet_path: Path, names: NameResolver | None = None,
+                  batch_size: int = 50_000) -> Iterator[RefRecord]:
+    import pyarrow.parquet as pq  # only needed for BOLD
 
     pf = pq.ParquetFile(parquet_path)
-    wanted = ["kingdom", "phylum", "class", "order", "family", "genus", "species", "nuc", "processid", "marker_code"]
+    wanted = [*sources.BOLD_RANKS, "identification_rank", "nuc", "processid", "marker_code"]
     cols = [c for c in wanted if c in pf.schema_arrow.names]
     for batch in pf.iter_batches(columns=cols, batch_size=batch_size):
         d = batch.to_pydict()
         n = len(d["nuc"])
-        yield from bold_rows_to_records({c: d[c][i] for c in cols} for i in range(n))
+        yield from bold_rows_to_records(({c: d[c][i] for c in cols} for i in range(n)), names)
 
 
 # ---------------------------------------------------------------------------
@@ -797,7 +813,7 @@ LICENCES = {
     "univec": "NCBI UniVec: public, NCBI policy.",
     "grch38": "GRCh38 (GCA_000001405.15): Genome Reference Consortium, public.",
     "supplementary": "Per-record licence in raw/supplementary/*/*.manifest.csv (INSDC/GenBank, ENA terms).",
-    "bold": "CC BY-SA 4.0 (BOLD Public data package) - not present in this build.",
+    "bold": "CC BY-SA 4.0 (BOLD Public data package, doi:10.5883/DP-Latest; Ratnasingham et al. 2024, BOLD v4, DNA Barcoding: Methods and Protocols ch. 26).",
 }
 
 # (directory name, marker label); nt_others and partial nt_viruses are left out.
@@ -827,7 +843,7 @@ def _source_plan(raw: Path, taxonomy: TaxonomyResolver, names: NameResolver, bla
             plan.append(("midori2", lambda z=z: iter_midori2_ref(z, taxonomy), [z]))
     for p in sorted((raw / "bold").glob("*.parquet")) if (raw / "bold").exists() else []:
         if want("bold"):
-            plan.append(("bold", lambda p=p: iter_bold_ref(p), [p]))
+            plan.append(("bold", lambda p=p: iter_bold_ref(p, names), [p]))
     for p in sorted((raw / "silva").glob("*.fasta.gz")):
         marker = "LSU" if "LSU" in p.name else "SSU"
         if want("silva"):
