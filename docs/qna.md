@@ -2547,3 +2547,58 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - Human-route contamination still shows as a red Industrial incident until `sprint/d15-review-fixes` lands.
 - ConfidenceChip always reads "Modeled estimate", even for an alignment identity.
 - Six pre-existing ESLint errors remain in `main.jsx` and `AuthContext.jsx`.
+
+## QNA-040 — 2026-10-27 — Review fixes: incidents exclude expected-by-route contamination, hotspot cell edges, one community sample definition, results/trace UI fixes, quote-stripped taxon names, Novelty DNA names its reference DBs, Academia stale guard (follow-ups to QNA-030/036/039)
+
+**Commit:** `9bcc495` on `sprint/d15-review-fixes` (`634faf3` results/trace UI, `ebc0556` incidents, `c065506` hotspots, `198d258` community, `9f4f6a7` taxon quotes, `2cb706e` merge of `LATEST_USHNIK` 32f38ef, `1eca16c` Novelty DNA, `9bcc495` Academia), cut from `d59be3a`. Merged into `LATEST_USHNIK` as `b0ba806`; the merged tree is identical to `9bcc495`. The first four commits were made in session 6. The last three, and the merge, were made in session 7 by an agent that picked up uncommitted work-in-progress after the earlier agent stopped.
+
+**Q1. Mechanism: what changes for a reader of the partner pages and results?**
+- **Incidents** (`ebc0556`). Human DNA flagged on the `human_domestic_contamination` route is that route's purpose. The worker already queues no review for it (`EXPECTED_CONTAMINATION_BY_ROUTE`, `services/worker/app/job_runner.py`). `services/api/app/partner/incidents.py` now mirrors that constant: a test parses the worker file with `ast` and asserts the two are equal. Each flagged read is classified by its decision-first final route. Expected reads are left out of `contamination_flags`, `contamination_types` and `flagged_sequences`, never turn an analysis into an incident, and are reported as `expected_contamination_flags`. `contamination_flags + expected_contamination_flags` equals `/partner/summary`'s contamination count.
+- **Hotspots** (`c065506`, `services/api/app/partner/regional.py`). `cell_index(0.3, 0.3, 0.1)` returned `(2, 2)` because `0.3/0.1 == 2.9999999999999996`. A 1e-9-cell tolerance now gives `(3, 3)`. The ±90/±180 fold uses the same tolerance. `cell_bounds` clips cells to the globe when `cell_deg` does not divide 90/180: `(89.9, 179.9, 0.7)` was lat 89.6..90.3, and is now 89.6..90.
+- **Community** (`198d258`, `services/api/app/partner/community.py`). Rhythms counted every upload as a sample, while `SAMPLE_DEFINITION` said a sample is its newest analysis. The counts are kept, and the definition now says what they mean: an unanalysed upload is a sample with 0 detections. Rhythms adds a note "N of M samples have no stored analysis yet".
+- **Results/trace UI** (`634faf3`):
+  - ProvenanceTag reads "Searched … · no assignment" when nothing was assigned.
+  - The DecisionTrace labels a GRCh38 hit below its threshold "below threshold".
+  - AnalysisResults drops responses for an analysis the user has left.
+  - The Species Correction header provenance comes from the report rows.
+  - The e2e mock maps `/analysis/{id}` and `/reports/{id}` per exact id.
+- **Taxon quotes** (`9f4f6a7`):
+  - SILVA quotes names that are not validly published, so plant v2 stores the genus as `'Halosarcinochlamys`, which sorted first in top-taxa.
+  - Worker: `unquote_name` (`build_reference_db.py:123`) and `clean_rank_name` (:135) strip the quotes in future reference builds. `iter_silva_ref` first tries the quoted name against NCBI, then the bare name (:336).
+  - API: `clean_taxon_name` (`services/api/app/models/analysis.py:53`) cleans stored names at display time. It is applied in `resolve_taxon_fields` (:98), `_build_taxa` (`reports/builder.py:466`) and the legacy richness set (:330), so `'X` and `X` count as one taxon.
+  - Quotes inside a name are kept, because they are part of the nomenclature ("'Catharanthus roseus' malformation phytoplasma").
+- **Novelty DNA** (`1eca16c`). The header and footer used to hard-code `referenceDb={null}`, which rendered "Reference DB: pending configuration". They now use `summarizeTaxaReferenceDbs(summary.taxa)` (`web_frontend/src/lib/decision.js:69`, used at `NoveltyDNA.jsx:423`), which follows the same label rule as the Results footer. When there is no DB to name, the label says why: pre-orchestrator, no sequences, or no sequence matched.
+- **Academia** (`9bcc495`). The `getReport` effect (`Academia.jsx:438`) uses the let-live guard Industrial got in `d089aec`, and clears the report and error when the analysis changes.
+
+**Q2. Rationale.**
+- **Incidents:** without this fix, every human-route upload would show a red incident on Industrial for doing its job (QNA-039 Q6, third bullet). Mirroring the constant rather than importing it keeps the API free of worker imports. The `ast` equality test catches drift between the two.
+- **Taxon quotes, cleaned at read time instead of rebuilding the reference:**
+  - Rebuilding plant v2 means re-running `build_reference_db` and re-indexing. It would also change `reference_db_version` on every future plant result. That is too much for a display bug with 4 days left.
+  - The worker fix makes the next build clean. The API cleaning is idempotent, so nothing needs undoing after that rebuild.
+- **Novelty DNA:** the summary endpoint the page already loads carries `taxa.reference_dbs`, so no new API call was needed.
+
+**Q3. Blast radius.**
+- **Incidents:** if the mirrored constant drifts from the worker's, contamination is undercounted or overcounted on Industrial. The `ast` test fails first.
+- **`clean_taxon_name`:**
+  - Wrong case 1: a validly quoted one-word name loses its quote. With no rank known, a one-word name loses a lone end quote. No such valid name is known.
+  - Wrong case 2: an inner quote that is actually noise is kept. It still displays, so nothing is hidden.
+  - Grouping and sorting change only for names that started or ended with a quote.
+- **e2e fixtures:** the merge conflict in `partner_incidents.json` (the 0.44 threshold against the expected-contamination change) was resolved by re-running `services/api/scripts/gen_e2e_fixtures.py` on the merged tree, as in `873c339`. The generator also rewrote `models_registry.json` (8 → 15 models), because it reflects the models found on this machine's disk. The agent restored the committed version, so that fixture still describes the old 8-model registry.
+
+**Q4. Verification (measured).**
+- On `9bcc495`, by the agent: API `758 passed, 3 skipped` (751 before); worker `548 passed` (546 + 2 reference-DB tests); `npm run build` OK; Playwright `90 passed` (80 before). Playwright ran on `E2E_PORT=4183` so the running dev servers were not touched.
+- On the merged tree `b0ba806`, re-run by the orchestrator: API `758 passed, 3 skipped, 1 warning in 40.27s`; worker `548 passed in 32.72s`; build `✓ built in 1.74s`. Playwright was not re-run, because the tree is identical (`git diff 9bcc495 b0ba806` is empty).
+- New e2e tests in `web_frontend/e2e/integrity.spec.js`:
+  - Novelty DNA, orchestrated case: shows "synthveda-reference (4 route DBs) v2" twice.
+  - Novelty DNA, pre-orchestrator case: says none was recorded.
+  - Academia stale report: the agent reports it fails against the old `Academia.jsx` and passes with the fix.
+
+**Q5. Defence: "You hide the quote rather than fix the data?"**
+- The stored plant v2 reference is unchanged, and so is its `reference_db_version`. Rewriting it in place would make the version lie about its contents.
+- The worker builder is fixed for the next version.
+- The display rule is narrow: it strips whole-name wrapping quotes, and lone end quotes only on a genus or a one-word name. It is tested with the nomenclature examples that must keep their quotes.
+
+**Q6. Open.**
+- "pending configuration" still appears as the default label in `ProvenanceTag.jsx` and as plain text in `SpeciesCorrection.jsx:216`. They were not touched because they are outside the Novelty DNA page.
+- Plant v2 still stores quoted names until the next reference build.
+- The ConfidenceChip still always says "Modeled estimate", even for an alignment identity (carried from QNA-039).
