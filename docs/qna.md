@@ -2767,3 +2767,31 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - Push `LATEST_USHNIK` (or open a PR to `main`) so CI runs. Then criterion 9 and t-1031-2 can be closed.
 - Decide whether to turn on `scorer.WEIGHTS["embedding_isolation"]` (QNA-038).
 - BOLD download (t-1014-3).
+
+## QNA-044 — 2026-10-27 — The worker survives a Redis restart; compose services restart unless stopped (closes the open item in QNA-042 Q6 and its correction)
+
+**Commit:** `bc14ca0` on `sprint/d18-worker-resilience`, merged into `LATEST_USHNIK` as `f25e29a`.
+
+**Q1. Mechanism.**
+- `services/worker/app/dispatcher.py` `_process_loop` wraps `dequeue_job` in `except (RedisConnectionError, RedisTimeoutError)`.
+- On an error it prints the cause, waits on `shutdown.wait()` with a timeout, and polls again. The wait starts at `REDIS_RETRY_INITIAL_S = 1.0` and doubles up to `REDIS_RETRY_MAX_S = 30.0`. Waiting on the shutdown event means a SIGTERM during an outage ends the wait at once.
+- The first successful poll prints "Redis reachable again — polling resumed" and resets the backoff. redis-py's connection pool opens a fresh connection on the next BRPOP, so no explicit reconnect is needed.
+- `infra/docker/docker-compose.yml`: `restart: unless-stopped` on api, worker, mongo, redis, minio and frontend. minio-init keeps `restart: "no"` because it is one-shot.
+
+**Q2. Rationale.**
+- At 21:31:59 IST the Docker daemon restarted on its own. The native dispatcher died with `ConnectionError: Connection closed by server.` and did not come back, and the compose worker had no restart policy either.
+- Retrying in the loop covers both deployments. A restart policy alone would not help the native worker, and would restart the compose worker in a crash loop for as long as Redis stays down.
+
+**Q3. Blast radius.**
+- If Redis drops between the server popping an envelope and the reply reaching the worker, that one job's envelope is lost. This was already true before the change. The job document stays `queued` in Mongo and can be re-queued.
+- A permanently wrong `REDIS_URL` now shows as a retry line every 30 s instead of an exit. Startup still fails fast, because `connect_redis()` in `main()` is outside the loop.
+
+**Q4. Verification (measured).**
+- `services/worker/tests/test_dispatcher.py` has 2 tests: outage → backoff → the job runs after recovery, and shutdown during backoff exits within the 5 s test timeout while the backoff is 60 s.
+  - With `dispatcher.py` stashed: `2 failed`. With the fix: `2 passed in 0.22s`.
+- Worker suite: `550 passed in 25.12s` (548 + 2).
+- Live on the dev stack: the dispatcher was restarted on the new code, then `docker restart synthveda-redis`. The log reads `Redis unavailable (ConnectionError: Connection closed by server.) — retrying in 1s`, then `Redis reachable again — polling resumed`, and the process stayed alive.
+- `docker compose -f infra/docker/docker-compose.yml config -q`: valid.
+- The dev Mongo and Redis containers (made outside this compose file) were set with `docker update --restart unless-stopped`. That is a local setting, not in git.
+
+**Q5. Defence: "Why not let a supervisor restart it?"** There is no supervisor on the native dev path or on a field laptop. Inside compose, a restart policy restarts the whole process, which reloads the route heads (DNABERT-2 per route) on every Redis blip. Retrying in the loop keeps the loaded models.
