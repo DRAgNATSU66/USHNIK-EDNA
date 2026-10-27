@@ -2728,3 +2728,42 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - No CI job runs the built worker image against a real job.
 
 **QNA-042 correction (2026-10-27, same session):** Q6 says "the compose worker has a healthcheck and a restart path". It has the Dockerfile `HEALTHCHECK` only. `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' synthveda-rc-worker-1` → `no`, and the worker service in `infra/docker/docker-compose.yml` sets no `restart:`. A Redis disconnect therefore stops the compose worker too, until someone restarts it. The open item covers both workers.
+
+## QNA-043 — 2026-10-27 — Exit-criteria walk on the fresh-clone stack: 9 of 10 hold; "CI is green" holds locally only, because nothing has been pushed (tracker t-1031-2, not ticked)
+
+**Commit:** this entry and the checklist edit in `docs/ROADMAP_REAL_DATA.md` (Exit criteria). The stack under test is the fresh clone of `78884f2` brought up with `make up` (QNA-042). `v1.0.0-rc1` is a local annotated tag on `b92b42a`; nothing has been pushed.
+
+**Q1. Mechanism: how was each criterion checked?**
+1. **MockTag / setTimeout:** `grep -rn MockTag web_frontend/src` → 0. `grep -rn setTimeout web_frontend/src` → 4 hits: `JobProgress.jsx:146/156` (step display), `ResetPassword.jsx:151` (redirect), `Academia.jsx:540` (resets the "Copied" label after a real `writeText`). None fakes a success; QNA-039 audited the same set.
+2. **Contract test:** `services/api/tests/test_api_contract.py` runs inside the API suite (758 passed / 3 skipped on `b0ba806`, QNA-040).
+3. **Model inference and taxon fields:** QNA-042, measured on the fresh stack.
+4. **Novelty threshold:** `DEFAULT_NOVELTY_THRESHOLD = 0.44` at `services/api/app/config.py:13` and `services/worker/app/config.py:16`, plus each suite's `test_novelty_threshold.py`. The only `0.45` left in app code is `abyss/analysis.py:349` `route_confidence`, which is not a novelty threshold.
+5. **Register and promote:** `make test-loop` from the fresh clone, `1 passed` (QNA-042).
+6. **FieldLog and object storage, live on the fresh stack (`ana_d78592b9642d4dff`):**
+   - `POST /field-log/entries` → `fle_a8457a1eb9814066`, then `PATCH` → body "rc field note v2 (edited)", `edits` length 1.
+   - `POST /field-log/attachments` → `fla_75ade70014cd489b` (PNG, 97 bytes).
+   - After `docker restart synthveda-rc-api-1`: the entry still reads v2 with 1 edit, and the attachment download SHA-256 `5b7f5f77…368d0e` equals the local file's.
+   - MinIO `/data` holds `field-log/` and `upl_25e28e4748264615_rc_routes.fasta`.
+7. **Partner pages:** QNA-039 and QNA-040, Playwright 90/90.
+8. **Abyss offline, live:**
+   - Online: `POST /abyss/expeditions` 201 (`exp_15d2d4241af94f97`), `/license` 200, `/activate` 200.
+   - Network off: all five rc containers were moved to a `docker network create --internal` network, keeping their aliases. From the API container, `socket.create_connection(("1.1.1.1", 443))` → `OSError: [Errno 101] Network is unreachable`.
+   - `POST /abyss/analyze` → 200, `abyss_ac0cdeaf0084`, 12 sequences, every one `router_method=learned` and `requires_cloud_confirmation=True`. The routes match the online run, including the same human→misc miss.
+   - Network back on: `POST /abyss/sync` → 200, `analyses_stored: 1`.
+9. **CI:** every job was run locally on this session's trees: API pytest 758/3 skipped, worker 548, `npm run build` OK, Playwright 90/90, `bandit -r services/{api,worker}/app -ll --quiet` with no findings, no committed `.env`. GitHub Actions has never run them, because nothing has been pushed.
+10. **Paper numbers:** QNA-041's table.
+
+**Q2. Rationale: why is t-1031-2 not ticked?** Its done-when is "every exit criterion holds". Criterion 9 says CI, and a local run is not CI. The `docker-build` job also now builds a 2 GB worker image (QNA-042), which has not been timed on a GitHub runner.
+
+**Q3. Blast radius.**
+- **First offline analyze returned 500.** It was `pymongo.errors._OperationCancelled`: the API's pooled Mongo connection still pointed at Mongo's address on the old network. The retry got 200. A real field laptop does not move its containers between networks, so this was caused by the test, not the design. It does show that a Mongo address change fails one request before pymongo reconnects.
+- **Two sync calls, one record.** `/abyss/sync` ran twice by accident (a retry loop plus a final call). `abyss_analyses` holds 1 document, so a repeated sync did not duplicate the analysis. `abyss_expedition_logs` holds 2.
+
+**Q4. Verification.** The ticked checklist, with evidence pointers, is in `docs/ROADMAP_REAL_DATA.md` § Exit criteria: 9 `[x]` and 1 `[ ]`.
+
+**Q5. Defence: "Offline was simulated."** Egress was really removed: the kernel returned ENETUNREACH for an outbound connection from the API container, while the containers still reached each other over the internal network. That is what a field laptop running the stack with no uplink has. What was not simulated: the browser AbyssSetup flow and the device-side storage of offline credentials, which Playwright covers with mocks (QNA-015).
+
+**Q6. Left for the owner.**
+- Push `LATEST_USHNIK` (or open a PR to `main`) so CI runs. Then criterion 9 and t-1031-2 can be closed.
+- Decide whether to turn on `scorer.WEIGHTS["embedding_isolation"]` (QNA-038).
+- BOLD download (t-1014-3).

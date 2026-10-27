@@ -242,16 +242,16 @@ removed.
 
 ## Exit criteria (the project is "finished" for v1 when all are true)
 
-- [ ] `grep -r MockTag web_frontend/src` → nothing; no `setTimeout`-faked success anywhere
-- [ ] The API-contract test passes: every `lib/api.js` call maps to a real route
-- [ ] Real uploads return `inference_mode: "model"` on all 6 routes, plus `predicted_taxon` with rank, identity and reference DB version
-- [ ] No hardcoded novelty threshold; one constant, imported everywhere
-- [ ] A trained model can be registered and promoted through the app
-- [ ] FieldLog edits and attachments persist; uploads live in object storage
-- [ ] Partner pages show only computed data or honest empty states
-- [ ] Abyss offline flow works with the network off
-- [ ] CI is green: pytest (both services), frontend build, Playwright, bandit
-- [ ] The measured accuracy numbers in the paper match `checkpoints/*/eval_report.json` and the Day 14 evaluation
+- [x] `grep -r MockTag web_frontend/src` → nothing; no `setTimeout`-faked success anywhere — 0 matches; the 4 remaining `setTimeout`s (JobProgress ×2, ResetPassword redirect, Academia copy-label reset after a real `writeText`) fake nothing (QNA-039, QNA-043)
+- [x] The API-contract test passes: every `lib/api.js` call maps to a real route — `services/api/tests/test_api_contract.py`, in the 758-passed API suite (QNA-040)
+- [x] Real uploads return `inference_mode: "model"` on all 6 routes, plus `predicted_taxon` with rank, identity and reference DB version — fresh clone → `make up`: 12/12 `model`, all 6 final routes, 9/12 with taxon+rank+identity+version; the 3 without are a GRCh38 contamination row (no taxon by design), a human read misrouted to misc (possible_novelty) and a misc read with no hit (QNA-042)
+- [x] No hardcoded novelty threshold; one constant, imported everywhere — `DEFAULT_NOVELTY_THRESHOLD = 0.44` in each service's config, grep tests `test_novelty_threshold.py` in both suites (QNA-038)
+- [x] A trained model can be registered and promoted through the app — `make test-loop` from the fresh clone: `1 passed`, promoted `loop_fish_5dfc98ac` (QNA-042); no model retrained from a curated batch yet
+- [x] FieldLog edits and attachments persist; uploads live in object storage — live on the fresh stack: edit history survives an API restart, attachment downloads with the same SHA-256, uploads stored as `s3://synthveda-uploads/…` in MinIO (QNA-043)
+- [x] Partner pages show only computed data or honest empty states — integrity sweep + review fixes, Playwright 90/90 (QNA-039, QNA-040)
+- [x] Abyss offline flow works with the network off — fresh stack moved to an `--internal` Docker network (egress `Errno 101`): `/abyss/analyze` 200, 12 sequences on the offline learned router; reconnected, `/abyss/sync` 200 (QNA-043)
+- [ ] CI is green: pytest (both services), frontend build, Playwright, bandit — **green locally only** (API 758/3 skipped, worker 548, build OK, Playwright 90/90, bandit -ll clean); never run on GitHub because nothing has been pushed (QNA-043)
+- [x] The measured accuracy numbers in the paper match `checkpoints/*/eval_report.json` and the Day 14 evaluation — every number traced to a results file; 5 rest on QNA text only and the paper cites them that way (QNA-041)
 
 ## Dependency overview
 
