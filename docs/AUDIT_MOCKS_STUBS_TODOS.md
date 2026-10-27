@@ -19,40 +19,62 @@ does what it appears to do.
 
 ---
 
+## Resolution status (2026-10-27, Day 17 docs pass, code at `32f38ef`)
+
+The body of this document below the index is the **2026-09-03 snapshot** and is kept as written,
+so its file:line citations describe the code as it was then. The **Status** column is the current
+state: *Resolved* cites the commit and the `docs/qna.md` entry that recorded it; *Open* gives the
+reason. Roadmap IDs (`ROADMAP_REAL_DATA.md` Part A) are given where they map. Of the 30 items, 26
+are resolved (14 and 17 with a recorded follow-up), 2 are partly resolved (15, 27) and 2 are open
+(16, 18; both cut to v1.1).
+
 ## Quick-reference index
 
-| # | Item | Category | Subsystem | Fix Phase |
-|---|------|----------|-----------|-----------|
-| 1 | Review Queue page 404s (`GET /reviews` vs `/reviews/queue`) | Unbuilt backend (bug) | Curation | P1 |
-| 2 | Model Registry page 404s (`GET /models` vs `/models/status`) | Unbuilt backend (bug) | ML ops | P1 |
-| 3 | Broken import in Abyss analysis engine | Undecided/dead code | Abyss | P1 |
-| 4 | `App.jsx` orphaned prototype app | Mock data / dead code | Legacy UI | P1 |
-| 5 | `stakeholders/` dashboard tree unreachable | Mock data / dead code | Dashboards | P1 |
-| 6 | Industrial partner report — zero API integration | Mock data | Partner/Industrial | P3 |
-| 7 | Legislative partner report — zero API integration | Mock data | Partner/Legislative | P3 |
-| 8 | Academia partner report — tagged mock panels | Mock data | Partner/Academia | P3 |
-| 9 | FieldLog edit history / attachments mocked, no PATCH endpoint | Mock data + unbuilt backend | Field Log | P3 |
-| 10 | `GET /models/status` returns hardcoded dict | Mock data (server-side) | ML ops | P2 |
-| 11 | All inference is stub (`predicted_taxon=None` everywhere) | Undecided/unbuilt | ML inference | P2 |
-| 12 | Model registry points at dev-only Windows paths | Unbuilt backend | ML inference | P2 |
-| 13 | Object storage configured but unused (uploads go to local disk) | Unbuilt backend | Uploads | P2 |
-| 14 | Retrain/promotion loop stops at "batch frozen" | Undecided/unbuilt | Training pipeline | P2 |
-| 15 | Novelty embedding-isolation signal is a weak proxy | Undecided (TODO) | Novelty scoring | P2 |
-| 16 | Loader has no LRU eviction (single-model-per-route only) | Undecided (acknowledged limitation) | ML inference | P4 |
-| 17 | Unused Supabase tables (`review_evidence`, `curation_decisions`, `training_batch_items`, `model_eval_metrics`) | Unbuilt backend | Data model | P2/P4 |
-| 18 | Abyss offline pack: quantized models + reference pack not yet available | Unbuilt backend | Abyss | P4 |
-| 19 | Expedition offline-auth endpoints implemented but unused by frontend | Unbuilt backend (unwired) | Abyss/Auth | P3 |
-| 20 | Redundant `GET /analysis/{id}/report` vs `/reports/{id}` | Undecided/dead code | Reports | P4 |
-| 21 | Product decisions left open (reference DB, metadata required?, corrections→retraining?) | Undecided logic | Product/cross-cutting | P0 |
-| 22 | `jwt_secret` defaults to a public string, no startup check | Undecided/security risk (unflagged) | Auth/security | P5 (deferred — internal project) |
-| 23 | Upload size limit mismatch: frontend 500MB vs backend 100MB | Undecided logic (unflagged) | Uploads | P1 |
-| 24 | Novelty threshold (0.45) hardcoded independently in 9+ places | Undecided logic (unflagged) | Novelty scoring | P2 |
-| 25 | Malformed model registry files silently dropped, no log | Unbuilt backend (unflagged) | ML ops | P2 |
-| 26 | Abyss router falls back to cruder heuristic on any exception, silently | Unbuilt backend (unflagged) | Abyss | P2 |
-| 27 | Docker Compose has no rate limiting despite code assuming infra handles it | Undecided/unbuilt (unflagged) | Auth/security | P5 (deferred — internal project) |
-| 28 | `debug` config flag defined, never read anywhere | Dead code (unflagged) | Config | P4 |
-| 29 | `ConfidenceChip`/`DetectionWindowBadge` built, never rendered anywhere | Unbuilt backend/UI (unflagged) | Cross-cutting UI | P3/P5 |
-| 30 | Upload page's model selector doesn't affect the actual analysis request | Mock data (unflagged, but comment-documented) | Upload | P3 |
+| # | Item | Category | Subsystem | Fix Phase | Status (2026-10-27) |
+|---|------|----------|-----------|-----------|---------------------|
+| 1 | Review Queue page 404s (`GET /reviews` vs `/reviews/queue`) | Unbuilt backend (bug) | Curation | P1 | **Resolved** `14cc931` (F1; `getReviewQueue` → `/reviews/queue`). The decision values the page sent were also wrong (422 on every decision); fixed `3a54623` (QNA-007 Q3) |
+| 2 | Model Registry page 404s (`GET /models` vs `/models/status`) | Unbuilt backend (bug) | ML ops | P1 | **Resolved** `14cc931` (F2; `getModels` → `/models/registry`) |
+| 3 | Broken import in Abyss analysis engine | Undecided/dead code | Abyss | P1 | **Resolved** `bc540ae` (QNA-003, B12); Abyss now routes with an offline copy of the learned router, `9db53ce` (QNA-015, B25) |
+| 4 | `App.jsx` orphaned prototype app | Mock data / dead code | Legacy UI | P1 | **Resolved** `fedaf57` (QNA-002, D1/D2) |
+| 5 | `stakeholders/` dashboard tree unreachable | Mock data / dead code | Dashboards | P1 | **Resolved** `fedaf57` (QNA-002, D3) |
+| 6 | Industrial partner report — zero API integration | Mock data | Partner/Industrial | P3 | **Resolved** merge `baf1238` (QNA-037, M1) on the partner API (QNA-028). Panels with no data source (impact score, risk radar, ROI, biofouling, remediation) were removed, not faked |
+| 7 | Legislative partner report — zero API integration | Mock data | Partner/Legislative | P3 | **Resolved** merge `4a0ef9c` (QNA-036, M2): sampling grid, alerts, flag rates, custody exports. Indicator-species panel is an explicit "pending" state (owner has not supplied the list) |
+| 8 | Academia partner report — tagged mock panels | Mock data | Partner/Academia | P3 | **Resolved** merge `5c29038` (QNA-035, M3), environmental values from the context service (QNA-018); toxicity, sonic, multi-omics panels removed (Q5) |
+| 9 | FieldLog edit history / attachments mocked, no PATCH endpoint | Mock data + unbuilt backend | Field Log | P3 | **Resolved** merge `f2bb868` (QNA-013, B10/M4); the fake metadata rows were replaced in `c5e988f` (QNA-008, F7) |
+| 10 | `GET /models/status` returns hardcoded dict | Mock data (server-side) | ML ops | P2 | **Resolved** `38e6f4e` (QNA-004, B1) |
+| 11 | All inference is stub (`predicted_taxon=None` everywhere) | Undecided/unbuilt | ML inference | P2 | **Resolved** real inference on all six routes `14cc931` (QNA-001); species names from the reference-lookup provider and orchestrator (QNA-020, QNA-024/025), exposed as flat result fields (QNA-032, B4/F9). A route with no runnable head still returns a *labelled* stub (`stub_reason`), never a silent one (`9391181`) |
+| 12 | Model registry points at dev-only Windows paths | Unbuilt backend | ML inference | P2 | **Resolved** `14cc931` (QNA-001, B2): `data:` URIs resolved against `SYNTHVEDA_DATA_ROOT` |
+| 13 | Object storage configured but unused (uploads go to local disk) | Unbuilt backend | Uploads | P2 | **Resolved** merge `05d0fb1` (QNA-009, B7): local or S3/MinIO, worker reads through the same module, sha256 verified |
+| 14 | Retrain/promotion loop stops at "batch frozen" | Undecided/unbuilt | Training pipeline | P2 | **Resolved** merge `d7726f0` (QNA-014, B8: register/promote endpoints, Admin page) and `bd8f550` (QNA-031: full-loop test, batch membership and freeze fixed). *Still open (QNA-031):* nothing enforces "frozen before register", and no retrain has yet been run from a curated batch |
+| 15 | Novelty embedding-isolation signal is a weak proxy | Undecided (TODO) | Novelty scoring | P2 | **Partly resolved** merge `c510d8a` (QNA-038, B5): the per-head centroid distance replaces the proxy and is recorded on every novelty record (test AUROC 0.959 vs 0.877), but by the pre-stated dev criterion it is **served at weight 0**. Turning it on is an open owner decision |
+| 16 | Loader has no LRU eviction (single-model-per-route only) | Undecided (acknowledged limitation) | ML inference | P4 | **Open — cut to v1.1** (roadmap cut line, B17). `loader.py` still loads one model per route |
+| 17 | Unused Supabase tables (`review_evidence`, `curation_decisions`, `training_batch_items`, `model_eval_metrics`) | Unbuilt backend | Data model | P2/P4 | **Resolved in code** merge `10b2570` (QNA-027, B9) and `d7726f0` (QNA-014, `model_eval_metrics`). Decision: MongoDB holds the records (written first, `supabase_mirrored` flag); Supabase is a best-effort mirror. The audit found all 12 migration tables read or written, so none was dropped. *Still open:* migration `20261019000001` (and `20261018000001`) is unapplied, and the Supabase host in `services/api/.env` does not resolve, so every mirror write currently reports `failed` (QNA-023 Q4) |
+| 18 | Abyss offline pack: quantized models + reference pack not yet available | Unbuilt backend | Abyss | P4 | **Open — cut to v1.1** (B11). `offline_pack.py` still reports `not_yet_trained` / `not_yet_available`, honestly |
+| 19 | Expedition offline-auth endpoints implemented but unused by frontend | Unbuilt backend (unwired) | Abyss/Auth | P3 | **Resolved** merge `b341c7a` (QNA-015, U4/F3): AbyssSetup session → verify → activate → triage → sync; offline tokens rejected as API bearer tokens (`70a1e01`) |
+| 20 | Redundant `GET /analysis/{id}/report` vs `/reports/{id}` | Undecided/dead code | Reports | P4 | **Resolved** `bc540ae` (QNA-003, U6) — the route was deleted |
+| 21 | Product decisions left open (reference DB, metadata required?, corrections→retraining?) | Undecided logic | Product/cross-cutting | P0 | **Resolved** 2026-10-14 owner decisions Q1–Q7 (`docs/decisions.md`, `ROADMAP_REAL_DATA.md` A6); Q4 answered the same day; QNA-030 recorded two later owner decisions |
+| 22 | `jwt_secret` defaults to a public string, no startup check | Undecided/security risk (unflagged) | Auth/security | P5 (deferred — internal project) | **Resolved** `55dc8de` (QNA-019, B18): outside `APP_ENV=dev/test`, a placeholder or < 32-byte secret refuses to start. A deploy that forgets `APP_ENV` defaults to dev and skips the check (QNA-019 Q6) |
+| 23 | Upload size limit mismatch: frontend 500MB vs backend 100MB | Undecided logic (unflagged) | Uploads | P1 | **Resolved** `14cc931` (F4): Upload reads `max_upload_size_mb` from `/health` |
+| 24 | Novelty threshold (0.45) hardcoded independently in 9+ places | Undecided logic (unflagged) | Novelty scoring | P2 | **Resolved** `a388fff` (QNA-006, B14) and `902a029` (QNA-007): one constant per service, equality + grep tests, frontend reads `/health`. Value recalibrated to 0.44 in QNA-038 |
+| 25 | Malformed model registry files silently dropped, no log | Unbuilt backend (unflagged) | ML ops | P2 | **Resolved** `38e6f4e` (QNA-004, B13): logged and listed under `errors` |
+| 26 | Abyss router falls back to cruder heuristic on any exception, silently | Unbuilt backend (unflagged) | Abyss | P2 | **Resolved** `9391181` (B12: exception logged, `router_error_fallback`) and `9db53ce` (QNA-015: learned-router copy, `router_method` on every result) |
+| 27 | Docker Compose has no rate limiting despite code assuming infra handles it | Undecided/unbuilt (unflagged) | Auth/security | P5 (deferred — internal project) | **Partly resolved** `55dc8de` (QNA-019): nginx `limit_req` on admin-key redeem and login in the compose scale profile. *Still open:* Cloud Run has no proxy in front (QNA-019 Q4). Correction to §4.4 below: the terraform Cloud Armor policy is defined but not attached to any load balancer in the repo |
+| 28 | `debug` config flag defined, never read anywhere | Dead code (unflagged) | Config | P4 | **Resolved** `9391181` (B18): removed |
+| 29 | `ConfidenceChip`/`DetectionWindowBadge` built, never rendered anywhere | Unbuilt backend/UI (unflagged) | Cross-cutting UI | P3/P5 | **Resolved** ConfidenceChip on results (QNA-034, `d59be3a`) and on every model/evidence score, DetectionWindowBadge on Legislative, MockTag deleted (QNA-039, `77e950c`); DisclaimerBanner rendered `ff19f15`. *Known limit (QNA-039 Q6):* the chip always reads "Modeled estimate", even for an alignment identity |
+| 30 | Upload page's model selector doesn't affect the actual analysis request | Mock data (unflagged, but comment-documented) | Upload | P3 | **Resolved** merge `d59be3a` (QNA-034, F8): replaced by one "Auto · Orchestrator" card listing the served model per route |
+
+Other items in the body:
+- §1.7 / §3.1 (stub inference, `seq_stub_001` fallback, Phase-14 TODOs): resolved as items 11–12 and
+  15 above; the fake-sequence fallback was removed in `14cc931` (B6) — a job with no file now fails.
+- §3.4 `PlaceholderScreen`: deleted `902a029` (QNA-007, M5).
+- §3.5 open product decisions: see item 21. Live-streaming vs render-at-completion was not decided;
+  the app renders at completion with JobProgress polling.
+- §3.6 `"stub_none"` / mockup sort order: cosmetic, not re-checked in this pass.
+
+Still open and **not** an audit item above, recorded elsewhere: `POST /reviews` accepts any signed-in
+user for any analysis (QNA-029 Q5); BOLD data not downloaded (QNA-016); one `analysis_results`
+document reaches the 16 MB Mongo limit at about 950 sequences (QNA-024 Q4); `scripts/seed_dev.py`
+still seeds mock analysis results (roadmap B20).
 
 ---
 
@@ -339,7 +361,8 @@ the user clicking through it — a real user has no way to know their model choi
 
 - **`legacy/`** — a separate, older sklearn-based prototype (`legacy/src/species_identification`,
   `legacy/src/web_api`, etc.), clearly superseded by `services/api` + `services/worker`. Candidate
-  for deletion once nobody needs to reference it. *Resolved 2026-10-30 (t-1030-2): deleted; the
-  tree is in git history before that commit.*
+  for deletion once nobody needs to reference it. *Resolved 2026-10-18 (t-1030-2, done ahead of its
+  Day 17 slot; `e4705a3`, QNA-019): deleted; the tree is in git history before that commit.*
 - **`frontend_zips_claude_design/`** — static design mockups/screenshots, not app code. Fine to
-  keep as design reference but shouldn't be confused with the live frontend.
+  keep as design reference but shouldn't be confused with the live frontend. *Still present
+  2026-10-27, kept as design reference.*
