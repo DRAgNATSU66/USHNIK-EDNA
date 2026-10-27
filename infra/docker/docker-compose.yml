@@ -24,6 +24,10 @@ services:
   # API — FastAPI backend
   # ------------------------------------------------------------------
   api:
+    # Come back after a Docker daemon restart (2026-10-27 one took Mongo and
+    # Redis down, and the worker with them; QNA-042 Q6). Same on every
+    # long-running service below; minio-init is one-shot and stays "no".
+    restart: unless-stopped
     build:
       context: ../../services/api
       dockerfile: Dockerfile
@@ -70,6 +74,7 @@ services:
   # Worker — background job processor
   # ------------------------------------------------------------------
   worker:
+    restart: unless-stopped
     build:
       context: ../../services/worker
       dockerfile: Dockerfile
@@ -104,6 +109,7 @@ services:
   # MongoDB — raw analysis documents
   # ------------------------------------------------------------------
   mongo:
+    restart: unless-stopped
     image: mongo:7.0
     container_name: synthveda-mongo
     ports:
@@ -121,6 +127,7 @@ services:
   # Redis — job queue for worker
   # ------------------------------------------------------------------
   redis:
+    restart: unless-stopped
     image: redis:7.4-alpine
     container_name: synthveda-redis
     ports:
@@ -140,6 +147,7 @@ services:
   # pgsty/minio is the maintained community build (MinIO Inc. stopped
   # publishing images); it bundles the `mc` client used by minio-init.
   minio:
+    restart: unless-stopped
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: synthveda-minio
     command: server /data --console-address ":9001"
@@ -180,6 +188,7 @@ services:
   # Frontend — React SPA served via nginx
   # ------------------------------------------------------------------
   frontend:
+    restart: unless-stopped
     build:
       context: ../../web_frontend
       dockerfile: Dockerfile
