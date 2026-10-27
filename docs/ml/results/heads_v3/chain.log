@@ -1,0 +1,25 @@
+00:26:37 start fish
+00:35:37 end fish rc=0 TEST (by_dev_acc checkpoint)  loss=0.4624  acc=0.6687  macro_f1=0.7506
+00:35:37 start plant
+00:52:22 end plant rc=0 TEST (by_dev_acc checkpoint)  loss=0.4354  acc=0.6506  macro_f1=0.7878
+00:52:22 start human_domestic_contamination
+01:04:51 end human_domestic_contamination rc=0 TEST (by_dev_acc checkpoint)  loss=0.0664  acc=0.9845  macro_f1=0.9844
+01:04:51 start animal_general
+01:27:40 end animal_general rc=0 TEST (by_dev_acc checkpoint)  loss=0.5257  acc=0.7597  macro_f1=0.7595
+01:27:40 start misc_unknown
+01:48:29 end misc_unknown rc=0 TEST (by_dev_acc checkpoint)  loss=0.1831  acc=0.9324  macro_f1=0.9379
+01:48:29 start bacteria_pathogen
+03:23:52 end bacteria_pathogen rc=0 TEST (by_dev_acc checkpoint)  loss=0.3202  acc=0.8647  macro_f1=0.8753
+03:24:09 score prod fish (fish_v2) rc=0 TEST  acc=0.5469  macro_f1=0.5849
+03:24:24 score v3 fish (fish_v3) rc=0 TEST  acc=0.6587  macro_f1=0.7288
+03:24:41 score prod plant (plant) rc=0 TEST  acc=0.5255  macro_f1=0.4575
+03:24:56 score v3 plant (plant_v3) rc=0 TEST  acc=0.6441  macro_f1=0.7703
+03:25:07 score prod human_domestic_contamination (human_domestic_contamination_v2) rc=0 TEST  acc=0.9871  macro_f1=0.9870
+03:25:20 score v3 human_domestic_contamination (human_domestic_contamination_v3) rc=0 TEST  acc=0.9884  macro_f1=0.9883
+03:25:33 score prod animal_general (animal_general_v2) rc=0 TEST  acc=0.6118  macro_f1=0.5238
+03:25:52 score v3 animal_general (animal_general_v3) rc=0 TEST  acc=0.7667  macro_f1=0.7670
+03:26:09 score prod misc_unknown (misc_unknown_v2) rc=0 TEST  acc=0.8985  macro_f1=0.9065
+03:26:28 score v3 misc_unknown (misc_unknown_v3) rc=0 TEST  acc=0.9309  macro_f1=0.9364
+03:27:26 score prod bacteria_pathogen (bacteria_pathogen) rc=0 TEST  acc=0.7229  macro_f1=0.6070
+03:28:21 score v3 bacteria_pathogen (bacteria_pathogen_v3) rc=0 TEST  acc=0.8647  macro_f1=0.8753
+03:28:21 ALL DONE

@@ -2943,3 +2943,89 @@ rows" and "keep as is" on 2026-10-27, after seeing QNA-045 Q4's 10.9% / 5.8%.
 **Q5. Defence: "Why not drop genus-level rows instead?"** Dropping them hides real data: eDNA reads are
 often only identifiable to genus, and the heads should learn to say so. With the class in place, a fish
 read that matches only to genus can be reported as genus-level, not as a confident species.
+
+## QNA-047 — 2026-10-28 — Dataset v3 (with BOLD), router v3 and six v3 heads, all scored against production on the same v3 test rows. The genus-level class added in QNA-046 is not learnable for fish and plant
+
+**Commit:** results only, under `docs/ml/results/heads_v3/` and `router_v3/`, on `sprint/d18-bold-data`.
+Data on disk (gitignored):
+- `synthveda-data/processed/` is v3; v2 is kept as `processed_v2/`.
+- Checkpoints: `checkpoints/<route>_v3/` and `checkpoints/router/v3/` (sha256 `f4e11d7c…`).
+- The chain script and logs are in `docs/ml/results/heads_v3/chain.{sh,log}`.
+- **Nothing is registered or promoted yet.**
+
+**Q1. Mechanism: what was run?**
+1. **Dataset build.** `training.build_dataset` used the same arguments as v2 (cap 5000, bacteria 20000,
+   nt_viruses and ref_prok excluded), under `systemd-run MemoryMax=8G`.
+   - 518 s; **100,994 rows** (v2: 86,714).
+   - BOLD scanned 11,133,317 records in 254 s.
+2. **`check_leakage`.** `EXACT CROSS-SPLIT TOTAL: 0`, and all near-duplicate counts 0.
+   - 1,686 sequences appear in more than one route (deliberate contamination injection; v2 had 1,884).
+3. **Heads.** Same recipe as QNA-022: DNABERT-2 117M base weights, 6 epochs, max_length 256, 4 workers,
+   best-dev-loss checkpoint, label set v2.
+   - Train sizes fish/plant/human/animal/misc/bacteria: 8,008 / 8,613 / 6,173 / 11,515 / 10,871 / 35,602.
+   - Best dev loss (epoch): .433(4) / .427(5) / .049(6) / .500(3) / .168(5) / .408(5).
+   - Training times: 516 / 959 / 711 / 1,329 / 1,212 / 5,606 s.
+4. **Router.** The v2 configuration was reused unchanged (canonical 9-mer LinearSVC, C=1, cap 8000);
+   nothing was re-tuned. Temperature 0.3937.
+5. **Scoring.** Production (fish/animal/human/misc v2, plant/bacteria v1) and v3 were scored with
+   `evaluate_checkpoint` on the same v3 test rows. Older heads are sized from their checkpoints
+   (QNA-046).
+
+**Q2. Results (measured, the same v3 test rows for both).**
+
+| Route | prod acc / macro-F1 | v3 acc / macro-F1 | prod trained on test rows | known_species recall prod → v3 |
+|---|---|---|---|---|
+| fish | .547 / .585 | .659 / .729 | 86/1002 (8.6%) | .915 → **.416** |
+| plant | .526 / .458 | .644 / .770 | 48/1079 (4.4%) | .990 → **.518** |
+| human | .987 / .987 | .988 / .988 | 162/773 (21.0%) | .986 → .980 |
+| animal | .612 / .524 | .767 / .767 | 364/1440 (25.3%) | .907 → .642 |
+| misc | .899 / .907 | .931 / .936 | 298/1360 (21.9%) | – |
+| bacteria | .723 / .607 | .865 / .875 | 432/4450 (9.7%) | .768 → .791 |
+
+- **Fish and plant on the classes the production head knows** (genus-level rows left out):
+  - fish: prod **.927** vs v3 **.506** (591 rows);
+  - plant: prod **.906** vs v3 **.620** (626 rows).
+  The production heads' full-set numbers are low only because they cannot output likely_taxonomic_group
+  (411 fish and 453 plant test rows).
+- **Fish v3 confusion matrix** (rows = truth, order known_species, novelty, low_q, ltg):
+  `[[205,59,0,229],[2,80,0,2],[0,0,14,0],[16,34,0,361]]`. 229 of 493 species-level rows are predicted as
+  genus-level.
+- **Router, the same 9,688 test rows:**
+  - overall: v2 **.817** → v3 **.910**, identical on both strands;
+  - per route (fish/plant/bacteria/animal/human/misc), v2 → v3:
+    .975→.987, **.342→.940**, .815→.934, .976→.947, **.891→.560**, .885→.913;
+  - **v3 routes 234 of 773 human-route test rows to fish**, and its human known_species accuracy is .271
+    (v2: .958). The v2 router trained on rows that are now test rows; that overlap was not counted for
+    the router.
+
+**Q3. Rationale: why were the results read this way?**
+- *Like-for-like on the production head's classes for fish and plant:* the full-set comparison
+  rewards v3 for a class the production head was never given. On the rows both heads could get right,
+  production wins by 29–42 points.
+- *Why v3 loses known_species on fish and plant:* "identified to species" and "identified only to genus"
+  are properties of the *record's curation*, not of the sequence. The same species' barcode is filed
+  under both labels in BOLD, so the head cannot separate them and splits the difference. QNA-016's note
+  on bacteria likely_taxonomic_group (F1 ~0.61, "a label-definition problem") is the same effect. QNA-046's
+  defence ("the heads should learn to say genus-level") assumed the class was learnable from sequence;
+  **these numbers show it is not, for fish and plant.**
+- *Router human drop:* BOLD added domestic-mammal COI (cattle, pig, dog …) to the human route's
+  known_species (174,908 candidates). The fish route holds far more vertebrate COI (7,900 router train
+  rows vs 4,812 human), so the router learned "vertebrate COI → fish". This is likely, not proven: the
+  test CSVs carry no species, so the misrouted rows were not identified.
+
+**Q4. Blast radius.** Nothing served has changed. Every promotion is a separate owner decision (as in
+QNA-023). If fish/plant v3 were promoted as they are, the species-level calls on those routes would drop
+from about 92% to 51–62% recall on known species. If router v3 were promoted, about 44% of human-route
+sequences would go to the fish head unless the orchestrator's reference lookup corrects the route.
+
+**Q5. Verification.**
+- All 12 reports, `summary_prod_vs_v3.json` (fair comparison, overlap counts), the router reports and
+  the build/leakage logs are in `docs/ml/results/{heads_v3,router_v3}/`.
+- The overlap counts compare exact sequences between `processed/<route>/test.csv` and the production
+  head's training split (`processed_v2` for v2 heads, `processed_v0` for v1 heads). Near-duplicates
+  were not counted.
+
+**Q6. Defence: "You added a class and it made things worse; why keep it?"** The table above is the
+answer in both directions. The class *is* learnable for bacteria and, partly, animal, where v3 wins
+overall. It is not learnable for fish and plant, where it costs species-level recall. The decision is
+per route, and the measured numbers are recorded here before any choice is made.

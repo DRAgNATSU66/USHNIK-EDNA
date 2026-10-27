@@ -1,0 +1,9 @@
+animal_general                 rows={'train': 11515, 'dev': 1440, 'test': 1440} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+bacteria_pathogen              rows={'train': 35602, 'dev': 4452, 'test': 4450} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+fish                           rows={'train': 8008, 'dev': 1003, 'test': 1002} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+human_domestic_contamination   rows={'train': 6173, 'dev': 773, 'test': 773} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+misc_unknown                   rows={'train': 10871, 'dev': 1360, 'test': 1360} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+plant                          rows={'train': 8613, 'dev': 1080, 'test': 1079} exact={'train_dev': 0, 'train_test': 0, 'dev_test': 0} dup_rows={'train': 0, 'dev': 0, 'test': 0} conflicts=0 near: dev~train=0 test~train=0 test~dev=0
+ignored *.leaky.csv: []
+cross-route unique sequences: 1686 {'bacteria_pathogen+human_domestic_contamination': 1294, 'human_domestic_contamination+plant': 283, 'bacteria_pathogen+human_domestic_contamination+plant': 80, 'human_domestic_contamination+misc_unknown': 13, 'bacteria_pathogen+misc_unknown': 8, 'bacteria_pathogen+human_domestic_contamination+misc_unknown': 4, 'bacteria_pathogen+human_domestic_contamination+misc_unknown+plant': 2, 'animal_general+misc_unknown': 1, 'animal_general+fish+misc_unknown+plant': 1}
+EXACT CROSS-SPLIT TOTAL: 0

@@ -1,0 +1,1681 @@
+{
+  "model_id": "kmer_router_v3",
+  "version": "v3",
+  "created_at": "2026-10-27T20:00:29+00:00",
+  "config": {
+    "model_id": "kmer_router_v3",
+    "version": "v3",
+    "routes": [
+      "fish",
+      "plant",
+      "bacteria_pathogen",
+      "animal_general",
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "k": 9,
+    "canonical": true,
+    "strand": "canonical",
+    "train_augmentation": null,
+    "features": "exact k-mer counts, non-ACGT windows skipped, L2-normalised (app/model_router/kmer.py)",
+    "model": "svm",
+    "C": 1.0,
+    "temperature": 0.3936902831614817,
+    "min_kmers": 1
+  },
+  "artifact": {
+    "file": "router.npz",
+    "sha256": "f4e11d7ce65d8dcf686c632967239576c9efa6fbc2754c568c006caecfbb3892",
+    "bytes": 3038682
+  },
+  "data": {
+    "processed_dir_sha256": {
+      "fish/train.csv": "15c9d63bf460212588abfc8cee017b725275ec234cc8edc0d041eeb5e37fba31",
+      "fish/dev.csv": "6eb82183c7270861171f51e8921c74e92b7d72ebb862962851790e962d15250a",
+      "fish/test.csv": "e87fd1fe571b08dc940432a930fba71af2816f2b26987340ac580fdcc3f3a3ee",
+      "plant/train.csv": "a5e380f1da2e2c0afedee452bcd2fca907f4c23ef62e4c80a502d02d690dcd48",
+      "plant/dev.csv": "cb67df09fd762ca1f30e2fce6233194868b4a47a243d0cb89b040c98d6820731",
+      "plant/test.csv": "a4a0e06d54dc675f0f4edc5043432c2cf26e90b2901fafd3a361ebfce1b41dc9",
+      "bacteria_pathogen/train.csv": "8ecab27ece9fc1bec50e559298266fc6e79cda0be844ab9db96626c2540e0c41",
+      "bacteria_pathogen/dev.csv": "b8e8c6d833f17d96dc49dfa6e2b0760fe448d6c0fe2137e50447ee211934dda5",
+      "bacteria_pathogen/test.csv": "5c54239a35f1cee51108555ca1d96b44b25159bbf0b1995df1bc49838f2027a7",
+      "animal_general/train.csv": "05cbe9a32ae442c4df17fb1a7ca8729295794292536fc8777711f5e836c0c149",
+      "animal_general/dev.csv": "cf39b80dfd4aab01de92fde7558e2f2d5b0dc16096e06ee6ae2cd205e5cee9e4",
+      "animal_general/test.csv": "624fa8e39427a03a9d03f3c62ceadc29f038080efc625862c613703e30dc6fae",
+      "human_domestic_contamination/train.csv": "4d57e5f739b3f2f3c82b5e80d8a54bb2220cb95a462227ba88d2fe7138be46cb",
+      "human_domestic_contamination/dev.csv": "fc0a884d2c9f4a8d8ba6a11da9d42112cbff951bc0d5692b70f4caad0ebfe419",
+      "human_domestic_contamination/test.csv": "95b4228a7d660c2883b085eb2ec4fe598039f71c17bc0ef36cbf99140887fa61",
+      "misc_unknown/train.csv": "ded0e9a57b3e05dc3f515f2dd8fadbb76f97f9c6dba565dbb4bde4ecced9b63e",
+      "misc_unknown/dev.csv": "d48b7d657718512cc7c85e081c9d1a29b46746ae309728723dbdf520284cda3e",
+      "misc_unknown/test.csv": "7eced68fb72f432159e4340b9931f915d3b9577b642e4e90a8ac9ee824e7e193"
+    },
+    "train_rows": {
+      "fish": {
+        "raw_rows": 8008,
+        "eligible": 7900,
+        "used": 7900,
+        "dropped": {
+          "low_quality": 108
+        }
+      },
+      "plant": {
+        "raw_rows": 8613,
+        "eligible": 8052,
+        "used": 8000,
+        "dropped": {
+          "low_quality": 270,
+          "also_in_other_route": 291
+        }
+      },
+      "bacteria_pathogen": {
+        "raw_rows": 35602,
+        "eligible": 34491,
+        "used": 8000,
+        "dropped": {
+          "also_in_other_route": 1111
+        }
+      },
+      "animal_general": {
+        "raw_rows": 11515,
+        "eligible": 11514,
+        "used": 8000,
+        "dropped": {
+          "also_in_other_route": 1
+        }
+      },
+      "human_domestic_contamination": {
+        "raw_rows": 6173,
+        "eligible": 4812,
+        "used": 4812,
+        "dropped": {
+          "also_in_other_route": 1361
+        }
+      },
+      "misc_unknown": {
+        "raw_rows": 10871,
+        "eligible": 7903,
+        "used": 7903,
+        "dropped": {
+          "low_quality": 2945,
+          "also_in_other_route": 23
+        }
+      }
+    },
+    "train_rows_fitted": 44615,
+    "dev_rows_non_low_quality": 9692,
+    "test_rows_non_low_quality": 9688,
+    "test_rows_clean": 9350
+  },
+  "leakage": {
+    "total_rows": 100994,
+    "unique_sequences": 99218,
+    "unique_sequences_in_more_than_one_route": 1686,
+    "unique_train_sequences_in_more_than_one_route_train": 1131,
+    "cross_route_route_sets": {
+      "bacteria_pathogen+human_domestic_contamination": 1294,
+      "human_domestic_contamination+plant": 283,
+      "bacteria_pathogen+human_domestic_contamination+plant": 80,
+      "human_domestic_contamination+misc_unknown": 13,
+      "bacteria_pathogen+misc_unknown": 8,
+      "bacteria_pathogen+human_domestic_contamination+misc_unknown": 4,
+      "bacteria_pathogen+human_domestic_contamination+misc_unknown+plant": 2,
+      "animal_general+fish+misc_unknown+plant": 1,
+      "animal_general+misc_unknown": 1
+    },
+    "cross_route_rows_by_route_split_label": {
+      "animal_general/dev/likely_taxonomic_group": 1,
+      "animal_general/train/possible_novelty": 1,
+      "bacteria_pathogen/dev/possible_contamination": 138,
+      "bacteria_pathogen/dev/possible_novelty": 1,
+      "bacteria_pathogen/test/possible_contamination": 138,
+      "bacteria_pathogen/train/possible_contamination": 1104,
+      "bacteria_pathogen/train/possible_novelty": 7,
+      "fish/train/low_quality_unusable": 1,
+      "human_domestic_contamination/dev/known_species": 70,
+      "human_domestic_contamination/dev/possible_contamination": 85,
+      "human_domestic_contamination/test/known_species": 61,
+      "human_domestic_contamination/test/possible_contamination": 99,
+      "human_domestic_contamination/train/known_species": 625,
+      "human_domestic_contamination/train/possible_contamination": 736,
+      "misc_unknown/dev/unknown_needs_online_confirmation": 1,
+      "misc_unknown/test/possible_novelty": 2,
+      "misc_unknown/test/unknown_needs_online_confirmation": 1,
+      "misc_unknown/train/low_quality_unusable": 2,
+      "misc_unknown/train/possible_novelty": 8,
+      "misc_unknown/train/unknown_needs_online_confirmation": 15,
+      "plant/dev/low_quality_unusable": 1,
+      "plant/dev/possible_contamination": 37,
+      "plant/test/possible_contamination": 37,
+      "plant/train/possible_contamination": 291
+    },
+    "per_route": {
+      "fish": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 1002,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 0,
+        "test_rows_in_other_route_any_split": 0
+      },
+      "plant": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 1079,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 22,
+        "test_rows_in_other_route_any_split": 37
+      },
+      "bacteria_pathogen": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 4450,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 91,
+        "test_rows_in_other_route_any_split": 138
+      },
+      "animal_general": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 1440,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 0,
+        "test_rows_in_other_route_any_split": 0
+      },
+      "human_domestic_contamination": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 773,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 111,
+        "test_rows_in_other_route_any_split": 160
+      },
+      "misc_unknown": {
+        "within_route_unique_train_and_test": 0,
+        "within_route_unique_train_and_dev": 0,
+        "within_route_unique_dev_and_test": 0,
+        "train_internal_duplicate_rows": 0,
+        "test_rows": 1360,
+        "test_rows_in_same_route_train": 0,
+        "test_rows_in_other_route_train": 2,
+        "test_rows_in_other_route_any_split": 3
+      }
+    }
+  },
+  "calibration": {
+    "method": "temperature scaling, NLL on dev (non-low-quality rows, forward + reverse complement pooled)",
+    "temperature": 0.3936902831614817,
+    "dev": {
+      "ece_before": 0.2971569228082514,
+      "ece_after": 0.01657584644438956,
+      "nll_before": 0.5612767338752747,
+      "nll_after": 0.26736119389533997
+    },
+    "test_forward": {
+      "ece_before": 0.28051815093068133,
+      "ece_after": 0.024746832555478347
+    },
+    "test_reverse_complement": {
+      "ece_before": 0.28051815093068133,
+      "ece_after": 0.024746832555478347
+    },
+    "ece_bins": 15
+  },
+  "dev_forward": {
+    "n": 9692,
+    "accuracy": 0.932108955839868,
+    "macro_f1": 0.9145491949795579,
+    "balanced_accuracy": 0.9293723240121419,
+    "per_route_accuracy": {
+      "fish": 0.9929221435793731,
+      "plant": 0.9321223709369025,
+      "bacteria_pathogen": 0.931266846361186,
+      "animal_general": 0.9472222222222222,
+      "human_domestic_contamination": 0.8745148771021992,
+      "misc_unknown": 0.8981854838709677
+    },
+    "per_route_n": {
+      "fish": 989,
+      "plant": 1046,
+      "bacteria_pathogen": 4452,
+      "animal_general": 1440,
+      "human_domestic_contamination": 773,
+      "misc_unknown": 992
+    },
+    "per_route_f1": {
+      "fish": 0.9864389753892516,
+      "plant": 0.9582309582309583,
+      "bacteria_pathogen": 0.9579482439926063,
+      "animal_general": 0.9660056657223796,
+      "human_domestic_contamination": 0.8174123337363967,
+      "misc_unknown": 0.8012589928057554
+    },
+    "confusion_matrix": [
+      [
+        982,
+        0,
+        0,
+        4,
+        1,
+        2
+      ],
+      [
+        0,
+        975,
+        0,
+        1,
+        37,
+        33
+      ],
+      [
+        0,
+        13,
+        4146,
+        3,
+        121,
+        169
+      ],
+      [
+        18,
+        0,
+        0,
+        1364,
+        10,
+        48
+      ],
+      [
+        2,
+        0,
+        0,
+        6,
+        676,
+        89
+      ],
+      [
+        0,
+        1,
+        58,
+        6,
+        36,
+        891
+      ]
+    ],
+    "label_order": [
+      "fish",
+      "plant",
+      "bacteria_pathogen",
+      "animal_general",
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "ece": 0.016575841782779908,
+    "nll": 0.26736119389533997,
+    "ece_uncalibrated": 0.2971569228082514,
+    "n_errors": 658,
+    "mean_confidence_on_errors": 0.7265496850013733,
+    "mean_confidence_on_correct": 0.9412632584571838,
+    "errors_with_confidence_ge_0_7": 359
+  },
+  "dev_reverse_complement": {
+    "n": 9692,
+    "accuracy": 0.932108955839868,
+    "macro_f1": 0.9145491949795579,
+    "balanced_accuracy": 0.9293723240121419,
+    "per_route_accuracy": {
+      "fish": 0.9929221435793731,
+      "plant": 0.9321223709369025,
+      "bacteria_pathogen": 0.931266846361186,
+      "animal_general": 0.9472222222222222,
+      "human_domestic_contamination": 0.8745148771021992,
+      "misc_unknown": 0.8981854838709677
+    },
+    "per_route_n": {
+      "fish": 989,
+      "plant": 1046,
+      "bacteria_pathogen": 4452,
+      "animal_general": 1440,
+      "human_domestic_contamination": 773,
+      "misc_unknown": 992
+    },
+    "per_route_f1": {
+      "fish": 0.9864389753892516,
+      "plant": 0.9582309582309583,
+      "bacteria_pathogen": 0.9579482439926063,
+      "animal_general": 0.9660056657223796,
+      "human_domestic_contamination": 0.8174123337363967,
+      "misc_unknown": 0.8012589928057554
+    },
+    "confusion_matrix": [
+      [
+        982,
+        0,
+        0,
+        4,
+        1,
+        2
+      ],
+      [
+        0,
+        975,
+        0,
+        1,
+        37,
+        33
+      ],
+      [
+        0,
+        13,
+        4146,
+        3,
+        121,
+        169
+      ],
+      [
+        18,
+        0,
+        0,
+        1364,
+        10,
+        48
+      ],
+      [
+        2,
+        0,
+        0,
+        6,
+        676,
+        89
+      ],
+      [
+        0,
+        1,
+        58,
+        6,
+        36,
+        891
+      ]
+    ],
+    "label_order": [
+      "fish",
+      "plant",
+      "bacteria_pathogen",
+      "animal_general",
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "ece": 0.016575841782779908,
+    "nll": 0.26736119389533997,
+    "ece_uncalibrated": 0.2971569228082514,
+    "n_errors": 658,
+    "mean_confidence_on_errors": 0.7265496850013733,
+    "mean_confidence_on_correct": 0.9412632584571838,
+    "errors_with_confidence_ge_0_7": 359
+  },
+  "test_rows_non_low_quality": 9688,
+  "test_rows_clean": 9350,
+  "test_forward": {
+    "n": 9688,
+    "accuracy": 0.9099917423616846,
+    "macro_f1": 0.8662413724133987,
+    "balanced_accuracy": 0.880195253559255,
+    "per_route_accuracy": {
+      "fish": 0.9868421052631579,
+      "plant": 0.939712918660287,
+      "bacteria_pathogen": 0.933932584269663,
+      "animal_general": 0.9472222222222222,
+      "human_domestic_contamination": 0.5601552393272963,
+      "misc_unknown": 0.9133064516129032
+    },
+    "per_route_n": {
+      "fish": 988,
+      "plant": 1045,
+      "bacteria_pathogen": 4450,
+      "animal_general": 1440,
+      "human_domestic_contamination": 773,
+      "misc_unknown": 992
+    },
+    "per_route_f1": {
+      "fish": 0.8643617021276596,
+      "plant": 0.9632172633643943,
+      "bacteria_pathogen": 0.9605917022997804,
+      "animal_general": 0.96875,
+      "human_domestic_contamination": 0.6330409356725146,
+      "misc_unknown": 0.8074866310160428
+    },
+    "confusion_matrix": [
+      [
+        975,
+        0,
+        0,
+        2,
+        3,
+        8
+      ],
+      [
+        0,
+        982,
+        1,
+        2,
+        32,
+        28
+      ],
+      [
+        31,
+        10,
+        4156,
+        2,
+        85,
+        166
+      ],
+      [
+        28,
+        0,
+        0,
+        1364,
+        9,
+        39
+      ],
+      [
+        234,
+        1,
+        0,
+        0,
+        433,
+        105
+      ],
+      [
+        0,
+        1,
+        46,
+        6,
+        33,
+        906
+      ]
+    ],
+    "label_order": [
+      "fish",
+      "plant",
+      "bacteria_pathogen",
+      "animal_general",
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "ece": 0.024746832555478347,
+    "nll": 0.2898194193840027,
+    "ece_uncalibrated": 0.28051815093068133,
+    "n_errors": 872,
+    "mean_confidence_on_errors": 0.6942915320396423,
+    "mean_confidence_on_correct": 0.9419224262237549,
+    "errors_with_confidence_ge_0_7": 334,
+    "clean_subset": {
+      "n": 9350,
+      "accuracy": 0.932620320855615,
+      "macro_f1": 0.8875726978860268,
+      "balanced_accuracy": 0.889860852371133,
+      "per_route_accuracy": {
+        "fish": 0.9868421052631579,
+        "plant": 0.9742063492063492,
+        "bacteria_pathogen": 0.963821892393321,
+        "animal_general": 0.9472222222222222,
+        "human_domestic_contamination": 0.5530179445350734,
+        "misc_unknown": 0.9140546006066734
+      },
+      "per_route_n": {
+        "fish": 988,
+        "plant": 1008,
+        "bacteria_pathogen": 4312,
+        "animal_general": 1440,
+        "human_domestic_contamination": 613,
+        "misc_unknown": 989
+      },
+      "per_route_f1": {
+        "fish": 0.8904109589041096,
+        "plant": 0.981018981018981,
+        "bacteria_pathogen": 0.9762743716232088,
+        "animal_general": 0.9690941385435169,
+        "human_domestic_contamination": 0.6800401203610833,
+        "misc_unknown": 0.8285976168652612
+      },
+      "confusion_matrix": [
+        [
+          975,
+          0,
+          0,
+          2,
+          3,
+          8
+        ],
+        [
+          0,
+          982,
+          1,
+          2,
+          0,
+          23
+        ],
+        [
+          0,
+          10,
+          4156,
+          1,
+          0,
+          145
+        ],
+        [
+          28,
+          0,
+          0,
+          1364,
+          9,
+          39
+        ],
+        [
+          199,
+          1,
+          0,
+          0,
+          339,
+          74
+        ],
+        [
+          0,
+          1,
+          45,
+          6,
+          33,
+          904
+        ]
+      ],
+      "label_order": [
+        "fish",
+        "plant",
+        "bacteria_pathogen",
+        "animal_general",
+        "human_domestic_contamination",
+        "misc_unknown"
+      ],
+      "ece": 0.02949245014930157,
+      "nll": 0.20342928171157837,
+      "n_errors": 630,
+      "mean_confidence_on_errors": 0.662926197052002,
+      "mean_confidence_on_correct": 0.9426544904708862,
+      "errors_with_confidence_ge_0_7": 199
+    }
+  },
+  "test_reverse_complement": {
+    "n": 9688,
+    "accuracy": 0.9099917423616846,
+    "macro_f1": 0.8662413724133987,
+    "balanced_accuracy": 0.880195253559255,
+    "per_route_accuracy": {
+      "fish": 0.9868421052631579,
+      "plant": 0.939712918660287,
+      "bacteria_pathogen": 0.933932584269663,
+      "animal_general": 0.9472222222222222,
+      "human_domestic_contamination": 0.5601552393272963,
+      "misc_unknown": 0.9133064516129032
+    },
+    "per_route_n": {
+      "fish": 988,
+      "plant": 1045,
+      "bacteria_pathogen": 4450,
+      "animal_general": 1440,
+      "human_domestic_contamination": 773,
+      "misc_unknown": 992
+    },
+    "per_route_f1": {
+      "fish": 0.8643617021276596,
+      "plant": 0.9632172633643943,
+      "bacteria_pathogen": 0.9605917022997804,
+      "animal_general": 0.96875,
+      "human_domestic_contamination": 0.6330409356725146,
+      "misc_unknown": 0.8074866310160428
+    },
+    "confusion_matrix": [
+      [
+        975,
+        0,
+        0,
+        2,
+        3,
+        8
+      ],
+      [
+        0,
+        982,
+        1,
+        2,
+        32,
+        28
+      ],
+      [
+        31,
+        10,
+        4156,
+        2,
+        85,
+        166
+      ],
+      [
+        28,
+        0,
+        0,
+        1364,
+        9,
+        39
+      ],
+      [
+        234,
+        1,
+        0,
+        0,
+        433,
+        105
+      ],
+      [
+        0,
+        1,
+        46,
+        6,
+        33,
+        906
+      ]
+    ],
+    "label_order": [
+      "fish",
+      "plant",
+      "bacteria_pathogen",
+      "animal_general",
+      "human_domestic_contamination",
+      "misc_unknown"
+    ],
+    "ece": 0.024746832555478347,
+    "nll": 0.2898194193840027,
+    "ece_uncalibrated": 0.28051815093068133,
+    "n_errors": 872,
+    "mean_confidence_on_errors": 0.6942915320396423,
+    "mean_confidence_on_correct": 0.9419224262237549,
+    "errors_with_confidence_ge_0_7": 334,
+    "clean_subset": {
+      "n": 9350,
+      "accuracy": 0.932620320855615,
+      "macro_f1": 0.8875726978860268,
+      "balanced_accuracy": 0.889860852371133,
+      "per_route_accuracy": {
+        "fish": 0.9868421052631579,
+        "plant": 0.9742063492063492,
+        "bacteria_pathogen": 0.963821892393321,
+        "animal_general": 0.9472222222222222,
+        "human_domestic_contamination": 0.5530179445350734,
+        "misc_unknown": 0.9140546006066734
+      },
+      "per_route_n": {
+        "fish": 988,
+        "plant": 1008,
+        "bacteria_pathogen": 4312,
+        "animal_general": 1440,
+        "human_domestic_contamination": 613,
+        "misc_unknown": 989
+      },
+      "per_route_f1": {
+        "fish": 0.8904109589041096,
+        "plant": 0.981018981018981,
+        "bacteria_pathogen": 0.9762743716232088,
+        "animal_general": 0.9690941385435169,
+        "human_domestic_contamination": 0.6800401203610833,
+        "misc_unknown": 0.8285976168652612
+      },
+      "confusion_matrix": [
+        [
+          975,
+          0,
+          0,
+          2,
+          3,
+          8
+        ],
+        [
+          0,
+          982,
+          1,
+          2,
+          0,
+          23
+        ],
+        [
+          0,
+          10,
+          4156,
+          1,
+          0,
+          145
+        ],
+        [
+          28,
+          0,
+          0,
+          1364,
+          9,
+          39
+        ],
+        [
+          199,
+          1,
+          0,
+          0,
+          339,
+          74
+        ],
+        [
+          0,
+          1,
+          45,
+          6,
+          33,
+          904
+        ]
+      ],
+      "label_order": [
+        "fish",
+        "plant",
+        "bacteria_pathogen",
+        "animal_general",
+        "human_domestic_contamination",
+        "misc_unknown"
+      ],
+      "ece": 0.02949245014930157,
+      "nll": 0.20342928171157837,
+      "n_errors": 630,
+      "mean_confidence_on_errors": 0.662926197052002,
+      "mean_confidence_on_correct": 0.9426544904708862,
+      "errors_with_confidence_ge_0_7": 199
+    }
+  },
+  "test_strand_agreement": 1.0,
+  "test_by_route_and_label": {
+    "fish/known_species": {
+      "n": 493,
+      "accuracy_forward": 0.9756592292089249,
+      "accuracy_reverse_complement": 0.9756592292089249
+    },
+    "fish/likely_taxonomic_group": {
+      "n": 411,
+      "accuracy_forward": 0.9975669099756691,
+      "accuracy_reverse_complement": 0.9975669099756691
+    },
+    "fish/possible_novelty": {
+      "n": 84,
+      "accuracy_forward": 1.0,
+      "accuracy_reverse_complement": 1.0
+    },
+    "plant/known_species": {
+      "n": 485,
+      "accuracy_forward": 0.9608247422680413,
+      "accuracy_reverse_complement": 0.9608247422680413
+    },
+    "plant/likely_taxonomic_group": {
+      "n": 453,
+      "accuracy_forward": 0.9867549668874173,
+      "accuracy_reverse_complement": 0.9867549668874173
+    },
+    "plant/possible_contamination": {
+      "n": 37,
+      "accuracy_forward": 0.0,
+      "accuracy_reverse_complement": 0.0
+    },
+    "plant/possible_novelty": {
+      "n": 70,
+      "accuracy_forward": 0.9857142857142858,
+      "accuracy_reverse_complement": 0.9857142857142858
+    },
+    "bacteria_pathogen/known_species": {
+      "n": 1514,
+      "accuracy_forward": 0.9788639365918098,
+      "accuracy_reverse_complement": 0.9788639365918098
+    },
+    "bacteria_pathogen/likely_taxonomic_group": {
+      "n": 798,
+      "accuracy_forward": 0.9786967418546366,
+      "accuracy_reverse_complement": 0.9786967418546366
+    },
+    "bacteria_pathogen/possible_contamination": {
+      "n": 138,
+      "accuracy_forward": 0.0,
+      "accuracy_reverse_complement": 0.0
+    },
+    "bacteria_pathogen/possible_novelty": {
+      "n": 2000,
+      "accuracy_forward": 0.9465,
+      "accuracy_reverse_complement": 0.9465
+    },
+    "animal_general/known_species": {
+      "n": 495,
+      "accuracy_forward": 0.9151515151515152,
+      "accuracy_reverse_complement": 0.9151515151515152
+    },
+    "animal_general/likely_taxonomic_group": {
+      "n": 481,
+      "accuracy_forward": 0.9896049896049897,
+      "accuracy_reverse_complement": 0.9896049896049897
+    },
+    "animal_general/possible_novelty": {
+      "n": 464,
+      "accuracy_forward": 0.9375,
+      "accuracy_reverse_complement": 0.9375
+    },
+    "human_domestic_contamination/known_species": {
+      "n": 354,
+      "accuracy_forward": 0.2711864406779661,
+      "accuracy_reverse_complement": 0.2711864406779661
+    },
+    "human_domestic_contamination/possible_contamination": {
+      "n": 419,
+      "accuracy_forward": 0.8042959427207638,
+      "accuracy_reverse_complement": 0.8042959427207638
+    },
+    "misc_unknown/possible_novelty": {
+      "n": 500,
+      "accuracy_forward": 0.866,
+      "accuracy_reverse_complement": 0.866
+    },
+    "misc_unknown/unknown_needs_online_confirmation": {
+      "n": 492,
+      "accuracy_forward": 0.9613821138211383,
+      "accuracy_reverse_complement": 0.9613821138211383
+    }
+  },
+  "protocol_qna001": {
+    "description": "300 non-low-quality test rows per route, random.Random(0).sample, through route_sequence() (low-quality gate included); the reverse_complement blocks route the reverse complement of the same rows",
+    "n": 1800,
+    "clean_n": 1727,
+    "forward": {
+      "learned": {
+        "n": 1800,
+        "accuracy": 0.8738888888888889,
+        "macro_f1": 0.8684609749184116,
+        "balanced_accuracy": 0.8738888888888888,
+        "per_route_accuracy": {
+          "fish": 0.9866666666666667,
+          "plant": 0.9333333333333333,
+          "bacteria_pathogen": 0.94,
+          "animal_general": 0.9466666666666667,
+          "human_domestic_contamination": 0.51,
+          "misc_unknown": 0.9266666666666666
+        },
+        "per_route_n": {
+          "fish": 300,
+          "plant": 300,
+          "bacteria_pathogen": 300,
+          "animal_general": 300,
+          "human_domestic_contamination": 300,
+          "misc_unknown": 300
+        },
+        "per_route_f1": {
+          "fish": 0.8493543758967002,
+          "plant": 0.9605488850771869,
+          "bacteria_pathogen": 0.9494949494949495,
+          "animal_general": 0.9676320272572402,
+          "human_domestic_contamination": 0.6361746361746362,
+          "misc_unknown": 0.8475609756097561
+        },
+        "confusion_matrix": [
+          [
+            296,
+            0,
+            0,
+            1,
+            0,
+            3
+          ],
+          [
+            0,
+            280,
+            1,
+            0,
+            12,
+            7
+          ],
+          [
+            1,
+            2,
+            282,
+            0,
+            4,
+            11
+          ],
+          [
+            5,
+            0,
+            0,
+            284,
+            3,
+            7
+          ],
+          [
+            95,
+            1,
+            0,
+            0,
+            153,
+            50
+          ],
+          [
+            0,
+            0,
+            11,
+            2,
+            9,
+            278
+          ]
+        ],
+        "label_order": [
+          "fish",
+          "plant",
+          "bacteria_pathogen",
+          "animal_general",
+          "human_domestic_contamination",
+          "misc_unknown"
+        ],
+        "router_methods": {
+          "learned": 1798,
+          "low_quality_gate": 2
+        },
+        "seconds_per_sequence": 0.0001703660577792713,
+        "clean_subset": {
+          "n": 1727,
+          "accuracy": 0.89171974522293,
+          "macro_f1": 0.8788662227527442,
+          "balanced_accuracy": 0.8807140061121882,
+          "per_route_accuracy": {
+            "fish": 0.9866666666666667,
+            "plant": 0.975609756097561,
+            "bacteria_pathogen": 0.9559322033898305,
+            "animal_general": 0.9466666666666667,
+            "human_domestic_contamination": 0.4898785425101215,
+            "misc_unknown": 0.9295302013422819
+          },
+          "per_route_n": {
+            "fish": 300,
+            "plant": 287,
+            "bacteria_pathogen": 295,
+            "animal_general": 300,
+            "human_domestic_contamination": 247,
+            "misc_unknown": 298
+          },
+          "per_route_f1": {
+            "fish": 0.8654970760233918,
+            "plant": 0.9824561403508771,
+            "bacteria_pathogen": 0.9591836734693877,
+            "animal_general": 0.9676320272572402,
+            "human_domestic_contamination": 0.6368421052631579,
+            "misc_unknown": 0.8615863141524106
+          },
+          "confusion_matrix": [
+            [
+              296,
+              0,
+              0,
+              1,
+              0,
+              3
+            ],
+            [
+              0,
+              280,
+              1,
+              0,
+              0,
+              6
+            ],
+            [
+              0,
+              2,
+              282,
+              0,
+              0,
+              11
+            ],
+            [
+              5,
+              0,
+              0,
+              284,
+              3,
+              7
+            ],
+            [
+              83,
+              1,
+              0,
+              0,
+              121,
+              41
+            ],
+            [
+              0,
+              0,
+              10,
+              2,
+              9,
+              277
+            ]
+          ],
+          "label_order": [
+            "fish",
+            "plant",
+            "bacteria_pathogen",
+            "animal_general",
+            "human_domestic_contamination",
+            "misc_unknown"
+          ]
+        },
+        "learned_scored_n": 1798,
+        "ece_uncalibrated_scored": 0.2704277954732179,
+        "ece_calibrated_scored": 0.04513615000168395,
+        "n_errors": 225,
+        "mean_confidence_on_errors": 0.6609409688578711,
+        "mean_confidence_on_correct": 0.924630652660787,
+        "errors_with_confidence_ge_0_7": 58,
+        "confidence_tiers": {
+          "high": 1505,
+          "low": 27,
+          "medium": 268
+        },
+        "accuracy_by_tier": {
+          "high": 0.9601328903654485,
+          "low": 0.5185185185185185,
+          "medium": 0.4253731343283582
+        },
+        "top2_accuracy": 0.9783333333333334
+      },
+      "heuristic": {
+        "n": 1800,
+        "accuracy": 0.21333333333333335,
+        "macro_f1": 0.14849551496084856,
+        "balanced_accuracy": 0.2133333333333333,
+        "per_route_accuracy": {
+          "fish": 0.0033333333333333335,
+          "plant": 0.0,
+          "bacteria_pathogen": 0.6766666666666666,
+          "animal_general": 0.016666666666666666,
+          "human_domestic_contamination": 0.14666666666666667,
+          "misc_unknown": 0.43666666666666665
+        },
+        "per_route_n": {
+          "fish": 300,
+          "plant": 300,
+          "bacteria_pathogen": 300,
+          "animal_general": 300,
+          "human_domestic_contamination": 300,
+          "misc_unknown": 300
+        },
+        "per_route_f1": {
+          "fish": 0.006557377049180328,
+          "plant": 0.0,
+          "bacteria_pathogen": 0.5006165228113441,
+          "animal_general": 0.03125,
+          "human_domestic_contamination": 0.14057507987220447,
+          "misc_unknown": 0.21197411003236247
+        },
+        "confusion_matrix": [
+          [
+            1,
+            0,
+            0,
+            3,
+            76,
+            220
+          ],
+          [
+            0,
+            0,
+            109,
+            1,
+            93,
+            97
+          ],
+          [
+            0,
+            0,
+            203,
+            0,
+            31,
+            66
+          ],
+          [
+            0,
+            0,
+            22,
+            5,
+            33,
+            239
+          ],
+          [
+            2,
+            0,
+            61,
+            9,
+            44,
+            183
+          ],
+          [
+            2,
+            0,
+            116,
+            2,
+            49,
+            131
+          ]
+        ],
+        "label_order": [
+          "fish",
+          "plant",
+          "bacteria_pathogen",
+          "animal_general",
+          "human_domestic_contamination",
+          "misc_unknown"
+        ],
+        "router_methods": {
+          "heuristic": 1798,
+          "low_quality_gate": 2
+        },
+        "seconds_per_sequence": 0.007161764837779225,
+        "clean_subset": {
+          "n": 1727,
+          "accuracy": 0.21482339316734222,
+          "macro_f1": 0.14745183332422657,
+          "balanced_accuracy": 0.21231628900309188,
+          "per_route_accuracy": {
+            "fish": 0.0033333333333333335,
+            "plant": 0.0,
+            "bacteria_pathogen": 0.6847457627118644,
+            "animal_general": 0.016666666666666666,
+            "human_domestic_contamination": 0.12955465587044535,
+            "misc_unknown": 0.4395973154362416
+          },
+          "per_route_n": {
+            "fish": 300,
+            "plant": 287,
+            "bacteria_pathogen": 295,
+            "animal_general": 300,
+            "human_domestic_contamination": 247,
+            "misc_unknown": 298
+          },
+          "per_route_f1": {
+            "fish": 0.006557377049180328,
+            "plant": 0.0,
+            "bacteria_pathogen": 0.5133418043202033,
+            "animal_general": 0.03164556962025317,
+            "human_domestic_contamination": 0.11428571428571428,
+            "misc_unknown": 0.21888053467000834
+          },
+          "confusion_matrix": [
+            [
+              1,
+              0,
+              0,
+              3,
+              76,
+              220
+            ],
+            [
+              0,
+              0,
+              105,
+              0,
+              93,
+              89
+            ],
+            [
+              0,
+              0,
+              202,
+              0,
+              30,
+              63
+            ],
+            [
+              0,
+              0,
+              22,
+              5,
+              33,
+              239
+            ],
+            [
+              2,
+              0,
+              49,
+              6,
+              32,
+              157
+            ],
+            [
+              2,
+              0,
+              114,
+              2,
+              49,
+              131
+            ]
+          ],
+          "label_order": [
+            "fish",
+            "plant",
+            "bacteria_pathogen",
+            "animal_general",
+            "human_domestic_contamination",
+            "misc_unknown"
+          ]
+        }
+      }
+    },
+    "reverse_complement": {
+      "learned": {
+        "n": 1800,
+        "accuracy": 0.8738888888888889,
+        "macro_f1": 0.8684609749184116,
+        "balanced_accuracy": 0.8738888888888888,
+        "per_route_accuracy": {
+          "fish": 0.9866666666666667,
+          "plant": 0.9333333333333333,
+          "bacteria_pathogen": 0.94,
+          "animal_general": 0.9466666666666667,
+          "human_domestic_contamination": 0.51,
+          "misc_unknown": 0.9266666666666666
+        },
+        "per_route_n": {
+          "fish": 300,
+          "plant": 300,
+          "bacteria_pathogen": 300,
+          "animal_general": 300,
+          "human_domestic_contamination": 300,
+          "misc_unknown": 300
+        },
+        "per_route_f1": {
+          "fish": 0.8493543758967002,
+          "plant": 0.9605488850771869,
+          "bacteria_pathogen": 0.9494949494949495,
+          "animal_general": 0.9676320272572402,
+          "human_domestic_contamination": 0.6361746361746362,
+          "misc_unknown": 0.8475609756097561
+        },
+        "confusion_matrix": [
+          [
+            296,
+            0,
+            0,
+            1,
+            0,
+            3
+          ],
+          [
+            0,
+            280,
+            1,
+            0,
+            12,
+            7
+          ],
+          [
+            1,
+            2,
+            282,
+            0,
+            4,
+            11
+          ],
+          [
+            5,
+            0,
+            0,
+            284,
+            3,
+            7
+          ],
+          [
+            95,
+            1,
+            0,
+            0,
+            153,
+            50
+          ],
+          [
+            0,
+            0,
+            11,
+            2,
+            9,
+            278
+          ]
+        ],
+        "label_order": [
+          "fish",
+          "plant",
+          "bacteria_pathogen",
+          "animal_general",
+          "human_domestic_contamination",
+          "misc_unknown"
+        ],
+        "router_methods": {
+          "learned": 1798,
+          "low_quality_gate": 2
+        },
+        "seconds_per_sequence": 0.0001649661749999925,
+        "clean_subset": {
+          "n": 1727,
+          "accuracy": 0.89171974522293,
+          "macro_f1": 0.8788662227527442,
+          "balanced_accuracy": 0.8807140061121882,
+          "per_route_accuracy": {
+            "fish": 0.9866666666666667,
+            "plant": 0.975609756097561,
+            "bacteria_pathogen": 0.9559322033898305,
+            "animal_general": 0.9466666666666667,
+            "human_domestic_contamination": 0.4898785425101215,
+            "misc_unknown": 0.9295302013422819
+          },
+          "per_route_n": {
+            "fish": 300,
+            "plant": 287,
+            "bacteria_pathogen": 295,
+            "animal_general": 300,
+            "human_domestic_contamination": 247,
+            "misc_unknown": 298
+          },
+          "per_route_f1": {
+            "fish": 0.8654970760233918,
+            "plant": 0.9824561403508771,
+            "bacteria_pathogen": 0.9591836734693877,
+            "animal_general": 0.9676320272572402,
+            "human_domestic_contamination": 0.6368421052631579,
+            "misc_unknown": 0.8615863141524106
+          },
+          "confusion_matrix": [
+            [
+              296,
+              0,
+              0,
+              1,
+              0,
+              3
+            ],
+            [
+              0,
+              280,
+              1,
+              0,
+              0,
+              6
+            ],
+            [
+              0,
+              2,
+              282,
+              0,
+              0,
+              11
+            ],
+            [
+              5,
+              0,
+              0,
+              284,
+              3,
+              7
+            ],
+            [
+              83,
+              1,
+              0,
+              0,
+              121,
+              41
+            ],
+            [
+              0,
+              0,
+              10,
+              2,
+              9,
+              277
+            ]
+          ],
+          "label_order": [
+            "fish",
+            "plant",
+            "bacteria_pathogen",
+            "animal_general",
+            "human_domestic_contamination",
+            "misc_unknown"
+          ]
+        },
+        "learned_scored_n": 1798,
+        "ece_uncalibrated_scored": 0.2704277954732179,
+        "ece_calibrated_scored": 0.04513615000168395,
+        "n_errors": 225,
+        "mean_confidence_on_errors": 0.6609409688578711,
+        "mean_confidence_on_correct": 0.924630652660787,
+        "errors_with_confidence_ge_0_7": 58,
+        "confidence_tiers": {
+          "high": 1505,
+          "low": 27,
+          "medium": 268
+        },
+        "accuracy_by_tier": {
+          "high": 0.9601328903654485,
+          "low": 0.5185185185185185,
+          "medium": 0.4253731343283582
+        },
+        "top2_accuracy": 0.9783333333333334
+      },
+      "heuristic": {
+        "n": 1800,
+        "accuracy": 0.16777777777777778,
+        "macro_f1": 0.11442520063764537,
+        "balanced_accuracy": 0.16777777777777778,
+        "per_route_accuracy": {
+          "fish": 0.0033333333333333335,
+          "plant": 0.01,
+          "bacteria_pathogen": 0.27666666666666667,
+          "animal_general": 0.013333333333333334,
+          "human_domestic_contamination": 0.14666666666666667,
+          "misc_unknown": 0.5566666666666666
+        },
+        "per_route_n": {
+          "fish": 300,
+          "plant": 300,
+          "bacteria_pathogen": 300,
+          "animal_general": 300,
+          "human_domestic_contamination": 300,
+          "misc_unknown": 300
+        },
+        "per_route_f1": {
+          "fish": 0.006557377049180328,
+          "plant": 0.019801980198019802,
+          "bacteria_pathogen": 0.25499231950844853,
+          "animal_general": 0.025078369905956112,
+          "human_domestic_contamination": 0.14035087719298245,
+          "misc_unknown": 0.239770279971285
+        },
+        "confusion_matrix": [
+          [
+            1,
+            0,
+            0,
+            3,
+            76,
+            220
+          ],
+          [
+            0,
+            3,
+            105,
+            1,
+            94,
+            97
+          ],
+          [
+            0,
+            0,
+            83,
+            0,
+            31,
+            186
+          ],
+          [
+            0,
+            0,
+            22,
+            4,
+            33,
+            240
+          ],
+          [
+            2,
+            0,
+            61,
+            9,
+            44,
+            183
+          ],
+          [
+            2,
+            0,
+            80,
+            2,
+            49,
+            167
+          ]
+        ],
+        "label_order": [
+          "fish",
+          "plant",
+          "bacteria_pathogen",
+          "animal_general",
+          "human_domestic_contamination",
+          "misc_unknown"
+        ],
+        "router_methods": {
+          "heuristic": 1798,
+          "low_quality_gate": 2
+        },
+        "seconds_per_sequence": 0.007166219287222096,
+        "clean_subset": {
+          "n": 1727,
+          "accuracy": 0.1673422119281992,
+          "macro_f1": 0.11249422774849287,
+          "balanced_accuracy": 0.16584051174470993,
+          "per_route_accuracy": {
+            "fish": 0.0033333333333333335,
+            "plant": 0.010452961672473868,
+            "bacteria_pathogen": 0.27796610169491526,
+            "animal_general": 0.013333333333333334,
+            "human_domestic_contamination": 0.12955465587044535,
+            "misc_unknown": 0.5604026845637584
+          },
+          "per_route_n": {
+            "fish": 300,
+            "plant": 287,
+            "bacteria_pathogen": 295,
+            "animal_general": 300,
+            "human_domestic_contamination": 247,
+            "misc_unknown": 298
+          },
+          "per_route_f1": {
+            "fish": 0.006557377049180328,
+            "plant": 0.020689655172413793,
+            "bacteria_pathogen": 0.26156299840510366,
+            "animal_general": 0.025396825396825397,
+            "human_domestic_contamination": 0.1140819964349376,
+            "misc_unknown": 0.2466765140324963
+          },
+          "confusion_matrix": [
+            [
+              1,
+              0,
+              0,
+              3,
+              76,
+              220
+            ],
+            [
+              0,
+              3,
+              101,
+              0,
+              94,
+              89
+            ],
+            [
+              0,
+              0,
+              82,
+              0,
+              30,
+              183
+            ],
+            [
+              0,
+              0,
+              22,
+              4,
+              33,
+              240
+            ],
+            [
+              2,
+              0,
+              49,
+              6,
+              32,
+              157
+            ],
+            [
+              2,
+              0,
+              78,
+              2,
+              49,
+              167
+            ]
+          ],
+          "label_order": [
+            "fish",
+            "plant",
+            "bacteria_pathogen",
+            "animal_general",
+            "human_domestic_contamination",
+            "misc_unknown"
+          ]
+        }
+      }
+    }
+  },
+  "low_quality_test_rows_routes": {
+    "n": 416,
+    "routes": {
+      "low_quality": 416
+    }
+  },
+  "sweep": null,
+  "environment": {
+    "python": "3.11.16",
+    "numpy": "2.4.6",
+    "sklearn": "1.9.1",
+    "featurise_seconds": 4.864537715911865,
+    "fit_seconds": 9.73948073387146,
+    "total_seconds": 46.96789598464966
+  },
+  "command": "train_router.py --data-root ../../synthveda-data --version v3 --k 9 --strand canonical --model svm --C 1.0"
+}
