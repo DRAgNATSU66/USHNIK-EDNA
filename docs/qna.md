@@ -2670,3 +2670,5 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - The audit's `legacy/` line said "Resolved 2026-10-30". `legacy/` was removed on 2026-10-18 (`e4705a3`, QNA-019).
 - The old architecture.md described packages that do not exist (`packages/edna_core`, `packages/model_router`) and gave the wrong react-router major version. It also said "8 routers" (there are 10) and that the router has "no learned weights".
 - These are corrected in the docs. The superseded QNA entries are unaffected, because none of them made these claims.
+
+**QNA-041 correction (2026-10-27, same session):** Q4's command is wrong. `git diff --stat 6af0ffd 9145dde` also includes `9298c18` (the Species Correction drawer fix, `web_frontend/src/pages/researcher/SpeciesCorrection.jsx`). The check that supports "docs only" is `git diff --name-only 9298c18 9145dde`, which lists 14 files, all under `docs/`.
