@@ -1,5 +1,13 @@
 # Synth Veda Phase Plan
 
+> **Status note (2026-10-27, Day 17 docs pass).** This is the original execution plan and is kept
+> as written for history. It is not a description of the current system: `docs/architecture.md`
+> and `docs/flow.md` are. Notable places where the built system differs from this plan: routing
+> is a learned k-mer router with the heuristic as fallback (QNA-010, QNA-021); inference and
+> novelty run inside a deterministic per-sequence orchestrator with reference lookup
+> (QNA-020, QNA-024/025); `POST /auth/google/exchange` and `GET /analysis/{id}/report` were
+> removed (QNA-003). The endpoint list below is the planned one, not the served one.
+
 This document is the execution roadmap for turning the current prototype into
 Synth Veda: a backend-first eDNA biodiversity analysis platform with online
 full analysis, offline Synth Veda Abyss Mode, human-in-the-loop learning, and a
@@ -207,7 +215,7 @@ services/api/app/db/
 GET  /health
 GET  /version
 
-POST /auth/google/exchange
+POST /auth/google/exchange        (superseded: removed 2026-10-15, QNA-003; use /auth/google/code-exchange)
 POST /auth/admin-key/redeem
 GET  /auth/me
 
@@ -217,7 +225,7 @@ GET  /uploads/{upload_id}
 POST /analysis/jobs
 GET  /analysis/jobs/{job_id}
 GET  /analysis/{analysis_id}
-GET  /analysis/{analysis_id}/report
+GET  /analysis/{analysis_id}/report   (superseded: removed 2026-10-15, QNA-003; use GET /reports/{id})
 
 GET  /models/status
 GET  /models/registry
