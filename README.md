@@ -20,6 +20,14 @@ make up                         # API, worker, Mongo, Redis, MinIO, frontend via
 # API docs: http://localhost:8000/docs   Frontend: http://localhost:3000
 ```
 
+The API and worker containers mount the data root (models, reference DBs, BLAST+/vsearch) read-only
+at `/data` from `./synthveda-data`; set `SYNTHVEDA_DATA_HOST_DIR=/path/to/synthveda-data` when it
+lives elsewhere. Without it every result is a stub. The worker image installs CPU torch by default
+(about 2 GB; one sequence takes about 1.4 s on CPU). For CUDA wheels, build with
+`--build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu130` on a host with the NVIDIA
+container runtime, or run the native GPU worker (`make worker-run`). `--build-arg WITH_ML=0` builds
+the old stub-only image.
+
 Without Docker:
 
 ```bash

@@ -23,9 +23,12 @@ history.
   linked there. As of 2026-10-27 every tracker task through Day 17 is done except the owner's BOLD
   download (t-1014-3) and this docs pass (t-1030-3). Next: Day 18 release candidate (fresh clone →
   `make up` → full flow, tag `v1.0.0-rc1`, walk the exit criteria).
-- `sprint/d15-review-fixes` is in flight and **not merged at `32f38ef`**: incidents stop counting
-  human DNA expected on the human route, Novelty DNA header/footer name the reference DBs, Academia
+- `sprint/d15-review-fixes` merged as `b0ba806` (QNA-040): incidents stop counting human DNA
+  expected on the human route, Novelty DNA header/footer name the reference DBs, Academia
   stale-report guard, hotspot `cell_index` edge rule, stray quotes in taxon names.
+- The fresh-clone run (t-1031-1) found the compose worker image stub-only: no torch, and `blastn`
+  exited 127 because `libgomp.so.1` was missing. Fixed in `1a7d698`: CPU torch plus
+  requirements-ml, libgomp1, and a writable HF cache. QNA-042 has the measured run.
 
 ## Phase progress (see `phases.md` for the full list and verification detail)
 
