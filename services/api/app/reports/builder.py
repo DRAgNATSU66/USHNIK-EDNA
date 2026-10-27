@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..config import NOVELTY_THRESHOLD
-from ..models.analysis import resolve_taxon_fields
+from ..models.analysis import clean_taxon_name, resolve_taxon_fields
 from .models import (
     AnalysisReport,
     BiodiversitySummary,
@@ -327,7 +327,7 @@ def _build_biodiversity(results: list[dict]) -> BiodiversitySummary:
     for r in usable:
         route = r.get("route", "misc_unknown")
         route_counts[route] = route_counts.get(route, 0) + 1
-        taxon = r.get("predicted_taxon")
+        taxon = clean_taxon_name(r.get("predicted_taxon"))
         if taxon:
             taxa.add(taxon)
 
@@ -461,7 +461,9 @@ def _build_taxa(results: list[dict], orchestrator_version: str | None) -> TaxaSu
     flagged = 0
     flagged_groups: dict[tuple[str, str | None], list[tuple[dict, dict]]] = {}
     for r, dec in decided:
-        taxon = dec.get("predicted_taxon")
+        # Cleaned, so a stray quote from an old reference build neither shows
+        # nor sorts first (clean_taxon_name).
+        taxon = clean_taxon_name(dec.get("predicted_taxon"), dec.get("taxon_rank"))
         db, ver = dec.get("reference_db"), dec.get("reference_db_version")
         if db or ver:
             counts = refs.setdefault((db, ver), [0, 0])

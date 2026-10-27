@@ -62,8 +62,11 @@ _ANALYSIS_PROJECTION = {
 
 SAMPLE_DEFINITION = (
     "One sample = one upload in scope (owner, upload created_at within [date_from, date_to], UTC, both "
-    "days inclusive), represented by its newest stored analysis; older re-runs of the same upload are "
-    "not counted."
+    "days inclusive). Its contents are read from its newest stored analysis; older re-runs of the same "
+    "upload are not counted. An upload with no stored analysis yet is still a sample, with no contents: "
+    "rhythms places it by its timestamp with 0 detections (totals.uploads counts every sample, "
+    "totals.samples_analysed those with an analysis), and co-occurrence, which can only pair taxa from "
+    "analysed samples, reports uploads_in_scope for every sample and samples for the analysed ones."
 )
 TAXON_DEFINITION = (
     "Per sequence: results[].decision.predicted_taxon with decision.taxon_rank when the orchestrator wrote "
@@ -342,9 +345,14 @@ async def build_rhythms(db, *, scope: CommunityScopeInfo, owner_filter: dict[str
                          "are not placed.")
         if totals.samples_analysed == 0:
             notes.append("No upload in scope has a stored analysis yet, so detections are zero.")
-        elif totals.uploads < 20:
-            notes.append(f"Only {totals.uploads} uploads are in scope; a time-of-day pattern from this few samples "
-                         "reflects when they happened to be taken, not an activity rhythm.")
+        else:
+            if totals.samples_analysed < totals.uploads:
+                missing = totals.uploads - totals.samples_analysed
+                notes.append(f"{missing} of {totals.uploads} samples have no stored analysis yet; they are placed "
+                             "by their timestamp and add no detections.")
+            if totals.uploads < 20:
+                notes.append(f"Only {totals.uploads} uploads are in scope; a time-of-day pattern from this few "
+                             "samples reflects when they happened to be taken, not an activity rhythm.")
 
     return RhythmsResponse(
         generated_at=_now(now),

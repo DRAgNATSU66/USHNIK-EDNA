@@ -33,6 +33,52 @@ export function taxonCall(row) {
   };
 }
 
+// One footer line for the reference DBs the sequence calls were matched
+// against. Orchestrated rows each name their route's DB
+// ("synthveda-reference/fish" v2); when they share a root and a version the
+// footer names that, otherwise it points to the per-sequence tags. Until the
+// rows load (or if they fail) the tag keeps its default pending label.
+// Takes GET /analysis rows (decision.*) or report rows (flat fields).
+export function summarizeReferenceDbs(results) {
+  if (!results) return { referenceDb: null, referenceDbVersion: null, missingLabel: undefined };
+  const calls = results.map(taxonCall).filter((c) => c.referenceDb);
+  if (calls.length === 0) {
+    const anyDecision = results.some((r) => r.decision || r.taxon_source === "decision");
+    return {
+      referenceDb: null,
+      referenceDbVersion: null,
+      missingLabel: anyDecision
+        ? "Reference DB: no sequence was matched against one"
+        : "Reference DB: none recorded (pre-orchestrator analysis)",
+    };
+  }
+  const dbs = [...new Set(calls.map((c) => c.referenceDb))];
+  const versions = [...new Set(calls.map((c) => c.referenceDbVersion ?? ""))];
+  const roots = [...new Set(dbs.map((d) => d.split("/")[0]))];
+  if (dbs.length === 1 && versions.length === 1) return { referenceDb: dbs[0], referenceDbVersion: versions[0] || null };
+  if (roots.length === 1 && versions.length === 1) {
+    return { referenceDb: `${roots[0]} (${dbs.length} route DBs)`, referenceDbVersion: versions[0] || null };
+  }
+  return { referenceDb: `${dbs.length} reference DBs (see each sequence)`, referenceDbVersion: null };
+}
+
+// The same footer line from a report's taxa section (GET /reports/{id}/summary
+// -> taxa.reference_dbs, one ReferenceDbUsage per DB/version the decisions
+// name), for pages that load the summary rather than per-sequence rows.
+// taxa.available is false when no sequence carries a decision.
+export function summarizeTaxaReferenceDbs(taxa) {
+  const none = (missingLabel) => ({ referenceDb: null, referenceDbVersion: null, missingLabel });
+  if (!taxa) return none("Reference DB: not reported for this analysis");
+  if (!taxa.available) {
+    return none(taxa.total_sequences === 0
+      ? "Reference DB: none (the analysis has no sequences)"
+      : "Reference DB: none recorded (pre-orchestrator analysis)");
+  }
+  const named = (taxa.reference_dbs ?? []).filter((u) => u.reference_db);
+  if (named.length === 0) return none("Reference DB: no sequence was matched against one");
+  return summarizeReferenceDbs(named.map((u) => ({ reference_db: u.reference_db, reference_db_version: u.reference_db_version })));
+}
+
 export function formatIdentity(pid) {
   if (pid == null || !Number.isFinite(Number(pid))) return null;
   return `${Number(pid).toFixed(2).replace(/\.?0+$/, "")}%`;

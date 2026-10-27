@@ -133,16 +133,29 @@ function HitsTable({ hits }) {
   );
 }
 
+// GRCh38 states, as reference_lookup._human_genome writes them: hit=true
+// passed the identity/coverage thresholds; hit=false with an identity is the
+// best hit falling below them (the worker's reason says by how much);
+// hit=false with no identity is no hit at all.
+function humanGenomeState(hg) {
+  if (hg.contamination) return { tone: "danger", label: "human contamination" };
+  if (hg.hit) return { tone: "warning", label: "hit, beaten by a closer assignment" };
+  if (hg.identity != null) return { tone: "pending", label: "below threshold" };
+  return { tone: "pending", label: "no hit" };
+}
+
 function HumanGenome({ hg }) {
   if (!hg) return null;
   if (hg.available === false) return <span style={muted}>GRCh38 search unavailable{hg.reason ? `: ${hg.reason}` : ""}</span>;
+  const state = humanGenomeState(hg);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 12, color: tokens.sectionSubtext }}>GRCh38</span>
-      <Pill tone={hg.contamination ? "danger" : hg.hit ? "warning" : "pending"}>
-        {hg.contamination ? "human contamination" : hg.hit ? "hit, beaten by a closer assignment" : "no hit"}
-      </Pill>
-      <KV items={[["identity", formatIdentity(hg.identity)], ["coverage", formatIdentity(hg.query_coverage)], ["subject", hg.subject]]} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: tokens.sectionSubtext }}>GRCh38</span>
+        <Pill tone={state.tone}>{state.label}</Pill>
+        <KV items={[["identity", formatIdentity(hg.identity)], ["coverage", formatIdentity(hg.query_coverage)], ["subject", hg.subject]]} />
+      </div>
+      {hg.reason && <span style={muted}>{hg.reason}</span>}
     </div>
   );
 }

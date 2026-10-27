@@ -3,7 +3,7 @@
 // fixtures are recorded from the real API by services/api/scripts/
 // gen_e2e_fixtures.py: an orchestrated analysis (decisions + traces), a
 // pre-orchestrator one (neither), and /models/status.
-import { test, expect, fixture, ANALYSIS_ID, ORCH_ANALYSIS_ID } from "./support/mockApi.js";
+import { test, expect, fixture, LEGACY_ANALYSIS_ID, ORCH_ANALYSIS_ID } from "./support/mockApi.js";
 
 const status = fixture("models_status");
 const routerId = fixture("models_registry").selected_by_route.router;
@@ -100,7 +100,7 @@ test.describe("results: sequence calls and decision trace", () => {
 
   test("a pre-orchestrator analysis says no trace exists", async ({ page, api }) => {
     const legacy = fixture("analysis_legacy");
-    await page.goto(`/analysis/${ANALYSIS_ID}`);
+    await page.goto(`/analysis/${LEGACY_ANALYSIS_ID}`);
     await expect(page.getByText(/stored before the orchestrator: no row has a decision/)).toBeVisible();
     const rows = page.getByTestId("sequence-call");
     await expect(rows).toHaveCount(legacy.results.length);
@@ -108,6 +108,96 @@ test.describe("results: sequence calls and decision trace", () => {
     await expect(rows.filter({ hasText: "seq_e2e_old_02" }).getByText(/stub inference \(no head weights\)/)).toBeVisible();
     await rows.first().getByRole("button", { name: "Why this answer" }).click();
     await expect(rows.first().getByText("No decision trace exists for this sequence.")).toBeVisible();
-    expect(api.called(`GET /analysis/${ANALYSIS_ID}?include_trace=true`)).toBe(false);
+    expect(api.called(`GET /reports/${LEGACY_ANALYSIS_ID}`)).toBe(true);
+    expect(api.called(`GET /analysis/${LEGACY_ANALYSIS_ID}?include_trace=true`)).toBe(false);
+  });
+
+  test("a reference search with no assignment is not tagged as a match", async ({ page }) => {
+    await page.goto(`/analysis/${ORCH_ANALYSIS_ID}`);
+    const rows = page.getByTestId("sequence-call");
+    const vent = rows.filter({ hasText: "seq_e2e_orch_vent_04" });
+    const d = row("seq_e2e_orch_vent_04").decision;
+    expect(d.reference_db).toBeTruthy();
+    expect(d.predicted_taxon).toBeNull();
+    const tag = vent.getByText(`Reference DB: ${d.reference_db} v2`, { exact: false });
+    await expect(tag).toContainText(/· Searched .+ · no assignment$/);
+    await expect(tag).not.toContainText("Matched");
+    // An assigned row still reads "Matched".
+    await expect(rows.filter({ hasText: "seq_e2e_orch_tuna_01" }).getByText(/· Matched /)).toBeVisible();
+  });
+
+  test("a below-threshold GRCh38 hit says so and shows the worker's reason", async ({ page, api }) => {
+    const body = fixture("analysis_orchestrated_trace");
+    const vent = body.results.find((r) => r.sequence_id === "seq_e2e_orch_vent_04");
+    const ref = vent.decision_trace.evidence.find((e) => e.provider === "reference_lookup");
+    const reason = "best GRCh38 hit 95% over 60% of the query is below 98%/80%";
+    ref.payload.human_genome = {
+      available: true, hit: false, contamination: false, identity: 95.0, query_coverage: 60.0,
+      alignment_length: 180, subject: "NC_000001.11", start: 100, end: 280, reason,
+    };
+    api.override("GET", new RegExp(`^/analysis/${ORCH_ANALYSIS_ID}$`), (_m, url) =>
+      url.searchParams.get("include_trace") === "false" ? "analysis_orchestrated" : { body });
+    await page.goto(`/analysis/${ORCH_ANALYSIS_ID}`);
+    const rowEl = page.getByTestId("sequence-call").filter({ hasText: "seq_e2e_orch_vent_04" });
+    await rowEl.getByRole("button", { name: "Why this answer" }).click();
+    const trace = rowEl.getByTestId("decision-trace");
+    await expect(trace.getByText("below threshold", { exact: true })).toBeVisible();
+    await expect(trace.getByText(reason)).toBeVisible();
+    await expect(trace.getByText("no hit", { exact: true })).toHaveCount(0);
+  });
+
+  test("moving to another analysis drops the previous analysis's traces", async ({ page, api }) => {
+    // A second orchestrated analysis: the same rows under another id.
+    const otherId = "ana_e2e00000000b2";
+    const rowsBody = { ...fixture("analysis_orchestrated"), analysis_id: otherId };
+    const traceBody = { ...fixture("analysis_orchestrated_trace"), analysis_id: otherId };
+    const report = fixture("report_orchestrated");
+    report.metadata.analysis_id = otherId;
+    api.override("GET", new RegExp(`^/reports/${otherId}$`), { body: report });
+    api.override("GET", new RegExp(`^/analysis/${otherId}$`), (_m, url) =>
+      ({ body: url.searchParams.get("include_trace") === "false" ? rowsBody : traceBody }));
+
+    await page.goto(`/analysis/${ORCH_ANALYSIS_ID}`);
+    const tuna = () => page.getByTestId("sequence-call").filter({ hasText: "seq_e2e_orch_tuna_01" });
+    await tuna().getByRole("button", { name: "Why this answer" }).click();
+    await expect(tuna().getByTestId("decision-trace").getByText("1 · PLAN")).toBeVisible();
+
+    // Client-side navigation: React Router keeps AnalysisResults mounted.
+    await page.evaluate((id) => {
+      window.history.pushState({}, "", `/analysis/${id}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }, otherId);
+    await expect(page.getByText(`Run ID ${otherId}`)).toBeVisible();
+    // The open row and the loaded traces did not carry over.
+    await expect(tuna().getByRole("button", { name: "Why this answer" })).toBeVisible();
+    await tuna().getByRole("button", { name: "Why this answer" }).click();
+    await expect(tuna().getByTestId("decision-trace").getByText("1 · PLAN")).toBeVisible();
+    await expect(tuna().getByText(/no stored trace/)).toHaveCount(0);
+    expect(api.called(`GET /analysis/${otherId}?include_trace=true`)).toBe(true);
+  });
+});
+
+test.describe("species correction: reference provenance", () => {
+  test("orchestrated rows say which reference DB they were matched against", async ({ page, api }) => {
+    const rep = fixture("report_orchestrated");
+    const tunaRow = rep.taxonomic_assignments.find((r) => r.sequence_id === "seq_e2e_orch_tuna_01");
+    await page.goto(`/researcher-mode/species-correction?analysis_id=${ORCH_ANALYSIS_ID}`);
+    await expect(page.getByRole("heading", { name: "Species Correction" })).toBeVisible();
+    await expect(page.getByText(`${tunaRow.reference_db} v2`, { exact: true })).toBeVisible();
+    await expect(page.getByText("not recorded", { exact: true })).toHaveCount(0);
+    // Header and footer name the reference DBs too, not "pending configuration".
+    await expect(page.getByText(/Reference DB: synthveda-reference \(\d+ route DBs\) v2/)).toHaveCount(2);
+    await expect(page.getByText("Reference DB: pending configuration")).toHaveCount(0);
+    expect(api.called(`GET /reports/${ORCH_ANALYSIS_ID}`)).toBe(true);
+  });
+});
+
+test.describe("upload: keyboard", () => {
+  test("the Auto processing model can be focused", async ({ page }) => {
+    await page.goto("/upload");
+    const auto = page.getByRole("radio", { name: /Auto/ });
+    await auto.focus();
+    await expect(auto).toBeFocused();
+    await expect(auto).toHaveAttribute("tabindex", "0");
   });
 });

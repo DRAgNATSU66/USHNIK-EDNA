@@ -7,7 +7,7 @@ import { tokens } from "../../components/shared/tokens";
 import Dropdown from "../../components/shared/Dropdown";
 import { useAuth } from "../../contexts/AuthContext";
 import { getReport, listReports, listReviewsForSequence, submitReview } from "../../lib/api";
-import { formatIdentity, taxonCall } from "../../lib/decision";
+import { formatIdentity, summarizeReferenceDbs, taxonCall } from "../../lib/decision";
 
 const TIER_COLOR = { green: tokens.success, amber: tokens.warningAlt, red: tokens.danger };
 const TIER_LABEL = { green: "● Green", amber: "● Amber", red: "● Red" };
@@ -396,6 +396,9 @@ export default function SpeciesCorrection() {
   }, [report, confFilter, routeFilter, query, sortBy]);
 
   const drawerEntry = report?.taxonomic_assignments.find((a) => a.sequence_id === drawerSeqId) ?? null;
+  // Header/footer provenance from the rows themselves (flat reference_db /
+  // reference_db_version on each taxonomic_assignments row).
+  const refDbs = summarizeReferenceDbs(report?.taxonomic_assignments);
 
   if (error) {
     return (
@@ -436,7 +439,7 @@ export default function SpeciesCorrection() {
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 4, fontSize: 12.5, color: tokens.sectionSubtext, flexWrap: "wrap" }}>
             <span>{report.metadata.source_file ?? "Unnamed upload"}</span>
             <span style={{ color: tokens.headerDot }}>·</span>
-            <ProvenanceTag referenceDb={null} variant="plain" />
+            <ProvenanceTag {...refDbs} variant="plain" />
           </div>
         </div>
 
@@ -564,7 +567,7 @@ export default function SpeciesCorrection() {
 
         <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 2px", borderTop: `1px solid ${tokens.sectionBorder}` }}>
           <ProvenanceTag
-            referenceDb={null}
+            {...refDbs}
             pipelineVersion={report.metadata.model_version_set !== "stub_none" ? report.metadata.model_version_set : null}
             matchedAt={report.metadata.created_at}
             variant="plain"

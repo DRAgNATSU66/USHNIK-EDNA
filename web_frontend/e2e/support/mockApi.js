@@ -28,20 +28,23 @@ export function fixture(name) {
 export const ANALYSIS_ID = fixture("report").metadata.analysis_id;
 // Orchestrated analysis with decisions + traces (t-1023-2).
 export const ORCH_ANALYSIS_ID = fixture("analysis_orchestrated").analysis_id;
+// Pre-orchestrator analysis (no decision, no trace) with its own report.
+export const LEGACY_ANALYSIS_ID = fixture("analysis_legacy").analysis_id;
 
 // [method, pathname regex, (match, url, role) => fixture name | {status, body}]
 const ROUTES = [
   ["GET", /^\/health$/, () => "health"],
   ["GET", /^\/auth\/me$/, (_m, _u, role) => `auth_me_${role}`],
   ["GET", /^\/reports$/, () => "reports_list"],
-  // Results page per-sequence rows (t-1023-2). The orchestrated analysis
-  // has its own report; GET /analysis/{id} for any other id serves the
-  // pre-orchestrator rows (no decision, no trace) -- the stored state of
-  // every analysis written before orchestrator-1.2.0.
+  // Results page per-sequence rows (t-1023-2). GET /analysis/{id} is mapped
+  // per id, each to the rows of that same analysis, and each analysis here
+  // has its own report; an id not listed falls through to the 501 guard.
   ["GET", new RegExp(`^/reports/${ORCH_ANALYSIS_ID}$`), () => "report_orchestrated"],
   ["GET", new RegExp(`^/analysis/${ORCH_ANALYSIS_ID}$`), (_m, url) =>
     url.searchParams.get("include_trace") === "false" ? "analysis_orchestrated" : "analysis_orchestrated_trace"],
-  ["GET", /^\/analysis\/[^/]+$/, () => "analysis_legacy"],
+  ["GET", new RegExp(`^/reports/${LEGACY_ANALYSIS_ID}$`), () => "report_legacy"],
+  ["GET", new RegExp(`^/analysis/${LEGACY_ANALYSIS_ID}$`), () => "analysis_legacy"],
+  ["GET", new RegExp(`^/analysis/${ANALYSIS_ID}$`), () => "analysis"],
   ["GET", /^\/models\/status$/, () => "models_status"],
   ["GET", /^\/reports\/[^/]+$/, () => "report"],
   ["GET", /^\/reports\/[^/]+\/summary$/, () => "report_summary"],

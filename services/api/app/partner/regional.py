@@ -70,7 +70,10 @@ HOTSPOT_DEFINITIONS: dict[str, str] = {
     "cell": (
         "Each upload with a valid latitude and longitude is placed in the grid cell "
         "[floor(lat / cell_deg) * cell_deg, +cell_deg) x [floor(lon / cell_deg) * cell_deg, +cell_deg), "
-        "in degrees (WGS84 as entered at upload). Latitude 90 and longitude 180 fall in the cell below. "
+        "in degrees (WGS84 as entered at upload), computed with a 1e-9-cell tolerance so a coordinate on an "
+        "edge (0.3 with cell_deg 0.1) lands in the cell it starts despite floating-point error. Latitude 90 "
+        "and longitude 180 fall in the cell below. When cell_deg does not divide 90 or 180, the cells at the "
+        "poles and the antimeridian are clipped to +-90 / +-180 (bounds and center are of the clipped cell). "
         "One degree of latitude is about 111 km; a degree of longitude shrinks with cos(latitude). "
         "The cell is an aggregation unit, not a detection radius or a drift model."
     ),
@@ -111,16 +114,41 @@ ALERT_DEFINITIONS: dict[str, str] = {
 }
 
 
+# A quotient within this many cells of a whole number is that whole number:
+# 0.3 / 0.1 is 2.9999999999999996 in floating point, which floor() would put
+# in cell 2 ([0.2, 0.3)) although 0.3 is the lower edge of cell 3. 1e-9 of a
+# cell is under 0.012 mm at the 0.1 degree minimum, so no real coordinate is
+# moved by it.
+_CELL_EPS = 1e-9
+
+
+def _floor_cells(x: float) -> int:
+    k = round(x)
+    return int(k) if abs(x - k) <= _CELL_EPS else math.floor(x)
+
+
+def _ceil_cells(x: float) -> int:
+    k = round(x)
+    return int(k) if abs(x - k) <= _CELL_EPS else math.ceil(x)
+
+
 def cell_index(lat: float, lng: float, size: float) -> tuple[int, int]:
-    """Grid indices of (lat, lng); the top/right edges fold into the cell below."""
-    i = math.floor(lat / size)
-    j = math.floor(lng / size)
+    """Grid indices of (lat, lng): floor(coord / size), the half-open rule,
+    robust to floating-point error; the top/right edges fold into the cell below."""
+    i = _floor_cells(lat / size)
+    j = _floor_cells(lng / size)
     # 90 / 180 exactly would open a cell that lies entirely off the globe.
-    if lat >= 90:
-        i = math.ceil(90 / size) - 1
-    if lng >= 180:
-        j = math.ceil(180 / size) - 1
+    i = min(i, _ceil_cells(90 / size) - 1)
+    j = min(j, _ceil_cells(180 / size) - 1)
     return i, j
+
+
+def cell_bounds(i: int, j: int, size: float) -> tuple[float, float, float, float]:
+    """(lat_min, lat_max, lng_min, lng_max) of cell (i, j), clipped to the
+    globe: when size does not divide 90 or 180 the edge cells would otherwise
+    reach past +-90 / +-180."""
+    return (max(-90.0, i * size), min(90.0, (i + 1) * size),
+            max(-180.0, j * size), min(180.0, (j + 1) * size))
 
 
 def _valid_coords(u: dict[str, Any]) -> Optional[tuple[float, float]]:
@@ -257,13 +285,13 @@ async def build_hotspots(
 
     out_cells = []
     for (i, j), c in cells.items():
-        lat_min, lng_min = i * cell_deg, j * cell_deg
+        lat_min, lat_max, lng_min, lng_max = cell_bounds(i, j, cell_deg)
         top = sorted(c["taxa"].items(), key=lambda kv: (-kv[1], kv[0][0], kv[0][1] or ""))[:CELL_TOP_TAXA]
         out_cells.append(HotspotCell(
             cell_id=f"{i}:{j}",
-            lat_min=_r(lat_min), lat_max=_r(lat_min + cell_deg),
-            lng_min=_r(lng_min), lng_max=_r(lng_min + cell_deg),
-            center_lat=_r(lat_min + cell_deg / 2), center_lng=_r(lng_min + cell_deg / 2),
+            lat_min=_r(lat_min), lat_max=_r(lat_max),
+            lng_min=_r(lng_min), lng_max=_r(lng_max),
+            center_lat=_r((lat_min + lat_max) / 2), center_lng=_r((lng_min + lng_max) / 2),
             uploads=len(c["uploads"]),
             analyses=c["analyses"],
             sequences=c["sequences"],

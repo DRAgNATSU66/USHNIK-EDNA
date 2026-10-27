@@ -2,13 +2,15 @@
   "analyses_in_scope": 4,
   "contamination_flags": 2,
   "definitions": {
-    "contamination_flag": "A sequence with contamination_flagged = true.",
-    "incident": "An analysis in scope with at least one contamination flag, at least one novelty flag, or at least one open urgent review. Flags are as the pipeline raised them; a later review decision does not clear a flag, so open_reviews says how many reviews on that analysis are still open.",
+    "contamination_flag": "A sequence with contamination_flagged = true whose contamination is not expected for its route. Together with expected_contamination this is /partner/summary's contamination flag count.",
+    "expected_contamination": "A sequence with contamination_flagged = true whose contamination_type is the expected finding on its final route: human_dna on human_domestic_contamination (owner decision QNA-030: that route exists to detect it). It stays flagged on the result, but the worker queues no review for it and it is not an incident. Counted per incident as expected_contamination_flags and, over every analysis in scope, in the top-level expected_contamination_flags.",
+    "incident": "An analysis in scope with at least one contamination flag, at least one novelty flag, or at least one open urgent review. Flags are as the pipeline raised them; a later review decision does not clear a flag, so open_reviews says how many reviews on that analysis are still open. Expected contamination (see expected_contamination) does not make an analysis an incident.",
     "novelty_flag": "A sequence whose result_class is not known_species and that is either possible_novelty or has novelty_score >= 0.44 (the worker's per-analysis summary rule).",
     "open_review": "A review in state submitted, triaged or needs_evidence.",
     "scope": "Uploads and analyses are selected by owner (user_id) and by their own created_at within [date_from, date_to] (UTC, both days inclusive). Reviews are those of the selected analyses; sites and environmental coverage are the selected uploads.",
     "urgent_review": "A review of an analysis in scope with triage_priority = urgent and state submitted, triaged or needs_evidence (open)."
   },
+  "expected_contamination_flags": 0,
   "generated_at": "2026-10-16T09:00:00",
   "incidents": [
     {
@@ -19,26 +21,27 @@
         "human": 1
       },
       "created_at": "2026-10-10T08:05:00Z",
+      "expected_contamination_flags": 0,
       "flagged_sequences": [
         {
           "contamination_type": "human",
           "flag": "contamination",
           "novelty_score": 0.1,
-          "result_class": "possible_contaminant",
+          "result_class": "possible_contamination",
           "sequence_id": "seq_e2e_contam_005"
         },
         {
           "contamination_type": null,
           "flag": "novelty",
           "novelty_score": 0.83,
-          "result_class": "possible_novel_taxon",
+          "result_class": "possible_novelty",
           "sequence_id": "seq_e2e_novel_003"
         },
         {
           "contamination_type": null,
           "flag": "novelty",
           "novelty_score": 0.67,
-          "result_class": "possible_novel_taxon",
+          "result_class": "possible_novelty",
           "sequence_id": "seq_e2e_novel_004"
         }
       ],
@@ -56,6 +59,7 @@
       "contamination_flags": 0,
       "contamination_types": {},
       "created_at": "2026-10-09T08:00:00Z",
+      "expected_contamination_flags": 0,
       "flagged_sequences": [
         {
           "contamination_type": null,
@@ -88,6 +92,7 @@
         "human": 1
       },
       "created_at": "2026-10-02T11:06:00Z",
+      "expected_contamination_flags": 0,
       "flagged_sequences": [
         {
           "contamination_type": "human",

@@ -17,7 +17,7 @@ import app.db.mongo as _mongo_module
 from app.auth.jwt import create_access_token
 from app.config import NOVELTY_THRESHOLD
 from app.models.user import UserRole
-from app.partner.regional import cell_index
+from app.partner.regional import cell_bounds, cell_index
 
 OWNER = "usr_test_001"  # researcher_token's user (conftest)
 OTHER = "usr_other"
@@ -274,6 +274,47 @@ def test_cell_index_edges():
     assert cell_index(90, 180, 1.0) == (89, 179)
     assert cell_index(-90, -180, 1.0) == (-90, -180)
     assert cell_index(90, 180, 0.25) == (359, 719)
+
+
+def test_cell_index_float_error_follows_half_open_rule():
+    # Reviewer's example: 0.3 / 0.1 == 2.9999999999999996, so plain floor()
+    # put 0.3 in [0.2, 0.3). 0.3 is the lower edge of cell 3.
+    assert 0.3 / 0.1 < 3
+    assert cell_index(0.3, 0.3, 0.1) == (3, 3)
+    assert cell_bounds(3, 3, 0.1)[0] == pytest.approx(0.3)
+    assert cell_index(-0.3, -0.3, 0.1) == (-3, -3)
+    # 90 / 0.1 == 900.0000000000001; the fold must still land on cell 899.
+    assert cell_index(90, 180, 0.1) == (899, 1799)
+    # Just below an edge stays below it.
+    assert cell_index(0.2999, 0.2999, 0.1) == (2, 2)
+
+
+def test_cell_bounds_clipped_to_globe_when_size_does_not_divide():
+    # Reviewer's examples with cell_deg 0.7 (divides neither 90 nor 180).
+    i, j = cell_index(89.9, 179.9, 0.7)
+    assert (i, j) == (128, 257)
+    lat_min, lat_max, lng_min, lng_max = cell_bounds(i, j, 0.7)
+    assert lat_min == pytest.approx(89.6) and lat_max == 90.0
+    assert lng_min == pytest.approx(179.9) and lng_max == 180.0
+    assert cell_index(90, 180, 0.7) == (128, 257)  # the edges fold into the same clipped cell
+    lat_min, lat_max, lng_min, lng_max = cell_bounds(*cell_index(-90, -180, 0.7), 0.7)
+    assert lat_min == -90.0 and lat_max == pytest.approx(-89.6)
+    assert lng_min == -180.0 and lng_max == pytest.approx(-179.9)
+    # A cell that fits is untouched.
+    assert cell_bounds(*cell_index(15.6, 82.3, 1.0), 1.0) == (15.0, 16.0, 82.0, 83.0)
+
+
+@pytest.mark.anyio
+async def test_hotspots_edge_cell_is_clipped(client, researcher_token, db):
+    db["uploads"].docs.append({"upload_id": "upl_pole", "user_id": OWNER, "latitude": 89.9, "longitude": 179.9,
+                               "created_at": datetime(2026, 10, 1, 8)})
+    body = (await client.get("/partner/hotspots", params={"cell_deg": 0.7},
+                             headers=_auth(researcher_token))).json()
+    (cell,) = body["cells"]
+    assert cell["cell_id"] == "128:257"
+    assert (cell["lat_min"], cell["lat_max"], cell["lng_min"], cell["lng_max"]) == (89.6, 90.0, 179.9, 180.0)
+    assert (cell["center_lat"], cell["center_lng"]) == (89.8, 179.95)
+    assert "clipped" in body["definitions"]["cell"]
 
 
 # ---------------------------------------------------------------------------

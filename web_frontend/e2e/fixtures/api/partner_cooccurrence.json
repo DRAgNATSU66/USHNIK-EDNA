@@ -5,7 +5,7 @@
     "jaccard": "samples_together / samples containing either taxon.",
     "order": "samples_together descending, then jaccard descending, then taxon names alphabetically.",
     "rank": "Only taxa whose recorded rank equals the requested rank are paired; rank=any pairs every taxon at whatever rank it was recorded, so a genus can pair with a species.",
-    "sample": "One sample = one upload in scope (owner, upload created_at within [date_from, date_to], UTC, both days inclusive), represented by its newest stored analysis; older re-runs of the same upload are not counted.",
+    "sample": "One sample = one upload in scope (owner, upload created_at within [date_from, date_to], UTC, both days inclusive). Its contents are read from its newest stored analysis; older re-runs of the same upload are not counted. An upload with no stored analysis yet is still a sample, with no contents: rhythms places it by its timestamp with 0 detections (totals.uploads counts every sample, totals.samples_analysed those with an analysis), and co-occurrence, which can only pair taxa from analysed samples, reports uploads_in_scope for every sample and samples for the analysed ones.",
     "samples_together": "Number of samples in which both taxa are present (co-presence count).",
     "taxon": "Per sequence: results[].decision.predicted_taxon with decision.taxon_rank when the orchestrator wrote a decision, otherwise the legacy results[].predicted_taxon (rank not recorded). Sequences with contamination_flagged = true are excluded. A taxon is present in a sample when at least one remaining sequence is assigned to it."
   },

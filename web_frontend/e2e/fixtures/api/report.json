@@ -15,7 +15,7 @@
       "reason_codes": [
         "human_contaminant_match"
       ],
-      "route": "human_domestic",
+      "route": "human_domestic_contamination",
       "sequence_id": "seq_e2e_contam_005"
     }
   ],
@@ -131,12 +131,12 @@
     },
     {
       "model_version_used": "dnabert2_bacteria_v1",
-      "route": "bacteria",
+      "route": "bacteria_pathogen",
       "sequence_count": 1
     },
     {
       "model_version_used": "dnabert2_human_domestic_v1",
-      "route": "human_domestic",
+      "route": "human_domestic_contamination",
       "sequence_count": 1
     },
     {
@@ -173,7 +173,7 @@
         "low_reference_similarity"
       ],
       "requires_cloud_confirmation": true,
-      "route": "bacteria",
+      "route": "bacteria_pathogen",
       "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
       "sequence_id": "seq_e2e_novel_004"
     }
@@ -211,12 +211,12 @@
     {
       "count": 1,
       "fraction": 0.1429,
-      "route": "bacteria"
+      "route": "bacteria_pathogen"
     },
     {
       "count": 1,
       "fraction": 0.1429,
-      "route": "human_domestic"
+      "route": "human_domestic_contamination"
     },
     {
       "count": 1,
@@ -288,8 +288,8 @@
       ],
       "reference_db": null,
       "reference_db_version": null,
-      "result_class": "possible_contaminant",
-      "route": "human_domestic",
+      "result_class": "possible_contamination",
+      "route": "human_domestic_contamination",
       "sequence_id": "seq_e2e_contam_005",
       "taxon_rank": null,
       "taxon_source": "legacy"
@@ -341,7 +341,7 @@
       ],
       "reference_db": null,
       "reference_db_version": null,
-      "result_class": "possible_novel_taxon",
+      "result_class": "possible_novelty",
       "route": "fish",
       "sequence_id": "seq_e2e_novel_003",
       "taxon_rank": null,
@@ -360,8 +360,8 @@
       ],
       "reference_db": null,
       "reference_db_version": null,
-      "result_class": "possible_novel_taxon",
-      "route": "bacteria",
+      "result_class": "possible_novelty",
+      "route": "bacteria_pathogen",
       "sequence_id": "seq_e2e_novel_004",
       "taxon_rank": null,
       "taxon_source": "legacy"

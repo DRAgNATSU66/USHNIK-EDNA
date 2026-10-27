@@ -8,6 +8,14 @@ GET /partner/summary, and both reuse the summary's per-sequence rules
 same flag counted there. Nothing is scored, weighted or estimated: an
 incident is an analysis that carries pipeline flags or an open urgent
 review, listed with the counts that made it one.
+
+One exception to "same flag": contamination that is the expected finding on
+its route (EXPECTED_CONTAMINATION_BY_ROUTE, human DNA on the
+human_domestic_contamination route; owner decision QNA-030) stays flagged on
+the result and in /partner/summary, but the worker does not queue a review
+for it, so it does not make an incident either. It is counted separately as
+expected_contamination_flags, so contamination_flags +
+expected_contamination_flags is the summary's contamination flag count.
 """
 from __future__ import annotations
 
@@ -27,6 +35,18 @@ from .summary import (
 
 # Flagged sequences returned per incident (the counts cover all of them).
 FLAGGED_SEQUENCES_PER_INCIDENT = 10
+
+# Mirror of services/worker/app/job_runner.py EXPECTED_CONTAMINATION_BY_ROUTE
+# (tests/test_partner_incidents.py checks the two are equal): contamination
+# types that are the expected finding on a route. Flagged, not reviewed.
+EXPECTED_CONTAMINATION_BY_ROUTE: dict[str, frozenset[str]] = {
+    "human_domestic_contamination": frozenset({"human_dna"}),
+}
+
+
+def is_expected_contamination(route: Optional[str], contamination_type: Optional[str]) -> bool:
+    """True when this contamination type is what `route` exists to detect."""
+    return contamination_type in EXPECTED_CONTAMINATION_BY_ROUTE.get(route or "", ())
 
 _INCIDENT_PROJECTION = {
     "_id": 0,
@@ -49,9 +69,23 @@ INCIDENT_DEFINITIONS: dict[str, str] = {
     "incident": (
         "An analysis in scope with at least one contamination flag, at least one novelty flag, or at least "
         "one open urgent review. Flags are as the pipeline raised them; a later review decision does not "
-        "clear a flag, so open_reviews says how many reviews on that analysis are still open."
+        "clear a flag, so open_reviews says how many reviews on that analysis are still open. Expected "
+        "contamination (see expected_contamination) does not make an analysis an incident."
     ),
-    "contamination_flag": SUMMARY_DEFINITIONS["contamination_flag"],
+    "contamination_flag": (
+        "A sequence with contamination_flagged = true whose contamination is not expected for its route. "
+        "Together with expected_contamination this is /partner/summary's contamination flag count."
+    ),
+    "expected_contamination": (
+        "A sequence with contamination_flagged = true whose contamination_type is the expected finding on "
+        "its final route: "
+        + "; ".join(f"{', '.join(sorted(types))} on {route}"
+                    for route, types in sorted(EXPECTED_CONTAMINATION_BY_ROUTE.items()))
+        + " (owner decision QNA-030: that route exists to detect it). It stays flagged on the result, but the "
+        "worker queues no review for it and it is not an incident. Counted per incident as "
+        "expected_contamination_flags and, over every analysis in scope, in the top-level "
+        "expected_contamination_flags."
+    ),
     "novelty_flag": SUMMARY_DEFINITIONS["novelty_flag"],
     "urgent_review": (
         "A review of an analysis in scope with triage_priority = urgent and state submitted, triaged or "
@@ -109,9 +143,12 @@ async def build_incidents(
         contamination: list[FlaggedSequence] = []
         novelty: list[FlaggedSequence] = []
         types: Counter[str] = Counter()
+        expected = 0
         for r in results:
-            _route, rc, _taxon, _rank = _effective(r)
-            if r.get("contamination_flagged"):
+            route, rc, _taxon, _rank = _effective(r)
+            if r.get("contamination_flagged") and is_expected_contamination(route, r.get("contamination_type")):
+                expected += 1
+            elif r.get("contamination_flagged"):
                 types[r.get("contamination_type") or "unrecorded"] += 1
                 contamination.append(FlaggedSequence(
                     sequence_id=r.get("sequence_id"), flag="contamination", result_class=rc,
@@ -126,6 +163,7 @@ async def build_incidents(
             created_at=_as_utc(doc.get("created_at")),
             sequences=len(results),
             contamination_flags=len(contamination),
+            expected_contamination_flags=expected,
             novelty_flags=len(novelty),
             contamination_types=dict(types),
             flagged_sequences=(contamination + novelty)[:FLAGGED_SEQUENCES_PER_INCIDENT],
@@ -190,6 +228,7 @@ async def build_incidents(
         analyses_in_scope=len(analysis_ids),
         total=len(incidents),
         contamination_flags=sum(i.contamination_flags for i in incidents),
+        expected_contamination_flags=sum(i.expected_contamination_flags for i in per_analysis.values()),
         novelty_flags=sum(i.novelty_flags for i in incidents),
         incidents=shown,
         truncated=len(incidents) > limit,

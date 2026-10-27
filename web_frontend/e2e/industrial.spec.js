@@ -134,3 +134,23 @@ test.describe("industrial partner page", () => {
     });
   });
 });
+
+test.describe("industrial: expected-by-route contamination (QNA-030)", () => {
+  test("is reported as a separate count, not as an incident", async ({ page, api }) => {
+    const body = fixture("partner_incidents");
+    body.expected_contamination_flags = 3;
+    api.override("GET", /^\/partner\/incidents$/, { body });
+    await page.goto("/partner-report/industrial");
+    const note = page.getByTestId("expected-contamination");
+    await expect(note).toContainText("Not counted as incidents: 3 expected contamination flags");
+    await expect(note).toContainText(body.definitions.expected_contamination);
+    await expect(page.getByTestId("kpi-incidents")).toContainText(`${body.contamination_flags} contamination flag`);
+  });
+
+  test("says nothing when there is none", async ({ page }) => {
+    expect(incidents.expected_contamination_flags).toBe(0);
+    await page.goto("/partner-report/industrial");
+    await expect(page.getByTestId("incident-row").first()).toBeVisible();
+    await expect(page.getByTestId("expected-contamination")).toHaveCount(0);
+  });
+});

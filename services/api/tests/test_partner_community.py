@@ -332,4 +332,10 @@ async def test_rhythms_bins_by_collected_at_else_upload_time(client, researcher_
     assert sum(b["uploads"] for b in body["by_hour"]) == sum(b["uploads"] for b in body["by_weekday"]) == 3
     assert any("1 of 3 uploads have no collected_at" in n for n in body["notes"])
     assert any("not an activity rhythm" in n for n in body["notes"])
+    # The unanalysed upload is a sample by the response's own definition, and
+    # both the count and the definition say so.
+    assert t["uploads"] - t["samples_analysed"] == 1
+    assert any("1 of 3 samples have no stored analysis yet" in n for n in body["notes"])
+    assert "An upload with no stored analysis yet is still a sample" in body["definitions"]["sample"]
+    assert "totals.uploads counts every sample" in body["definitions"]["sample"]
     assert {"timestamp", "timezone", "detections", "interpretation"} <= set(body["definitions"])

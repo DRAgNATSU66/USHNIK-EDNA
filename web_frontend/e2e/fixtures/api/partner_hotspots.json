@@ -117,7 +117,7 @@
     "uploads_without_coordinates": 1
   },
   "definitions": {
-    "cell": "Each upload with a valid latitude and longitude is placed in the grid cell [floor(lat / cell_deg) * cell_deg, +cell_deg) x [floor(lon / cell_deg) * cell_deg, +cell_deg), in degrees (WGS84 as entered at upload). Latitude 90 and longitude 180 fall in the cell below. One degree of latitude is about 111 km; a degree of longitude shrinks with cos(latitude). The cell is an aggregation unit, not a detection radius or a drift model.",
+    "cell": "Each upload with a valid latitude and longitude is placed in the grid cell [floor(lat / cell_deg) * cell_deg, +cell_deg) x [floor(lon / cell_deg) * cell_deg, +cell_deg), in degrees (WGS84 as entered at upload), computed with a 1e-9-cell tolerance so a coordinate on an edge (0.3 with cell_deg 0.1) lands in the cell it starts despite floating-point error. Latitude 90 and longitude 180 fall in the cell below. When cell_deg does not divide 90 or 180, the cells at the poles and the antimeridian are clipped to +-90 / +-180 (bounds and center are of the clipped cell). One degree of latitude is about 111 km; a degree of longitude shrinks with cos(latitude). The cell is an aggregation unit, not a detection radius or a drift model.",
     "contamination_flag": "A sequence with contamination_flagged = true (as in GET /partner/summary).",
     "novelty_flag": "Same rule as GET /partner/summary: result_class is not known_species and it is possible_novelty or has novelty_score >= the deployment's novelty threshold.",
     "reviews": "open_reviews: reviews of the cell's analyses in state submitted, triaged or needs_evidence. open_urgent_reviews: those with triage_priority urgent.",

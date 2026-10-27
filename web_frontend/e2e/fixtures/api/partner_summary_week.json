@@ -102,10 +102,8 @@
     "known_species_not_novelty": 0,
     "likely_taxonomic_group": 1,
     "low_quality_unusable": 1,
-    "possible_contaminant": 1,
-    "possible_contamination": 1,
-    "possible_novel_taxon": 2,
-    "possible_novelty": 1,
+    "possible_contamination": 2,
+    "possible_novelty": 3,
     "unknown_needs_online_confirmation": 2
   },
   "reviews": {
@@ -129,11 +127,9 @@
   },
   "route_distribution": {
     "animal_general": 1,
-    "bacteria": 1,
-    "bacteria_pathogen": 1,
+    "bacteria_pathogen": 2,
     "fish": 10,
-    "human_domestic": 1,
-    "human_domestic_contamination": 1,
+    "human_domestic_contamination": 2,
     "low_quality": 1,
     "misc_unknown": 1,
     "plant": 2

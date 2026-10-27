@@ -130,6 +130,29 @@ test.describe("novelty DNA reference lookup (stored decision)", () => {
   });
 });
 
+test.describe("novelty DNA reference provenance", () => {
+  // Header and footer name the analysis's reference DBs from the summary's
+  // taxa section, never "pending configuration".
+  test("an orchestrated analysis names its route DBs", async ({ page, api }) => {
+    const orch = fixture("report_orchestrated");
+    const summary = { ...fixture("report_summary"), analysis_id: ORCH_ANALYSIS_ID, metadata: orch.metadata, taxa: orch.taxa };
+    api.override("GET", new RegExp(`^/reports/${ORCH_ANALYSIS_ID}/summary$`), { body: summary });
+    const roots = new Set(orch.taxa.reference_dbs.map((u) => u.reference_db));
+    await page.goto(`/researcher-mode/novelty-dna?analysis_id=${ORCH_ANALYSIS_ID}`);
+    await expect(page.getByRole("heading", { name: "Novelty DNA" })).toBeVisible();
+    await expect(page.getByText(`Reference DB: synthveda-reference (${roots.size} route DBs) v2`)).toHaveCount(2);
+    await expect(page.getByText("Reference DB: pending configuration")).toHaveCount(0);
+  });
+
+  test("a pre-orchestrator analysis says none was recorded", async ({ page }) => {
+    expect(fixture("report_summary").taxa.available).toBe(false);
+    await page.goto("/researcher-mode/novelty-dna");
+    await expect(page.getByRole("heading", { name: "Novelty DNA" })).toBeVisible();
+    await expect(page.getByText("Reference DB: none recorded (pre-orchestrator analysis)")).toHaveCount(2);
+    await expect(page.getByText("Reference DB: pending configuration")).toHaveCount(0);
+  });
+});
+
 test.describe("legislative integrity", () => {
   test("alerts carry a detection window from their own collection date", async ({ page, api }) => {
     const alerts = fixture("partner_alerts");
@@ -250,6 +273,19 @@ test.describe("academia integrity", () => {
     await page.waitForTimeout(1800);
     await expect(card.getByText("COMPLETE", { exact: true })).toBeVisible();
     await expect(card).not.toContainText(fixture("environment_context").reason);
+  });
+
+  test("a superseded report response is ignored", async ({ page, api }) => {
+    api.override("GET", new RegExp(`^/reports/${OTHER}$`), { body: otherReport() });
+    // The first analysis's report is held back and arrives after the second's.
+    await delayed(page, new RegExp(`^/reports/${ANALYSIS_ID}$`), 1500, fixture("report"));
+
+    await page.goto(`/partner-report/academia?analysis_id=${ANALYSIS_ID}`);
+    await pushUrl(page, `/partner-report/academia?analysis_id=${OTHER}`);
+    await expect(page.getByText(`Run ${OTHER} · Pipeline:`, { exact: false })).toBeVisible();
+    await page.waitForTimeout(1800);
+    await expect(page.getByText(`Run ${OTHER} · Pipeline:`, { exact: false })).toBeVisible();
+    await expect(page.getByText(`Run ${ANALYSIS_ID} · Pipeline:`, { exact: false })).toHaveCount(0);
   });
 
   test("switching upload clears the previous context before a failure", async ({ page, api }) => {

@@ -52,7 +52,7 @@
       "chain_id": "upload:upl_e2e0000000001",
       "event_key": "analysis_completed:ana_e2e0000000001",
       "event_type": "analysis_completed",
-      "hash": "24b367a2b1eb2e7d191bbef625c9aa63391ec2100d81839a7b24c132bf7b04f7",
+      "hash": "a98bc429047089a05bcb008124957e739310cb11fb669bfb6beb0dc4a394d1c1",
       "payload": {
         "analysis_created_at": "2026-10-10T08:05:00",
         "analysis_id": "ana_e2e0000000001",
@@ -61,7 +61,7 @@
         "mode": "online_full",
         "model_version_set": "dnabert2_v1_set",
         "result_count": 7,
-        "results_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+        "results_sha256": "9d3ed869e04fef070f6e7de161fae4fc1bc6b43a3f15da8d15f56db0680adcfd",
         "upload_id": "upl_e2e0000000001"
       },
       "prev_hash": "ae167d9cd2d46c14a492e34b9d176b42d36cf03f8418f047770283b93b703837",
@@ -93,9 +93,9 @@
     "Deleting the newest event(s) is not detectable from the chain alone; compare head_hash with the custody head recorded in any earlier export."
   ],
   "results_integrity": {
-    "current_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+    "current_sha256": "9d3ed869e04fef070f6e7de161fae4fc1bc6b43a3f15da8d15f56db0680adcfd",
     "recorded_at": "2026-10-16T09:00:00+00:00",
-    "recorded_sha256": "2d8bb74fbaf8016d6d49c2cebfb225bbacad6c9bc266758f0cf03822a6af16f0",
+    "recorded_sha256": "9d3ed869e04fef070f6e7de161fae4fc1bc6b43a3f15da8d15f56db0680adcfd",
     "status": "match"
   },
   "upload": {
@@ -111,7 +111,7 @@
     "checked_at": "2026-10-16T09:00:00",
     "first_break": null,
     "genesis_prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "24b367a2b1eb2e7d191bbef625c9aa63391ec2100d81839a7b24c132bf7b04f7",
+    "head_hash": "a98bc429047089a05bcb008124957e739310cb11fb669bfb6beb0dc4a394d1c1",
     "length": 2,
     "valid": true
   }

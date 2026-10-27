@@ -47,6 +47,32 @@ TAXON_FIELDS = ("predicted_taxon", "taxon_rank", "percent_identity", "reference_
 TaxonSource = Literal["decision", "legacy"]
 
 
+_QUOTES = "'\""
+
+
+def clean_taxon_name(name: Optional[str], rank: Optional[str] = None) -> Optional[str]:
+    """A stored taxon name without stray wrapping quotes, for display and sort.
+
+    Reference builds before the worker's unquote_name (services/worker/
+    training/build_reference_db.py) kept SILVA's quotes around names that are
+    not validly published: plant v2 stores genus "'Halosarcinochlamys", which
+    then sorts first in top-taxa. The same rule as the worker's
+    clean_rank_name: quotes wrapping the whole name are dropped, and for a
+    genus (or, rank unknown, a one-word name) a lone quote at either end too.
+    Quotes inside a name are nomenclature ("'Catharanthus roseus' malformation
+    phytoplasma", "witches'-broom") and are kept. None and "" pass through; a
+    name that would clean to nothing is returned as stored.
+    """
+    if not name:
+        return name
+    s = name.strip()
+    if len(s) >= 2 and s[0] in _QUOTES and s[-1] == s[0] and s[0] not in s[1:-1]:
+        s = s[1:-1].strip()
+    if rank == "genus" or (rank is None and len(s.split()) == 1):
+        s = s.strip(_QUOTES).strip()
+    return s or name
+
+
 def resolve_taxon_fields(result: Mapping[str, Any]) -> dict[str, Any]:
     """The flat taxon fields of one stored per-sequence result (t-1023-1).
 
@@ -56,7 +82,8 @@ def resolve_taxon_fields(result: Mapping[str, Any]) -> dict[str, Any]:
     assignment, and is kept as None). Otherwise only the legacy top-level
     predicted_taxon exists; taxon_rank, percent_identity, reference_db and
     reference_db_version were never recorded before the orchestrator and are
-    None. taxon_source says which of the two applied.
+    None. taxon_source says which of the two applied. predicted_taxon is
+    passed through clean_taxon_name.
     """
     dec = result.get("decision")
     if isinstance(dec, Mapping):
@@ -68,6 +95,7 @@ def resolve_taxon_fields(result: Mapping[str, Any]) -> dict[str, Any]:
         out["taxon_source"] = "legacy"
     if out["percent_identity"] is not None:
         out["percent_identity"] = float(out["percent_identity"])
+    out["predicted_taxon"] = clean_taxon_name(out["predicted_taxon"], out["taxon_rank"])
     return out
 
 
