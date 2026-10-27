@@ -117,12 +117,37 @@ def _sanitize(name: str) -> str:
     return s.strip("_")
 
 
+_QUOTES = "'\""
+
+
+def unquote_name(name: str) -> str:
+    """Drop quotes that wrap a whole name. SILVA and NCBI quote names that are
+    not validly published ("'Halosarcinochlamys cherokeensis'"); the quotes
+    are not part of the name and a leading one sorts it first everywhere.
+    Quotes inside a name, which delimit part of it ("'Catharanthus roseus'
+    malformation phytoplasma", "witches'-broom"), are kept."""
+    s = name.strip()
+    if len(s) >= 2 and s[0] in _QUOTES and s[-1] == s[0] and s[0] not in s[1:-1]:
+        return s[1:-1].strip()
+    return s
+
+
+def clean_rank_name(rank: str, name: str) -> str:
+    """unquote_name, and for genus (one word, never quoted) every quote at
+    either end: the first word of "'Halosarcinochlamys cherokeensis'" is
+    "'Halosarcinochlamys", whose quote has no partner to unwrap."""
+    s = unquote_name(name)
+    if rank == "genus":
+        s = s.strip(_QUOTES).strip()
+    return s
+
+
 def format_tax(lineage: dict[str, str]) -> str:
     parts = []
     for rank in RANKS:
         value = lineage.get(rank)
         if value:
-            v = _sanitize(value)
+            v = _sanitize(clean_rank_name(rank, value))
             if v:
                 parts.append(f"{SINTAX_CODE[rank]}:{v}")
     return ",".join(parts)
@@ -305,6 +330,13 @@ def iter_silva_ref(gz_path: Path, names: NameResolver, marker: str) -> Iterator[
             organelle = any(t in ("Chloroplast", "Mitochondria") for t in tokens)
             ncbi_domain = None if organelle else domain
             taxid = names.resolve(organism, ncbi_domain)
+            # NCBI keeps some quoted scientific names, so the name is tried as
+            # SILVA wrote it first, then without wrapping quotes; the fallback
+            # lineages below never carry them.
+            bare = unquote_name(organism)
+            if taxid is None and bare != organism:
+                taxid = names.resolve(bare, ncbi_domain)
+            organism = bare
             lineage: dict[str, str] = {}
             if taxid is not None:
                 lineage = dict(tax.lineage(taxid))

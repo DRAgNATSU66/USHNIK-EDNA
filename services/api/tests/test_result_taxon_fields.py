@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 import app.db.mongo as _mongo_module
-from app.models.analysis import AnalysisResultDoc, resolve_taxon_fields
+from app.models.analysis import AnalysisResultDoc, clean_taxon_name, resolve_taxon_fields
 from app.reports.builder import TOP_TAXA_LIMIT, _build_taxa, build_report, build_report_csv
 
 
@@ -252,6 +252,23 @@ class TestTaxaSection:
         # Ties (1 sequence each) by name.
         assert [e.taxon for e in t.top_taxa[1:]] == ["Chaetomitrium", "Cossidae", "Gadus"]
         assert t.top_taxa[3].taxon_rank == "genus"
+
+    def test_stray_quote_from_old_reference_build_is_not_shown_or_sorted_first(self):
+        # plant v2 stores genus "'Halosarcinochlamys" (SILVA's quoted name).
+        t = _build_taxa([_seq("s1", _decision("Chlamydomonas", "genus", 97.0, route="plant")),
+                         _seq("s2", _decision("'Halosarcinochlamys", "genus", 96.0, route="plant"))], None)
+        assert [e.taxon for e in t.top_taxa] == ["Chlamydomonas", "Halosarcinochlamys"]
+        assert resolve_taxon_fields({"decision": _decision("'Halosarcinochlamys", "genus", 96.0)})[
+            "predicted_taxon"] == "Halosarcinochlamys"
+
+    def test_clean_taxon_name_keeps_quotes_that_are_nomenclature(self):
+        assert clean_taxon_name("'Halosarcinochlamys cherokeensis'", "species") == "Halosarcinochlamys cherokeensis"
+        assert clean_taxon_name("'Halosarcinochlamys") == "Halosarcinochlamys"  # one word, rank unknown
+        name = "'Catharanthus roseus' malformation phytoplasma"
+        assert clean_taxon_name(name, "species") == name
+        assert clean_taxon_name("Gadus morhua", "species") == "Gadus morhua"
+        assert clean_taxon_name(None) is None and clean_taxon_name("") == ""
+        assert clean_taxon_name("'") == "'"  # nothing left to show: keep what was stored
 
     def test_identity_missing_is_none_not_zero(self):
         t = _build_taxa([_seq("s1", _decision("Gadus morhua", "species", None))], None)

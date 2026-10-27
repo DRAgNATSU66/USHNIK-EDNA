@@ -211,6 +211,41 @@ def test_header_separators_in_names_are_sanitized():
     assert parsed["taxid"] is None
 
 
+def test_wrapping_quotes_are_dropped_from_rank_names():
+    # plant v2 stored g:'Halosarcinochlamys and s:'Halosarcinochlamys_cherokeensis'
+    # from SILVA's quoted organism name; the genus sorted first in top-taxa.
+    h = brd.format_header("PLT0038408", {"superkingdom": "Eukaryota", "kingdom": "Viridiplantae",
+                                         "genus": "'Halosarcinochlamys",
+                                         "species": "'Halosarcinochlamys cherokeensis'"},
+                          "silva", "LSU", "DQ015760.1.2634", None, 1)
+    assert "tax=d:Eukaryota,k:Viridiplantae,g:Halosarcinochlamys,s:Halosarcinochlamys_cherokeensis;" in h
+    assert brd.parse_header(h)["lineage"]["genus"] == "Halosarcinochlamys"
+    # Quotes that delimit part of a name are nomenclature, not noise: kept.
+    for name in ("'Catharanthus roseus' malformation phytoplasma", "Tomato witches'-broom phytoplasma",
+                 "'Brenneria populi' Hauben et al. 1998"):
+        assert brd.unquote_name(name) == name
+        assert brd.clean_rank_name("species", name) == name
+    assert brd.clean_rank_name("genus", "'Brenneria") == "Brenneria"
+    assert brd.unquote_name('"Quoted name"') == "Quoted name"
+    assert brd.unquote_name("'") == "'"
+
+
+def test_silva_quoted_organism_resolves_without_quotes(tmp_path, taxonomy):
+    # A quoted name NCBI knows unquoted gets the NCBI lineage; one it does not
+    # know falls back to SILVA's path, without the quotes.
+    gz = tmp_path / "silva.fasta.gz"
+    seq = "ACGT" * 60
+    gz.write_bytes(_gz(
+        f">AB1.1.240 Eukaryota;Opisthokonta;'Perca fluviatilis'\n{seq}\n"
+        f">AB2.1.240 Eukaryota;Archaeplastida;Chloroplastida;'Halosarcinochlamys cherokeensis'\n{seq}\n"))
+    recs = list(brd.iter_silva_ref(gz, brd.NameResolver(taxonomy), "SSU"))
+    assert [r.taxid for r in recs] == [8168, None]
+    assert recs[0].lineage["species"] == "Perca fluviatilis"
+    assert recs[1].organism == "Halosarcinochlamys cherokeensis"
+    assert recs[1].lineage["genus"] == "Halosarcinochlamys"
+    assert recs[1].lineage["species"] == "Halosarcinochlamys cherokeensis"
+
+
 def test_parse_header_accepts_blast_defline():
     rest = "tax=d:Bacteria,g:Bacillus;src=silva;marker=SSU;acc=AB1.1.1500;n=1;"
     parsed = brd.parse_header(f"lcl|BAC0000007 {rest}")
