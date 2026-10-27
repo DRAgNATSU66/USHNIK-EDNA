@@ -153,6 +153,59 @@ flag its absence (option a). Q7 interpretation confirmed. Part B below is the re
 
 ---
 
+## Part A status (2026-10-27, Day 17 docs pass, code at `32f38ef`)
+
+Each Part A ID, checked against the code and `docs/qna.md`. The tables above are left as written on
+2026-10-14 (their file:line citations describe the code as it was then). Commits are on
+`LATEST_USHNIK`; a merge commit is given where the work landed through a sprint branch.
+
+| ID | Status | Resolved by / reason open |
+|----|--------|---------------------------|
+| F1, F2, F4 | Resolved | `14cc931` (review queue and models routes, upload limit from `/health`); contract test `test_api_contract.py` |
+| F3 | Resolved | route fixed `14cc931`; Sync now button wired `4ad24ed` (QNA-015) |
+| F5, F6, F7 | Resolved | backend `3abbd1c` (QNA-005), frontend `c5e988f` (QNA-008) |
+| F8 | Resolved | `d59be3a` (QNA-034): "Auto · Orchestrator" plus the served model per route |
+| F9 | Resolved | reference lookup + orchestrator (QNA-020, QNA-024/025), flat taxon fields and report taxa (QNA-032), Species Correction shows names (QNA-034) |
+| U1 | Resolved | helper deleted in QNA-007, re-added and used by AnalysisResults (QNA-034) and Novelty DNA (QNA-039) |
+| U2 | Resolved | Novelty DNA uses `/summary`, `/novelty`, `/contamination` (QNA-007) |
+| U3 | Resolved | `getReview` deleted, `getExpedition` used by AbyssSetup (QNA-007) |
+| U4 | Resolved | `b341c7a` (QNA-015) |
+| U5, U6 | Resolved | `bc540ae` (QNA-003): both routes deleted |
+| U7 | Resolved | Model Status reads `/models/registry` (`14cc931`, QNA-004 Q3) |
+| M1 | Resolved | `baf1238` (QNA-037) on the partner API (QNA-028) |
+| M2 | Resolved | `4a0ef9c` (QNA-036); indicator-species panel is an explicit pending state |
+| M3 | Resolved | `5c29038` (QNA-035) with the environmental context service (QNA-018) |
+| M4 | Resolved | `f2bb868` (QNA-013) |
+| M5 | Resolved | `902a029` (QNA-007): `PlaceholderScreen` deleted |
+| D1–D5 | Resolved | `fedaf57` (QNA-002); shipped JS byte-identical before and after |
+| D6 | Resolved | DisclaimerBanner `ff19f15`; ConfidenceChip/ProvenanceTag on results (QNA-034); chips on every model score, DetectionWindowBadge, MockTag deleted (QNA-039) |
+| B1, B13 | Resolved | `38e6f4e` (QNA-004) |
+| B2, B15, B22 | Resolved | `14cc931` (QNA-001): `data:` paths, notes rewritten, bacteria entry corrected |
+| B3 | Resolved (local) | worker venv with CUDA torch; inference measured on the RTX 3070 (QNA-001 Q4). CI has no GPU or data root by design |
+| B4 | Resolved | reference DB v1/v2 (QNA-012, QNA-016), lookup provider (QNA-020), orchestrator (QNA-024/025), evaluated (QNA-033) |
+| B5 | Partly resolved | centroid distance replaces the proxy and is recorded, served at weight 0 by the dev criterion; owner decision open (QNA-038) |
+| B6 | Resolved | `14cc931`: a job with no file fails |
+| B7 | Resolved | `05d0fb1` (QNA-009) |
+| B8 | Resolved | `d7726f0` (QNA-014), first live use QNA-023, full loop `bd8f550` (QNA-031). Open: "frozen before register" not enforced |
+| B9 | Resolved in code | `10b2570` (QNA-027): Mongo records written first, Supabase mirror best-effort; no table dropped (all 12 in use). Open: migration `20261019000001` unapplied, Supabase host does not resolve (QNA-023 Q4) |
+| B10 | Resolved | `f2bb868` (QNA-013) |
+| B11 | Open — v1.1 | cut line: quantized models and offline reference pack not built |
+| B12 | Resolved | dead import `bc540ae` (QNA-003); fallback logged `9391181`; learned-router copy (QNA-015) |
+| B14 | Resolved | `a388fff` (QNA-006); 0.44 since QNA-038 |
+| B16 | Resolved | partner API `8653d87` (QNA-028), hotspots/alerts (QNA-036), incidents/tasks (QNA-037), environment (QNA-018) |
+| B17 | Open — v1.1 | cut line: loader LRU not built |
+| B18 | Resolved / partly | `debug` removed `9391181`; JWT startup check and nginx limits `55dc8de` (QNA-019). Open: no proxy rate limit on Cloud Run (QNA-019 Q4) |
+| B19 | Resolved | learned router v1 `4d02a2b` (QNA-010), v2 `1c2cab7` (QNA-021), promoted (QNA-023) |
+| B20 | Open | `scripts/seed_dev.py` still writes mock analysis results; never run it on a demo or report database |
+| B21 | Partly resolved | all scripted sources re-fetched and used in the rebuild (QNA-016); BOLD still not downloaded (owner task t-1014-3) |
+| B23 | Resolved | router v2 is strand-invariant by construction, test accuracy 0.9155 on both strands (QNA-021), promoted (QNA-023) |
+| B24 | Resolved | `233cf11`: compose mounts `synthveda-data` read-only at `/data` |
+| B25 | Resolved | `9db53ce` (QNA-015) |
+| B26 | Kept as intended | the `router` registry entry is a real model with real metrics |
+| Q1–Q7 | Decided 2026-10-14 | `decisions.md`; Q5 sources checked live (`617576d`) and served (QNA-018); Q6 top-50 server-side (QNA-035); Q7 orchestrator (QNA-024) |
+
+---
+
 # Part B — Day-wise roadmap (October sprint, re-planned 2026-10-14 with owner decisions)
 
 Legend: **YOU** = owner-only manual task · **BE** backend · **FE** frontend · **ML** model/data · **ALL**
