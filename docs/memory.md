@@ -13,85 +13,89 @@ history.
 
 ## Last updated
 
-2026-09-03 — created, then same-day verified against actual source (`main.py`,
-`dispatcher.py`, `job_runner.py`, `config.py`, both `requirements.txt`, `ci.yml`)
-rather than left as inference. Phase-by-phase status below is now confirmed against
-code for phases 1–3, 5–11, 13; phases 0, 14, 15 still need a closer look (see
-`phases.md` for exactly what's confirmed vs. not).
+2026-10-27 — Day 17 docs pass (t-1030-3), re-verified against the code at `32f38ef`
+(`LATEST_USHNIK`) and the measured results in `docs/ml/results/`. Earlier state (2026-09-03,
+2026-10-14) is in git history; the change record for 2026-10-14 onward is `docs/qna.md`.
 
 ## Currently being worked on
 
 - **October v1 sprint (deadline 2026-10-31):** plan in `ROADMAP_REAL_DATA.md`, progress in the tracker
-  linked there. End of 2026-10-14: Days 1–2 done; next are Day 3 (dead code, live `/models/status`) and the
-  Day 4 learned router. Reference data re-download in progress; BOLD needs the owner's login.
-
-- `web_frontend` Upload/New Analysis page — actively iterated per recent commits
-  ("Redesign the Upload/New Analysis page...", "Update Upload/New Analysis page to the
-  latest design iteration").
-- Shared "liquid glass" button/input material rollout across the frontend (recent
-  commits: "Replace Google's rendered widget with our own liquid-glass button",
-  "Adopt Apple-style 'liquid glass' as the shared button/input material").
-- A checkpoint commit ("Checkpoint before Ubuntu migration") bundled legacy cleanup,
-  field log, DNA training pipeline, docs reorg, and an IEEE paper draft — suggests a
-  machine migration just happened; verify nothing environment-specific (paths, Windows-
-  only steps) broke as a result.
-- Two untracked audit docs exist at repo root level of `docs/`:
-  `docs/AUDIT_MOCKS_STUBS_TODOS.md` and `docs/ROADMAP_TO_POLISHED_TOOL.md` — read those
-  for the most current, most detailed "what's left/lacking" picture; this file
-  summarizes, they go deep.
+  linked there. As of 2026-10-27 every tracker task through Day 17 is done except the owner's BOLD
+  download (t-1014-3) and this docs pass (t-1030-3). Next: Day 18 release candidate (fresh clone →
+  `make up` → full flow, tag `v1.0.0-rc1`, walk the exit criteria).
+- `sprint/d15-review-fixes` is in flight and **not merged at `32f38ef`**: incidents stop counting
+  human DNA expected on the human route, Novelty DNA header/footer name the reference DBs, Academia
+  stale-report guard, hotspot `cell_index` edge rule, stray quotes in taxon names.
 
 ## Phase progress (see `phases.md` for the full list and verification detail)
 
-- Phase 0 (repo weight reset): partial — `.git` is 44M, no git-lfs in use, not
-  alarming; model-binary-out-of-git policy not independently checked.
-- Phases 1–2 (backend foundation, DB): confirmed — MongoDB is the primary store, Redis
-  the queue, Supabase auth-only.
-- Phase 3 (Auth): confirmed implemented and tested.
-- Phases 5–8 (parser, router, model strategy, novelty scoring): all confirmed live in
-  `job_runner.py`'s pipeline, not just "present." Phase 7 specifically has a real stub
-  fallback (`inference_mode: "stub"`) for routes without trained weights — worth
-  knowing before assuming every result used a real model.
-- Phase 9 (review workflow): confirmed implemented and tested.
-- Phase 10 (Abyss Mode): confirmed implemented and tested.
-- Phase 11 (reports): confirmed implemented and tested.
-- Phase 12 (frontend): in active iteration, not a stable "done" state.
-- Phase 13 (testing/security/CI): confirmed substantial — pytest+coverage, lint+build,
-  bandit scan, `.env`-tracked guard, 3-image Docker build validation. Whether it's
-  currently green wasn't checked (needs an actual CI run).
-- Phase 14 (training pipeline): files present, not executed/verified this session.
-- Phase 15 (post-funding scaling): not started.
+- Phase 0 (repo weight reset): `legacy/` deleted (QNA-019); `PSEUDO FILE/`, `.playwright-mcp/` and
+  `synthveda-data/` are gitignored; model weights and reference DBs live in `synthveda-data/`, never
+  in git.
+- Phases 1–2 (backend foundation, DB): MongoDB primary, Redis queue, object storage (local or
+  S3/MinIO), Supabase for auth exchange plus a best-effort mirror that currently cannot reach its
+  host.
+- Phase 3 (Auth): implemented and tested; startup refuses a weak `JWT_SECRET` outside dev.
+- Phase 5 (parser): Rust crate + Python fallback, unchanged.
+- Phase 6 (router): **learned k-mer router v2 is the first stage** (canonical 9-mer LinearSVC,
+  test 0.9155 on both strands, QNA-021/023); heuristic only as a recorded fallback.
+- Phase 7 (models): all six routes run real DNABERT-2 heads (`inference_mode: "model"`); fish,
+  animal, human, misc serve v2, plant and bacteria stay on v1 (QNA-023). A missing head now yields a
+  labelled stub (`stub_reason`), never a random head labelled "model".
+- Phase 8 (novelty/contamination): runs inside the orchestrator; centroid isolation computed but at
+  weight 0; threshold 0.44 (QNA-038).
+- Orchestrator (decision Q7, not in the original phase list): deterministic plan → evidence →
+  combine with a stored decision trace; reference lookup gives species/genus/family names
+  (QNA-020, QNA-024/025, QNA-033).
+- Phase 9 (review workflow): review records (B9), route-correct batch membership, durable freeze
+  (QNA-027, QNA-031).
+- Phase 10 (Abyss Mode): offline learned-router copy, offline credentials not usable as API tokens,
+  AbyssSetup create → licence → session → activate → triage → sync (QNA-015). Quantized offline
+  models and the offline reference pack are cut to v1.1.
+- Phase 11 (reports): taxa section, context block, FAIR ZIP, custody chain (QNA-029, QNA-032).
+- Phase 12 (frontend): every routed page reads real data or shows an honest empty state; MockTag is
+  deleted (QNA-039).
+- Phase 13 (testing/security/CI): last measured on the merged tree 2026-10-27: worker 546 passed,
+  API 751 passed / 3 skipped, Playwright 80/80 (QNA-038, QNA-039). CI now also runs the Playwright
+  job; **not yet observed running on GitHub Actions** (nothing pushed, QNA-017).
+- Phase 14 (training + release): datasets rebuilt, heads and router retrained and promoted through
+  the API; the full loop upload → review → batch → freeze → register → promote passes as one opt-in
+  test (QNA-031). No retrain has yet been run *from* a curated batch.
+- Phase 15 (scaling): not started.
 
 ## Known gaps
 
-- **2026-10-14: the heuristic router picks the correct route for 24.1% of held-out test sequences**
-  (fish 0.3%, plant 0.0%). Per-route head accuracy is not system accuracy. Learned 6-mer router
-  prototype: 82.4%. See `docs/qna.md` QNA-001; fix scheduled Day 4 of `ROADMAP_REAL_DATA.md`.
-- Real inference now runs on all 6 routes (worker venv, `synthveda-data/checkpoints/`, `data:`
-  registry paths). The raw reference data (~44 GB) was lost in the Ubuntu migration; re-fetch via
-  `scripts/fetch_reference_data.sh`, with BOLD/UNITE/MIDORI2 downloaded manually.
-
-- Species-level identification (`predicted_taxon`) unimplemented — see `prd.md` /
-  `docs/ml/THEORY_README.md`.
-- Inference stub fallback: any route without trained DNABERT-2 weights yet returns
-  `inference_mode: "stub"` predictions rather than failing — check which routes
-  actually have trained weights before trusting a batch of results as model-derived.
-- Full current gap list: `docs/AUDIT_MOCKS_STUBS_TODOS.md`.
-- Working plan from 2026-10-14: `docs/ROADMAP_REAL_DATA.md` (re-verified gap list + day-wise roadmap). Notable: all 6 route checkpoints now exist under `synthveda-data/checkpoints/`; real inference is blocked only by Windows paths in `models/registry/*.json` and torch not installed.
+- **Measured accuracy, as measured** (cite these, not the v1 registry numbers, which came from the
+  leaky v0 test set — QNA-016):
+  - Router: heuristic 24.1% (QNA-001) → learned v1 0.8644 on 1,800 protocol rows (QNA-010) →
+    v2 0.9155 on the rebuilt 8,300-row test set, identical on reverse complement (QNA-021).
+  - Route heads v2 on the rebuilt test split: fish .899, plant .916 (v1 .956 on the same rows, so
+    plant stays on v1), bacteria .832 (tie with v1), animal .876 (overfits; likely_taxonomic_group
+    F1 .410 on 27 rows), human .979, misc .936 (QNA-022).
+  - Orchestrator final route .8898 vs router-only .8798 on 599 held-out rows; result_class agreement
+    with dataset labels .773 vs .8631 for router+head, by the owner's reference-wins rule (QNA-025,
+    QNA-030).
+  - Taxon assignment on 8,668 held-out rows: species P/R 89.1/34.0, genus 95.2/58.4, family
+    97.2/77.8 (QNA-033). Recall is low by design (precision-first thresholds, plant genus cap).
+- Open issues (detail and sources in `architecture.md` → Known open issues): Supabase host does not
+  resolve and migrations `20261018000001` / `20261019000001` are unapplied; no proxy rate limit in
+  front of Cloud Run; `POST /reviews` accepts any user for any analysis; BOLD not downloaded; one
+  `analysis_results` document hits the 16 MB Mongo limit at about 950 sequences.
+- Not measured: any evaluation on real field eDNA reads. Every number above is on held-out splits of
+  reference-database records.
+- `scripts/seed_dev.py` still seeds mock analysis results (B20). Never run it against a database that
+  feeds a demo or report.
+- Full audit status: `docs/AUDIT_MOCKS_STUBS_TODOS.md` (each item marked resolved or open).
 - `web_frontend/package-lock.json`'s modification (as of 2026-09-03) is npm removing
   stale `"peer": true` flags on ~5 packages — a lockfile-format normalization, not a
   real dependency change. Safe to commit standalone.
-- `"PSEUDO FILE"/` (repo root, untracked, never in git history) is a design-reference
-  mood board: screenshots, dashboard/UI inspiration images, and two videos including an
-  81MB product-demo-style MP4. Not in `.gitignore`. Decide: gitignore it (keep locally,
-  never track) or remove — leaving it untracked-but-present risks an accidental `git
-  add -A` pulling in 88MB of binary assets.
-- `.playwright-mcp/` (repo root, untracked) is Playwright MCP tool output — console
-  logs and page snapshots from a QA session on 2026-08-17. Also not in `.gitignore`.
-  Same call to make as above; this one is small (~270KB) so lower urgency.
+- Unused npm dependencies (`three`, `@react-three/*`, `chart.js`, `react-chartjs-2`, `axios`,
+  `recharts`, `react-icons`, `lucide-react`) are still in `package.json` (QNA-002 Q6).
 
 ## Docs scaffold status
 
 This file and its siblings (`decisions.md`, `flow.md`, `prd.md`, `architecture.md`,
 `rules.md`, `phases.md`, `design.md`) were created 2026-09-03 per a standing
-cross-project documentation convention. They're seeded from a repo scan, not a full
-audit — expect gaps until a few real sessions have run against them.
+cross-project documentation convention. They were seeded from a repo scan. On 2026-10-27
+`architecture.md`, `flow.md`, `phases.md` and this file were re-verified against the code at
+`32f38ef`; `prd.md`, `rules.md`, `design.md` and `decisions.md` were not part of that pass.
