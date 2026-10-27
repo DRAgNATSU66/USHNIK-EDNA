@@ -275,6 +275,19 @@ test.describe("academia integrity", () => {
     await expect(card).not.toContainText(fixture("environment_context").reason);
   });
 
+  test("a superseded report response is ignored", async ({ page, api }) => {
+    api.override("GET", new RegExp(`^/reports/${OTHER}$`), { body: otherReport() });
+    // The first analysis's report is held back and arrives after the second's.
+    await delayed(page, new RegExp(`^/reports/${ANALYSIS_ID}$`), 1500, fixture("report"));
+
+    await page.goto(`/partner-report/academia?analysis_id=${ANALYSIS_ID}`);
+    await pushUrl(page, `/partner-report/academia?analysis_id=${OTHER}`);
+    await expect(page.getByText(`Run ${OTHER} · Pipeline:`, { exact: false })).toBeVisible();
+    await page.waitForTimeout(1800);
+    await expect(page.getByText(`Run ${OTHER} · Pipeline:`, { exact: false })).toBeVisible();
+    await expect(page.getByText(`Run ${ANALYSIS_ID} · Pipeline:`, { exact: false })).toHaveCount(0);
+  });
+
   test("switching upload clears the previous context before a failure", async ({ page, api }) => {
     api.allowConsoleError(/Failed to load resource/);
     api.override("GET", new RegExp(`^/reports/${OTHER}$`), { body: otherReport() });

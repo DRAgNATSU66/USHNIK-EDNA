@@ -433,7 +433,15 @@ export default function Academia() {
 
   useEffect(() => {
     if (!analysisId) return;
-    getReport(analysisId).then(setReport).catch((e) => setError(e.message || "Failed to load report."));
+    // A reply for an analysis the user has since switched away from must not
+    // replace the current one (same let-live guard as Industrial's scope).
+    let live = true;
+    setReport(null);
+    setError("");
+    getReport(analysisId)
+      .then((r) => { if (live) setReport(r); })
+      .catch((e) => { if (live) setError(e.message || "Failed to load report."); });
+    return () => { live = false; };
   }, [analysisId]);
 
   const uploadId = report?.metadata?.upload_id;
