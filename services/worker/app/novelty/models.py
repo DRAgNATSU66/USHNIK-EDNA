@@ -37,6 +37,10 @@ class NoveltyScore:
     # Abyss Mode field triage output.
     abyss_recommendation: AbyssRecommendation = AbyssRecommendation.continue_sampling
     requires_cloud_confirmation: bool = False
+    # How the embedding and reference terms were computed (B5): centroid vs
+    # proxy fallback and why, distance, nearest centroid, reference status /
+    # identity, and the weight each term carried.
+    details: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -46,6 +50,7 @@ class NoveltyScore:
             "reason_codes": self.reason_codes,
             "abyss_recommendation": str(self.abyss_recommendation),
             "requires_cloud_confirmation": self.requires_cloud_confirmation,
+            "details": self.details,
         }
 
 

@@ -2077,3 +2077,473 @@ Fixes: `services/api/app/reviews/curation.py:182-215` (`_result_routes`, `batch_
 That every hand-off the Day 12 exit criterion names works on real services: an upload reaches the worker over real Redis; the orchestrator's decision and trace survive into the API and into each review's evidence snapshot; an accepted correction from the real UI lands in the right route's batch (it did not before this change); the freeze is durable in Mongo; the frozen batch id travels through registration into model_eval_metrics; and the worker's own selection code serves the promoted model. Model quality is measured separately (QNA-021/024). Not exercised, stated as such: the Supabase mirror, the S3/MinIO backend, the dispatcher's polling loop (only dequeue_job + run_job), and the auto-review decision path (0 auto reviews on these 4 sequences; unit tests only).
 
 **Open issues.** Nothing enforces "frozen before register/train" (`POST /models/register`, `scripts/training/export_batch.py` do not check). Reference-lookup time swings 13.7 s → 394.8 s for the same 4 sequences under CPU contention. Batch membership still falls back to correction_type text when the analysis is missing.
+
+## QNA-032 — 2026-10-20 — Flat result taxon fields; report taxon richness, top taxa, contaminants excluded (F9; tracker t-1023-1)
+
+**Commit:** 54314dd on sprint/d10-result-fields (838cc2b, ccf6c18, f3f30ab, 48e7758, 54314dd; base 1f0e605) Merged into `LATEST_USHNIK` as `cbbc864`.
+
+**Recording note:** the implementer wrote this entry on 2026-10-20, at the time of the change. It is recorded here on 2026-10-27 at merge time, and its numbers are as the implementer measured them. Review found one major defect (contaminants counted as observed taxa). The fix landed on the branch as 48e7758 before the merge, and this draft is the post-fix version.
+
+**Q1 Mechanism — what does the code do, step by step?**
+
+`resolve_taxon_fields` (services/api/app/models/analysis.py:50) reads one stored per-sequence result.
+- If `results[].decision` is a dict, it takes predicted_taxon, taxon_rank, percent_identity, reference_db and reference_db_version from it, keeps any nulls, and sets taxon_source="decision".
+- Otherwise it keeps only the legacy top-level predicted_taxon, sets the other four to null, and sets taxon_source="legacy".
+- percent_identity is converted to float.
+
+SequenceResult's validator `_derive_taxon_fields` (analysis.py:120-121) runs it, so GET /analysis/{id} returns these fields whether or not the trace is included. The report builder applies the same function to KnownSpeciesEntry and TaxonomicAssignmentEntry rows (TaxonomicAssignmentEntry also gains result_class). It appends four CSV columns (`_CSV_COLUMNS`, builder.py:599).
+
+`_build_taxa` (builder.py:431) reads only `results[].decision`:
+1. **Contamination check.** Each decided sequence is first tested with `_is_contamination_flagged` (builder.py:427, used at :470). A sequence is flagged when it is in this report's contamination_warnings (`_in_contamination_warnings`, builder.py:294: contamination_flagged, or contamination_score >= 0.5) or its decision.result_class is possible_contamination. Flagged sequences go to `sequences_contamination_flagged` and to `contamination_flagged_taxa` (taxon, rank, sequences, result_classes, contamination_types; reports/models.py:200). They never enter the observed-taxa counts.
+2. **Observed taxa.** The remaining sequences are grouped by (taxon, rank).
+   - richness_by_rank is the number of distinct names per rank, finest rank first (`_RANK_ORDER`, builder.py:61).
+   - top_taxa are the 20 largest groups (`TOP_TAXA_LIMIT`, :56), ties broken by name, with mean/min/max identity over the members that have one.
+   - without_taxon_reasons is `low_quality`, the taxon step's combine rule, or `not_recorded` (`_without_taxon_reason`, :409).
+3. **Reference DB usage.** reference_dbs counts every decided sequence, flagged or not, because it reports DB usage.
+4. **Invariant:** with_taxon + without_taxon + contamination_flagged == with_decision.
+5. **No decision at all.** If no sequence has a decision, the section is available=false with a reason, and every count is None.
+
+Definitions are carried in the response (`TAXA_DEFINITIONS`, builder.py:359). `taxa` is on AnalysisReport (reports/models.py:263) and on /reports/{id}/summary (router.py:174). report_version is now 1.1.
+
+**Q2 Rationale — why this over the rejected alternatives?**
+
+(a) **Derive the fields on read; do not store them in the worker or migrate old documents.** The decision is already the stored source of truth (QNA-024/025), and storing the same value twice invites drift. Decision-first matches partner/summary.py `_effective` and fair.py.
+
+(b) **Richness per rank; no single total.** A single count of distinct names would count a genus and a species of that genus twice. `taxon_groups` is labelled as a row count, not a richness.
+
+(c) **Contamination-flagged sequences are not observed taxa.** The first implementation counted them. The reviewer found that on the local run 3 of the 12 "species" were a sequencing spike-in control (Sinsheimervirus phiX174), a cloning vector (Origami vector p7560) and a domestic animal (Ovis aries). The same report listed all three in contamination_warnings, so the report contradicted itself.
+- Rejected: dropping them silently. They are listed in `contamination_flagged_taxa` with their result_class and contamination_type, so a reader who thinks Ovis aries is real environmental DNA can still see it.
+- Rejected: excluding only result_class possible_contamination. Ovis aries is known_species on the human/domestic route but still flagged, so that rule would have kept it.
+- The check reuses the contamination_warnings rule rather than a new one, so the two sections cannot disagree. The extra decision.result_class == possible_contamination test catches a decision the legacy flags missed.
+
+(d) **Analyses run before the orchestrator report "unavailable" with a reason, not 0.** Rank, identity and reference DB were never recorded for them, so 0 would claim "nothing found" when the truth is "never measured".
+
+(e) **`biodiversity.predicted_taxon_richness` is kept unchanged** (it mixes ranks, includes contaminants, and reads 0 for legacy analyses) because Academia.jsx reads it. It is documented as superseded by `taxa`.
+
+**Q3 Blast radius — what breaks if this is wrong?**
+- The flat fields override nothing stored. One existing field changes behaviour: predicted_taxon comes from the decision when one exists. The worker's `_write_legacy` writes the same value, so the two agree on all stored data.
+- The report changes only add fields. The CSV keeps its first 11 columns in place.
+- If the contamination check is too broad, real taxa are moved from richness into contamination_flagged_taxa. They are not lost. They stay visible, and the invariant makes the moved count explicit.
+- Everything is computed on read, so stored data cannot be corrupted.
+- The Playwright fixtures report.json and report_summary.json changed. A parallel branch (H, I, J, K) that regenerates them will conflict: re-run services/api/scripts/gen_e2e_fixtures.py after merge, then revert models_registry.json.
+
+**Q4 Verification — the specific checks that prove it.**
+
+`services/api/tests/test_result_taxon_fields.py` has 35 tests:
+- Decision-first resolution, nulls, legacy fields, int to float, and a dump/rebuild check.
+- GET /analysis with include_trace true and false, and with a legacy document.
+- Counts and reasons, richness that does not mix ranks ("Gadus" vs "Gadus morhua"), rank order, top taxa and their identity statistics, identity missing gives None, reference DBs, the top-20 cut, unranked taxa, all decided but none assigned, partly decided, legacy unavailable, the empty analysis, the CSV header, and both endpoints.
+- 7 TestTaxaContamination cases, built from the shapes in ana_ca1680d40e6e4ef8:
+  - contaminants are excluded from richness and top_taxa;
+  - the counts partition the decided sequences;
+  - contamination-flagged taxa are listed;
+  - reference_dbs still counts every decided sequence;
+  - every sequence in contamination_warnings is excluded;
+  - the definitions mention the exclusion;
+  - zero contaminants give 0 and an empty list.
+
+Before/after for the fix: with only the app code reverted, 6 failed and 29 passed. After the fix, 35 passed.
+
+Suite results:
+- Full API suite: 679 passed, 2 skipped (baseline 644 + 35).
+- Worker: 500 passed, unchanged.
+- `npm run build`: OK.
+- Playwright (mocked fixtures, E2E_PORT=4391): 37 passed.
+
+**Q5 Defence — how to answer a challenging reviewer.**
+- "Why not one richness number?" Mixing ranks double-counts nested taxa. Each rank's count is exact and defined in the response.
+- "You hid Ovis aries." It is not hidden. It is in contamination_flagged_taxa with result_class known_species and contamination_type human_dna, and in contamination_warnings. The pipeline flagged it, and the report now stops counting flagged sequences as observed taxa while still showing them.
+- "Isn't 0 more honest than null for old analyses?" No. Those analyses never ran the reference lookup.
+- "Mean identity is biased." The mean only covers sequences that have an identity, and sequences_with_identity is reported next to it.
+- "Does the report disagree with the partner summary?" Both use the same decision-first rule. The report adds rank-aware counts that exclude contaminants, and its definitions say so.
+
+**Results — what did it produce on real stored data?**
+
+Read-only against local Mongo (6 analyses; local dev data, not paper-citable). ana_ca1680d40e6e4ef8 (orchestrator-1.1.0, 24 sequences, all decided):
+- 17 with a taxon, 3 without, 4 contamination-flagged. fraction_with_taxon 0.85 (17/20).
+- Without-taxon reasons: low_quality 1, no_reference_assignment:below_threshold 1, no_reference_assignment:no_hit 1.
+- Richness by rank: species 9, genus 5, family 2, class 1 (taxon_groups 17).
+- The first implementation reported species 12, because it counted the 3 flagged species. That number was in the earlier draft and was wrong.
+- contamination_flagged_taxa: Origami vector p7560 (possible_contamination), Ovis aries (known_species) and Sinsheimervirus phiX174 (possible_contamination), each species rank, 1 sequence, human_dna. The 4th flagged sequence (human_domestic_contamination:test:394) has no taxon.
+- The flagged set equals contamination_warnings exactly (test:79, :80, :394, :658).
+- Reference DBs, all v2: animal_general 4/4, bacteria_pathogen 4/3, fish 4/4, human_domestic_contamination 4/3, misc_unknown 3/2, plant 4/4 (sequences / with taxon). 23 of 24 sequences name a DB.
+- The other 5 analyses predate the orchestrator: taxa unavailable, results have taxon_source "legacy", and the flat fields are null.
+- One reference name is stored with a stray leading apostrophe ("'Halosarcinochlamys", plant v2). It now tops the alphabetical top-taxa list. Not fixed here.
+
+## QNA-033 — 2026-10-27 — Taxon assignment evaluated on the held-out test split, per route, as measured; QNA-030's label-noise explanation tested (tracker t-1023-3)
+
+**Commit:** `c07fa71` on `sprint/d10-taxon-eval` (`ab8fe5b`..`c07fa71`, 10 commits from base `1f0e605`), merged into `LATEST_USHNIK` as `b362140`. Results: `docs/ml/results/taxon_eval_2026-10-20.{json,md}` and `taxon_eval_2026-10-20_relabel_audit_test.jsonl.gz`. Recording note: the runs and commits are from 2026-10-20. The implementer's finish step was cut off by a session limit before it wrote a QNA draft, and no review ran on this branch. This entry was written on 2026-10-27 from the committed results file. The dev-split rerun died at chunk 7/9 and is not reported.
+
+**Q1. Mechanism.** `services/worker/training/eval_taxon.py` (1,145 lines) has four phases (`add_parser` at :1123-1135):
+1. `run`: every row of `processed/<route>/test.csv` goes through the job's own stages (parser → QC → router → `Orchestrator.run`) in 9 seeded chunks (seed 1023). It records every reference hit and is resumable.
+2. `trace`: rebuilds ground truth by tracing each row, or the record it was chunked from, back to its source records. It uses the QNA-020 tracer's named lineage when there is one (4,936 rows). Otherwise it falls back to the LCA of named copies (160 rows) or the LCA over all copies (3,085 rows).
+3. `leak`: checks the evaluated rows against reference v2 by exact sequence, exact source record, a ≥ 99% hit from the same source accession, and GRCh38 windows.
+4. `report`: computes rank-aware precision and recall. A species call also counts as a genus and a family call. The phase also reports the genus cap with and without the cap (:837-860), route errors vs taxon errors, and the relabel audit.
+
+What is graded is `decision.predicted_taxon` / `decision.taxon_rank`.
+
+**Q2. Rationale.**
+- **Why the job's own stages:** a standalone BLAST script would grade a pipeline that is never served. Grading through `Orchestrator.run` measures route selection, the plant genus cap and the combiner together.
+- **Why rank-aware P/R:** QNA-020 lets the orchestrator answer at genus or family when species is unsafe. A species-only metric would count every honest genus call as wrong.
+- **Why a separate leak phase:** test rows were deduped against train, but reference v2 was built from all source records. A same-genome rRNA operon copy can sit in the reference under another coordinate range. Reporting the numbers with and without leaky rows shows how much this matters, instead of asserting it does not.
+- **Why the relabel audit:** the owner decision in QNA-030 ("reference wins the class") rested on the claim that most possible_novelty → known relabels are label noise. The 2026-10-19 decision said that claim had to be tested.
+
+**Q3. Blast radius.** This is evaluation code only. Nothing in serving imports `eval_taxon.py`, and the merge changed no runtime path. The risk is in the claims. A paper or demo that quotes taxon accuracy must quote these numbers with their caveats:
+- recall is low;
+- the bacteria figures are inflated by about 2.6 points by same-genome operon copies;
+- the label-noise support is weaker than QNA-030 assumed (Q5).
+
+**Q4. Verification.**
+- Test split: 8,675 rows in, 7 dropped by the parser (< 10 bp), **8,668 evaluated**. Orchestrator time 3,062 s (353 ms/seq), of which bacteria BLAST took 2,579 s. Peak GPU 2,290 MB, peak RSS 1,608 MB.
+- Overall, rank-aware: **species P/R 89.1 / 34.0, genus 95.2 / 58.4, family 97.2 / 77.8**. With leaky rows excluded: species P 88.8, genus P 95.0.
+- Per-route species P/R: fish 95.5 / 64.5; plant 90.0 / 3.9 (genus cap; uncapped P 58.3); animal 91.3 / 48.8; bacteria 86.3 / 32.1 (83.7 with leaky rows excluded); human 89.1 / 45.2; misc 78.4 / 13.4.
+- Leakage: 0 exact row or source matches. 325 same-accession hits ≥ 99%, 308 of them bacteria. 119 GRCh38 window rows. **444 leaky rows in total**; the upper bound at any identity is 1,936.
+- Tests: `tests/test_eval_taxon.py`, 19 passed, re-run 2026-10-27. The worker suite on the merged tree has 519 passed.
+
+**Q5. Defence: "Your orchestrator relabels possible_novelty as known. Isn't that just hiding novelty?"**
+- 1,262 test rows labelled possible_novelty are reported as known_species (440) or likely_taxonomic_group (822).
+- Only 739 of those come from the reference rules (325 suppressed, 414 downgraded). The other 523 come from the head itself.
+- Verdicts: 624 label_noise, 92 real_disagreement, 546 undetermined.
+- Most of the label_noise agreement comes from SILVA's taxonomy path, and SILVA assigns that path by its own sequence classifier, so it is not independent evidence. Without SILVA paths, label_noise drops to 246.
+- The honest answer: label noise explains **at most about half** of the relabels and **at least about a fifth** on independent evidence. The rest cannot be resolved from source names, or are real disagreements. Some of those are taxonomy-system mismatches, e.g. SILVA Ruminococcaceae vs NCBI Oscillospiraceae.
+- 188 label_noise rows under `novelty_suppressed_by_reference` are species calls finer than anything the source named.
+- This weakens the QNA-030 rationale. Supersession note: QNA-030 Q2's "label noise" justification should be read with these numbers. The owner decision itself stands until the owner revisits it.
+
+**Q6. Defence: "Species recall of 34% is poor."** It is, and the results file says so. Most species misses are "no call on the right route" (2,118 rows), not wrong calls: 159 rows got a wrong call on the right route, and 26 a wrong call on a wrong route. The precision-first design (97/95/90 identity thresholds, LCA, the plant genus cap) trades recall for being right when it speaks. Only 16 species-graded rows lost their true route in planning.
+
+## QNA-034 — 2026-10-20 — Upload "Auto" replaces the inert model picker; Results show per-sequence final calls and the decision trace (F8, F9, D6; tracker t-1023-2)
+
+**Commit:** `7bdc715`, `15d5c69`, `5743302`, `ed117b8`, `bb59ce8`, `9267dcb` on `sprint/d10-trace-ui` (base `1f0e605`). Merged into `LATEST_USHNIK` as `d59be3a`.
+
+**Recording note:** the implementer wrote this entry on 2026-10-20, at the time of the change. It is recorded here on 2026-10-27 at merge time, and its numbers are as the implementer measured them. Review found no blocking or major defects and 6 minor ones: a 'Matched' provenance tag on rows with no hit; a GRCh38 below-threshold hit shown without its reason; trace state not reset on analysis change; SpeciesCorrection MATCHED AGAINST shown as 'not recorded'; the Auto radio has no tabIndex; the mock catch-all for /analysis. They are being fixed on sprint/d15-review-fixes; see the entry for that branch. Merge note: the e2e fixture seed id ana_e2e0000000002 clashed with Academia's bay analysis, so the bay analysis became …0004.
+
+**Q1. Mechanism: what does each page do now?**
+- **Upload.**
+  - The picker (`MODELS_BY_MODE`: "AbyssNet v3", "MetaGen Ensemble", …) is gone. It was UI state only; `createAnalysisJob` never sent it.
+  - `web_frontend/src/pages/Upload.jsx:565` renders one checked radio card, "Auto · Orchestrator", with a fixed description of what orchestrator-1.2.0 does.
+  - `:288` calls `getModelStatus()` (GET /models/status, `src/lib/api.js:261`) and `getModels()`, which supplies `selected_by_route.router`.
+  - `ModelStatusList` (`:103`) shows each route's `model_id`, registry tier and status: ready → "served"; unverified; missing_artifacts / no_model → "… — stub".
+  - The job request is unchanged: POST /analysis/jobs takes `mode` only.
+- **Results.**
+  - `src/pages/AnalysisResults.jsx:288` fetches `getAnalysis(id, {includeTrace:false})` (`src/lib/api.js:145`) alongside the report.
+  - `SequenceCalls` (`src/components/results/SequenceCalls.jsx`) reads each row through `taxonCall` (`src/lib/decision.js:13`): `decision.*` first, then the flat fields that task G adds (taxon_rank, percent_identity, reference_db(_version)), else null.
+  - Each row shows taxon + rank + % identity + result_class + rule + final route. "router picked X" appears when `router_route ≠ final_route`.
+  - `ConfidenceChip` gets the final head's class score, labelled uncalibrated (`confidenceProps`, `:30`). `decision.confidence` null → "not scored". The legacy 0.0 is used only on rows without a decision (`decision.js:31`).
+  - `ProvenanceTag` gets reference_db + version, with `missingLabel` (`:42`) for low-quality and pre-orchestrator rows.
+- **Lazy traces.** The first "Why this answer" on a row that has a decision triggers one GET /analysis/{id}?include_trace=true (`SequenceCalls.jsx:87,105`). That fills the traces for every row.
+- **DecisionTrace** (`src/components/results/DecisionTrace.jsx`) renders the stored trace without recomputing anything:
+  - plan (`:76`): routes, router stats, rules_fired with stage, detail and routes added;
+  - evidence per route and provider (`:237`): status pill, reason when unavailable/skipped, key payload numbers, top hits, GRCh38;
+  - combine steps in order (`:281`): genus_cap from→to, novelty raw × gate = final, suppressed/downgraded markers.
+  - With no `decision` (`:331`) it says no trace exists, because the result predates the orchestrator.
+- **Other changes.**
+  - `ProvenanceTag` strips one leading "v" (`:40`), so the stored "v2" no longer shows as "vv2". It also gains an optional `missingLabel`.
+  - The Species Correction "MATCHED AGAINST" column (`SpeciesCorrection.jsx:67`) shows DB + version + identity/rank when present, else "not recorded". Before, it always said "pending configuration".
+
+**Q2. Rationale: why this, and not the alternatives?**
+- **Not keeping a picker that sets a model.** Q7 made model choice the orchestrator's job, and the job API has no model field. A selectable control would be a setTimeout-class fake: it looks like a choice and changes nothing. One honest "Auto" card plus the real served heads states the actual behaviour.
+- **Not fetching traces on page load.** A trace averages 5,470 B BSON (QNA-025 Q5), so every view would pay for it, even though most rows are never opened.
+- **Not adding a per-sequence trace endpoint.** The task forbids inventing endpoints. The API's own `include_trace` switch (QNA-025 Q1c) gives two requests: rows first, then all traces, only when a reader asks.
+- **ConfidenceChip shows the head's class score, not a "taxon confidence".** The taxon comes from reference identity; `decision.confidence` is the final route head's top-class softmax, which is not calibrated. The chip says exactly that, so it is not presented as the probability that the taxon is right.
+
+**Q3. Blast radius: what breaks if this is wrong?**
+- **Pre-orchestrator analyses** have no decision or trace. They render a banner, per-row "none recorded (pre-orchestrator result)" and a "no decision trace exists" panel, and no trace request is sent. Tested in `e2e/trace.spec.js`.
+- **If GET /analysis/{id} fails,** only the SEQUENCE CALLS panel shows an error. The report above it still renders.
+- **/models/status reflects the API host, not the worker.** The note says so: "served" means the files resolve. The heads could show "files missing" while the worker really serves them, if the two processes see different data roots.
+- **Shared files.**
+  - `lib/api.js`: two functions added, plus one stale comment replaced in place.
+  - `ProvenanceTag`: the new prop defaults to the old label. NoveltyDNA and SpeciesCorrection still call it with `referenceDb={null}` and render as before.
+  - `mockApi.js`: 4 routes added.
+- **Data dependency on task G.** Until G's flat fields merge, Species Correction rows read "not recorded", because the report rows have no reference fields yet.
+
+**Q4. Verification: which checks prove it?**
+- Worker: `SYNTHVEDA_DATA_ROOT=… pytest tests/ -q` → **500 passed**.
+- API: `pytest tests/ -q` → **646 passed, 2 skipped** (644 + 2 new `test_api_contract` cases for GET /analysis/PARAM and GET /models/status).
+- `npm run build` OK.
+- **Fixtures.** `gen_e2e_fixtures.py` now seeds an orchestrated analysis (4 rows: confident single route, plant genus cap + novelty downgraded, reference overrides router + novelty suppressed, reference miss + provider unavailable) and a pre-orchestrator one. It also records /models/status with the data root pinned to a nonexistent path, so the fixture is deterministic. All 20 existing fixtures regenerated byte-identical. `test_e2e_fixtures.py` treats models_status as shape-only, like models_registry.
+- **Playwright** (mocked API): `E2E_PORT=4263 npx playwright test` → **42 passed** (37 + 5 new). The new tests check:
+  - Auto is checked and every head from the fixture is listed;
+  - a ready head reads "served";
+  - a 503 is shown, not hidden;
+  - rows show "99.84%", "species" and "Reference DB: synthveda-reference/fish v2";
+  - no `include_trace=true` request before an expand, and exactly one after expanding two rows;
+  - plan, unavailable reason, genus_cap and suppressed/downgraded text are visible;
+  - the pre-orchestrator empty state.
+- The real-API smoke mode was not run.
+- The trace shape was checked against the one stored orchestrated analysis in local Mongo (`ana_ca1680d40e6e4ef8`, orchestrator-1.1.0, 24 rows), read-only.
+
+**Q5. Defence: "the trace UI could make an answer look more certain than it is."**
+- Every number on screen is a stored field; nothing is recomputed or filled in. The head score is labelled uncalibrated.
+- A row without a reference assignment says "No reference assignment", and the trace shows the lookup status and reason.
+- A provider that was unavailable shows its reason in warning colour.
+- A suppressed or downgraded novelty flag is shown with raw score × gate = final, so a reviewer sees what the reference rule removed.
+- Rows without a decision say so instead of disappearing.
+- The removed picker was the opposite case: a confident-looking choice of models that never ran.
+
+## QNA-035 — 2026-10-20 — Academia page on real data: environmental context, co-occurrence top-50, activity rhythms, FAIR ZIP (M3; tracker t-1027-1)
+
+**Commit:** sprint/d14-academia: 9d97c6a (API), b8f0bce (e2e fixtures), 7643f76 (page), 31cf964 (Playwright spec), d48c759, 3318da2 (citation wording + stale-response guard). Base 1f0e605. Merged into `LATEST_USHNIK` as `5c29038`.
+
+**Recording note:** the implementer wrote this entry on 2026-10-20, at the time of the change. It is recorded here on 2026-10-27 at merge time, and its numbers are as the implementer measured them. Review: PASS with 3 minor findings (the environment panel has no stale-response guard; the co-occurrence label names only decision.predicted_taxon for rank=any; rhythms counts unanalysed uploads as samples). They are being fixed on sprint/d15-review-fixes and sprint/d15-integrity-sweep.
+
+**Q1 — Mechanism: what does each panel read, and how are the new numbers computed?**
+- Environment: `Academia.jsx:441` calls GET /environment/uploads/{upload_id} for the report's upload. Each card (`EnvVariableCard`, Academia.jsx:334) shows the value and whether it is USER-ENTERED or PUBLIC MODEL. A public-model value also shows its source, dataset_id, grid cell and distance, time step and retrieved_at (`SourceLine`, :312). Coverage across uploads comes from GET /partner/summary `.environment`: eligible vs not_applicable, plus counts by status. If the upload has no coordinates or date, the page shows NOT APPLICABLE with the API's reason and hides the variable cards.
+- Co-occurrence: GET /partner/cooccurrence (`router.py:232` → `community.py:205 build_cooccurrence`). One sample is one upload in scope plus its newest analysis (`_load_samples`, community.py:162), so a re-run is not counted twice. Taxa are read decision-first through `summary._effective`: `decision.predicted_taxon`/`taxon_rank`, otherwise the legacy `predicted_taxon` with rank "unrecorded". Sequences with `contamination_flagged` are excluded and counted. For the requested rank (default species, or "any"), each sample contributes every unordered pair of taxa present in it (`combinations`, :232). Pairs are ranked by samples_together desc, then Jaccard (together / either) desc, then name. The endpoint returns the top `limit` ≤ 50, the nodes they name, and `taxa_by_rank` so the page offers only ranks that have data. If a sample has more than 300 taxa, only its 300 with the most sequences are paired, and a note says so.
+- Rhythms: GET /partner/rhythms (`router.py:252` → `community.py:307`). Each upload goes into a UTC hour bin and a UTC weekday bin. It is placed by `collected_at` when recorded, otherwise by upload `created_at`, and the two bases are counted in separate fields. Detections are the taxon-assigned, non-contaminated sequences of the sample's newest analysis, counted at the sample's timestamp. The page stacks the two bases in different colours and prints which timestamp each sample used (`data-testid="rhythms-basis"`).
+- Scope: both endpoints use the summary's rule (`_community_scope`, router.py:207). By default a user sees their own data; scope=all or user_id needs admin/company_owner, otherwise 403. date_from > date_to returns 422.
+- FAIR ZIP: `handleExport("fair")` (Academia.jsx:472) calls GET /reports/{id}/export/fair through the additive `exportReportFair` in lib/api.js. It saves the blob under the Content-Disposition filename and reports the byte count. A non-2xx response shows `Export failed: <detail>`.
+- Removed (no data source in this deployment): toxicity index, sonic/ambient noise, multi-omics overlay, vertical-migration mock. MockTag is no longer imported on the page.
+
+**Q2 — Rationale: why a server endpoint, why samples rather than analyses, why a single rank?**
+- Server-side aggregation was chosen over computing in the browser because the browser approach would download every analysis's full results[] (the task forbids computing over huge payloads in the browser). The endpoint projects only the four result fields it needs (`_ANALYSIS_PROJECTION`, community.py:52).
+- Counting samples was chosen over counting analyses because a re-run of the same upload would otherwise double every pair's count.
+- Pairing within one rank was chosen over mixing ranks because a genus and one of its own species would otherwise "co-occur" trivially. Mixing is still available as an explicit "any" option and is labelled.
+- Rhythms are in UTC because the stored timestamps are UTC and there is no site-local timezone. The response says so, and says that a date-only collected_at is browser-local midnight.
+- Co-presence counts plus Jaccard were chosen over a statistical association test because, with 6 uploads locally (1 of them with taxa), any test would be meaningless. The response states "Co-presence is not a statistical association", and a note flags the single-sample case.
+
+**Q3 — Blast radius.**
+- The two new GET routes are additive and lib/api.js edits are append-only; GET /partner/summary is unchanged.
+- If `_effective` or the newest-analysis choice were wrong, co-occurrence and rhythm counts would be wrong, but no stored data is written.
+- If the scope check were wrong, a researcher could read other users' taxa. This is covered by 403 tests.
+- Removed panels are gone from the page only; their components were local to Academia.jsx.
+- Performance: each request reads the newest results of every upload in scope with no cache. This takes 2–28 ms on 6 uploads locally and scales linearly with sequences in scope.
+- 3318da2 changes the citation text and the fetch effects only.
+
+**Q4 — Verification (commands + counts).**
+- API: `cd services/api && .venv/bin/python -m pytest tests/ -q -p no:cacheprovider` gives 672 passed, 2 skipped (baseline 644 + 2 skipped). `tests/test_partner_community.py` alone gives 24 passed. It covers newest-analysis selection, decision-first vs legacy taxa, contamination exclusion, rank filter and "any", the top-50 cut with tie note, the per-sample cap, collected_at vs upload-time bins, scope 403s and date 422.
+- Worker: `SYNTHVEDA_DATA_ROOT=... pytest tests/ -q` gives 500 passed (untouched).
+- `npm run build` passes.
+- Playwright (mocked API, `E2E_PORT=4191 npx playwright test`) gives 46 passed (baseline 37 + 9 in e2e/academia.spec.js). The spec checks: every panel from recorded fixtures and no "MOCK" text; rank switch refetches with rank=any; samples/detections toggle; a complete lookup shows 6 PUBLIC MODEL cards with sources; NOT APPLICABLE; FAIR ZIP download filename and byte count; 503 refusal shows the API reason; a failing co-occurrence call leaves the rest of the page working; admin scope=all calls.
+- Fixtures are recorded from the real FastAPI app by services/api/scripts/gen_e2e_fixtures.py.
+
+**Q5 — Defence: "your co-occurrence network shows ecological structure."**
+It does not, and the page says so. In this deployment, measured read-only on local Mongo (2026-10-20), only 1 of 6 analysed samples has taxa: 9 species, 36 pairs. Every pair therefore has samples_together = 1 and Jaccard = 1.0. The API returns the note "every pair is seen in that one sample, so the counts cannot separate taxa that tend to occur together from ones that happened to share it". At rank=any the top-50 cut falls inside a tie, and a note says the listed subset is alphabetical, not meaningful. The rhythms panel has a similar limit: 4 of 6 uploads are placed by upload time, not collection time, and the notes say that pattern is the uploader's working hours and the sampling schedule, not an organism's activity cycle.
+
+**Results (measured, local Mongo, scope=all, 2026-10-20):**
+| aggregate | uploads | analysed | with taxa | taxa | pairs total / shown | contam. excluded | time |
+|---|---|---|---|---|---|---|---|
+| co-occurrence species | 6 | 6 | 1 | 9 | 36 / 36 | 10 | 28 ms (cold) |
+| co-occurrence genus | 6 | 6 | 1 | 5 | 10 / 10 | 10 | 2 ms |
+| co-occurrence any | 6 | 6 | 1 | 17 | 136 / 50 (tie at cut) | 10 | 2 ms |
+| rhythms | 6 (2 collected_at, 4 upload time, 0 none) | 6 | – | – | 17 detections | 10 | 2 ms |
+taxa_by_rank = {class 1, family 2, genus 5, species 9}.
+
+## QNA-036 — 2026-10-19 — Legislative page on real data: hotspot grid, flag alerts, flag-rate indicators, custody exports (M2; tracker t-1027-3)
+
+**Commit:** ff3a4ca (API), 89a564b (page), 8ff7b14 (e2e) on sprint/d14-legislative (from 1f0e605) Merged into `LATEST_USHNIK` as `4a0ef9c`.
+
+**Recording note:** the implementer wrote this entry on 2026-10-19, at the time of the change. It is recorded here on 2026-10-27 at merge time, and its numbers are as the implementer measured them. Review: approve, 3 minor findings (CSV exports do not neutralise spreadsheet formulas; the custody panel goes stale after a FAIR export; cell_index float and off-globe cells for cell_deg values that do not divide 90/180). They are being fixed on the two 10-27 fix branches. Merge note: `_resolve_scope` from this branch is now shared by summary/hotspots/alerts/incidents/tasks. The e2e spec takes the first of two alert cards that share a label, because the merged seed has two analyses on one upload.
+
+**Q1 — Mechanism: what does the page show, and where does each number come from?**
+It makes three calls on load, plus one per opened alert:
+- `GET /partner/hotspots` (services/api/app/partner/regional.py:203 `build_hotspots`): takes the in-scope uploads (owner + created_at window, same as /partner/summary). Any upload with lat/lon in [-90,90]×[-180,180] goes into the grid cell `cell_index` (regional.py:114): i = floor(lat/d), j = floor(lon/d), with 90 and 180 folded into the cell below. Each in-scope analysis of that upload adds its sequences, novelty flags (`is_novelty_flag` from summary.py), contamination flags (`contamination_flagged`), distinct (taxon, rank) pairs read decision-first via summary.py `_effective`, and open / open-urgent reviews (`_open_reviews`, regional.py:172).
+- `GET /partner/alerts` (regional.py:314 `build_alerts`): one row per in-scope analysis with ≥1 novelty flag, ≥1 contamination flag or ≥1 open urgent review. `priority="urgent"` only if an open review has triage_priority urgent (regional.py:352); every other row is "flagged".
+- `GET /partner/summary?interval=week|month`: its time_series feeds the flag-rate chart (Legislative.jsx:256 `FlagRateSVG`): rate = flags ÷ sequences per period; a period with 0 sequences has no rate and breaks the line.
+- Per alert: `GET /reports/{id}/custody` (existing) renders chain validity and results / metadata / file integrity (Legislative.jsx:438 `CustodyPanel`). "Download FAIR ZIP" calls the existing `/reports/{id}/export/fair`, which records the export on the custody chain first.
+- CSVs (Legislative.jsx:111, 127) are built in the browser from exactly the rows the API returned.
+Access is `_resolve_scope` (router.py:82), moved unchanged out of get_partner_summary.
+
+**Q2 — Rationale: why add two endpoints, and why a fixed grid?**
+- Rejected: building the map and alerts from /partner/summary alone. Its `sites[]` has no taxa and no review counts and lists nothing per analysis, so alerts would have needed one /reports/{id} call per analysis (N+1, megabytes of results).
+- Rejected: adding fields to summary.py. Two other agents (Academia, Industrial) read and may edit it this round. A new module that imports summary.py's helpers keeps the rules identical and leaves its code untouched.
+- Rejected for the map: a radius/drift circle per detection, as the old page had. There is no drift model, so a radius would imply spatial knowledge we do not have. A grid cell is a stated aggregation unit; the definitions text and the page caption say it is "not a detection radius or drift model".
+- Rejected for severity: a Critical/High/Medium/Low scale. Nothing in the data defines one. The only existing priority signal is review triage_priority (the worker sets urgent when novelty_score ≥ 0.70 or a contamination flag is unexpected for its route; a curator can also set it at triage), so that is the only escalation.
+- Indicator species: the owner has not supplied the list, so that panel is an explicit "pending" state. The flag-rate rule needs no list and is labelled as such.
+
+**Q3 — Blast radius: what breaks if this is wrong?**
+- API changes are additive: two new GET routes and new models appended to partner/models.py. The one edit to existing code is get_partner_summary now calling `_resolve_scope`, a move with the same logic; all 65 existing test_partner_summary.py + test_partner_audits.py tests still pass.
+- Frontend: only the Legislative page changes behaviour. lib/api.js gets 5 appended functions. Merge risk: agents I and K may append a `getPartnerSummary` too, and a duplicate export name would break the build. That conflict is textual (same end-of-file region), so it will surface at merge.
+- gen_e2e_fixtures.py: 4 new captures. The fake Mongo gains find_one(sort=) and insert_one. `custody.chain._utc_now_iso` is pinned during generation, and `checked_at` was added to VOLATILE_KEYS, which affects only keys named checked_at (no other fixture has one).
+- If a count rule were wrong, map, alerts and summary would disagree. They share summary.py's `_effective` / `is_novelty_flag` / `date_window`, so they cannot drift independently.
+
+**Q4 — Verification: what checks were run, with what counts?**
+- `services/api: python -m pytest tests/ -q -p no:cacheprovider` → 668 passed, 2 skipped (baseline 644 + 19 in test_partner_regional.py + 5 contract cases for the new api.js calls). Tests cover: auth and 403 for scope=all/user_id as a researcher; 422 for cell_deg 0.01/11, limit 0/201 and inverted dates; the empty DB; a seeded DB with exact cell bounds, counts, decision-first taxa, newest-first upload_ids, the unmapped/invalid-coordinate notes and urgent-first ordering; cell_index edges (90/180 fold); no embedding in the projection; alert reasons, priority, contamination_types, limit/truncation and a missing upload.
+- `services/worker: pytest` → 500 passed (unchanged).
+- `npm run build` → OK. eslint on the changed files → 0 problems.
+- `E2E_PORT=4187 npx playwright test` → 45 passed (37 before + 8 in e2e/legislative.spec.js, all on recorded fixtures): data on screen; no MOCK / ECONOMIC RISK / Run Feasibility / HABITAT / MarineGenomeDB text; cell popup counts; cell-size refetch; custody dialog (chain intact, 2 events, results match, metadata unchanged, file "names no stored file"); custody JSON + FAIR ZIP downloads; CSV row counts; empty states with exports disabled; a 503 shown; admin scope=all.
+- Read-only run of the builders on local Mongo (db synthveda, scope=all): coverage 6 uploads in scope / 2 with coordinates / 4 without; 6 analyses / 2 mapped; cells -19:73 and 12:-46 (1 upload, 2 sequences, 0 flags, 0 taxa each); alerts total 3 of 6 analyses, urgent 3 (ana_ca1680d40e6e4ef8: 24 seq, 4 novelty, 4 contamination {human_dna: 4}; ana_464b4220a9774415: 12/4/4 {human_dna: 4}; ana_f5ea2e074802479c: 8/6/2 {human_dna: 2}); none of the 3 has coordinates.
+
+**Q5 — Defence: "Your map shows 'hotspots' from two uploads — isn't that overstating it?"**
+The panel is titled a sampling map. A cell only shows where samples were taken and what was flagged there; it implies no biodiversity hotspot, detection radius or current drift. The colours have exactly two rules (an open urgent review; any flag), both shown in the legend and in the API's `definitions`. The coverage caption states how many uploads in scope could not be mapped (4 of 6 locally). "Why is human DNA an alert?" Because contamination_flagged=true is counted exactly as /partner/summary counts it, and `contamination_types` shows it is human_dna. Escalation to urgent comes only from the review queue's own priority, which already treats expected human DNA on the human route as not queued.
+
+**Results — measured on local Mongo, 2026-10-19 (read-only):** 2 grid cells (1° cells) from 2 of 6 uploads; 3 alerts of 6 analyses, 3 urgent, all three with contamination type human_dna and none with coordinates. These are dev and e2e data, not field samples, so this is not a paper-citable result.
+
+## QNA-037 — 2026-10-19 — Industrial page on real data: incidents, audit trail, field tasks, document hub (M1; tracker t-1028-2)
+
+**Commit:** 972ca9d, 15e63c6, 4f0c49e, 42508c3 on sprint/d15-industrial (based on LATEST_USHNIK 1f0e605) Merged into `LATEST_USHNIK` as `baf1238`.
+
+**Recording note:** the implementer wrote this entry on 2026-10-19, at the time of the change. It is recorded here on 2026-10-27 at merge time, and its numbers are as the implementer measured them. Review: PASS, 2 minor findings. First, the incident definition counts the human DNA expected on the human route as incidents, which conflicts with QNA-030. Second, load() has no staleness guard. Both are being fixed on the 10-27 fix branches. Merge note: the incidents/tasks routes were adapted to the shared `_resolve_scope` (it returns scope info plus owner_filter) with the same access rules.
+
+**Q1 — Mechanism. What does the page do, step by step?**
+- On load, Industrial.jsx runs four requests together and lets each one fail on its own (Promise.allSettled):
+  - GET /partner/summary?scope=… gives the pending-audit and task counts.
+  - GET /partner/incidents?scope=… is new.
+  - GET /partner/tasks?scope=… is new.
+  - GET /partner/audits (created_by=me for "My data") gives the audit list.
+- It also calls GET /reports?limit=20 to fill the document hub.
+- How services/api/app/partner/incidents.py `build_incidents` works:
+  - It reads analysis_results with the summary's owner and date filter, fetching only a small set of fields (embeddings are never read).
+  - For each sequence it takes the effective result_class from `summary._effective`, so the decision field is read first.
+  - It counts `contamination_flagged` (grouped by contamination_type) and `summary.is_novelty_flag`.
+  - It reads the reviews of those analyses and counts how many are open (submitted, triaged or needs_evidence) and how many of those are urgent.
+  - An incident is an analysis with at least one contamination flag, at least one novelty flag, or at least one open urgent review.
+  - Results are sorted newest first and cut to `limit` (default 50, max 200), with a truncation note. Source file, location and collection date are added from uploads.
+- `build_tasks` lists field-log entries of kind task on the analyses in scope, without their edit history. Order: not done first, then due date (none last), then newest. overdue = not done and due before today (UTC).
+- router.py `_resolve_scope` now holds the mine/all/user and 403 rules for /summary, /incidents and /tasks.
+- The audit form (industrial/AuditTrail.jsx) posts to POST /partner/audits. lib/api.js `request()` now keeps a 422's `detail` list on `e.detail`, and `formatApiError` shows each error as "loc: msg".
+- DocumentHub.jsx offers three files for the selected analysis:
+  - The FAIR ZIP from /reports/{id}/export/fair, recorded on the custody chain.
+  - The custody check from /reports/{id}/custody, run only when the user clicks, with the JSON saveable.
+  - Field-log attachments via GET /field-log/attachments and their download route.
+
+**Q2 — Rationale. Why this over the rejected alternatives?**
+- **Impact score: removed.** There is no defensible formula over real data. Any weighting of flags, reviews and audits into a "score out of 10" would be invented.
+- **Other removed panels:** risk radar, biological impact metrics, remediation plan and ROI, predictive threshold and the reference-DB footer. None has a data source (owner rule: such panels are removed).
+- **New endpoints instead of client-side fan-out.**
+  - /reports lists only the caller's own analyses. Its novelty count uses a different rule (score ≥ threshold only) and it has no contamination count.
+  - /reviews/queue is for curators only.
+  - /field-log/entries needs one call per analysis.
+  - Building incidents in the browser would have meant N+1 calls and a second, drifting copy of the flag rules.
+- **Same flag rules as /partner/summary.** The new endpoint reuses them, so the incident KPI and the summary totals cannot disagree.
+- **Audit form validation is server-side only.** The client does not pre-validate, so the 422 a user sees is the API's own.
+
+**Q3 — Blast radius. What breaks if this is wrong?**
+- The API changes only add things, apart from the `_resolve_scope` refactor of /partner/summary. Its 403/422 behaviour is unchanged, and the existing summary and audit tests still pass.
+- lib/api.js `request()` change: for 422s, the error message used to be "[object Object]" and is now the joined messages. Other pages that show `e.message` get readable text; nothing else changes.
+- The e2e fixture generator now seeds two tasks and one audit. The existing fixtures did not change (field_entries_* filter by kind), apart from models_registry, which I reverted because it is real repo data.
+- **Merge risk:** tasks I and J may also append `getPartnerSummary` or `listPartnerAudits` to lib/api.js, partner_* fixtures, or routes in mockApi.js. Remove the duplicates when merging.
+
+**Q4 — Verification. What checks prove it?**
+- **API:** `services/api/.venv/bin/python -m pytest tests/ -q -p no:cacheprovider` → 664 passed, 2 skipped (was 644 + 2).
+  - test_partner_incidents.py has 13 tests, with every count worked out by hand from the seeded documents.
+  - They check that a decision of known_species overrides a legacy possible_novelty, that novelty_score equal to the threshold counts, that an accepted urgent review is excluded, scope=all/user and the 403s, the date window, truncation, task order and overdue, and the 422s.
+- **Worker:** 500 passed (unchanged).
+- **Build:** `npm run build` OK.
+- **Playwright:** `npx playwright test` → 42 passed (was 37). e2e/industrial.spec.js checks that:
+  - data from the recorded fixtures reaches every panel;
+  - the removed panels and the "MOCK — NO BACKEND YET" tag are absent;
+  - the recorded 422 (partner_audit_create_422.json, produced by the real app) is shown;
+  - the exact POST body is sent and the server's response is prepended to the list;
+  - custody is fetched only on click;
+  - the admin scope switch re-queries every panel with scope=all.
+
+**Q5 — Defence. "Your incident count includes analyses whose flags were already reviewed."**
+- Yes, and the definition says so on the page and in the API: flags are as the pipeline raised them, and a review decision does not clear them.
+- Each row shows how many reviews on that analysis are still open, so a resolved incident shows 0 open reviews.
+- Clearing flags on review would need a per-sequence rule for which decision supersedes a flag. No such rule exists, so it was not invented.
+- The KPI is labelled "INCIDENTS (FLAGGED ANALYSES)", not "active", for the same reason.
+
+**Results — what did it measure on the local deployment?** Read-only, against local Mongo (scope=all) on 2026-10-20:
+- 6 analyses in scope, 3 incidents.
+- Totals: 10 contamination flags (all human_dna), 14 novelty flags, 10 urgent open reviews, 0 tasks, 0 audits.
+- Per incident:
+  - ana_ca1680d40e6e4ef8: 4 contamination, 4 novelty, 8 open reviews of which 4 urgent.
+  - ana_464b4220a9774415: 4 contamination, 4 novelty, 8 open reviews of which 4 urgent.
+  - ana_f5ea2e074802479c: 2 contamination, 6 novelty, 8 open reviews of which 2 urgent.
+- This matches the 24 reviews in the database: 10 urgent auto_contamination and 14 normal auto_novelty, all submitted.
+
+## QNA-038 — 2026-10-27 — Novelty: per-head centroid cosine distance replaces the typical_norm proxy; reference low identity added; threshold recalibrated 0.45 → 0.44. The centroid term is computed but served at weight 0 (B5; tracker t-1024-1)
+
+**Commit:** `a2b0cb5` on `sprint/d11-novelty-centroid` (`44a5e75`, `ff80e69`, `5fe25eb` WIP from 2026-10-20; `51f077b`, `1de1ade`, `45a4441`, `a2b0cb5` on 2026-10-27), merged into `LATEST_USHNIK` as `c510d8a`, with partner fixtures regenerated in `873c339`. Results: `docs/ml/results/novelty_centroid_2026-10-27.{json,md}`; logs `synthveda-data/logs/novelty_centroid/{calibrate_dev_2026-10-27,report_test_2026-10-27}.{json,log}`.
+
+**Q1. Mechanism: what does the novelty scorer do with the embedding now?**
+- `services/worker/app/novelty/signals.py:196` `embedding_isolation()` takes the routed head's [CLS] embedding. It computes the cosine distance to the nearest known-class centroid of that same head (`centroids.py:80`).
+- That distance goes through the ECDF of the distances of held-out known TRAIN reads (`centroids.py:93`, 1001 quantiles), which puts it in [0, 1].
+- The head comes from `model_version_used`, which `engine.py:215` passes in. Artefacts `novelty_centroids_v1.{json,npz}` sit beside the head weights under `synthveda-data/checkpoints/*`, K=1 per known class.
+- `load_centroid_set` (`centroids.py:118`) rejects an artefact with the wrong model_id, head checksum or npz sha256.
+- Without a valid artefact, the old `typical_norm = 14.0` L2 proxy (`signals.py:178,190`) is used at weight 0.03 (`scorer.py:74,156`), with the reason code `embedding_proxy_<reason>`.
+- A separate `reference_low_identity` term (`signals.py:247`): 1.0 for no hit, linear between 90% and 80% identity, 0 at or above the family band. It is left out when the lookup didn't run.
+- Both terms and their weights go into `payload.details`. Novelty provider 2.0, `orchestrator-1.3.0`.
+- Served weights (`scorer.py:76`): 0.35 / 0.25 / 0.07 / **0 (centroid) / 0 (reference)**. `DEFAULT_NOVELTY_THRESHOLD = 0.44` (worker `app/config.py:16`, api `app/config.py:13`); it is still the one shared constant, and both grep tests pass.
+
+**Q2. Rationale: why K=1 and weights 0/0?**
+- The selection rule was fixed before the dev run: maximise the mean possible_novelty F1 of the final flag over the five novelty routes (`eval_novelty_centroid.py` calibrate).
+- K by dev AUROC: K=1 0.961, K=4 0.891, K=16 0.838, K=32 0.815, K=64 0.829 (bacteria 0.936 → 0.581 at K=64).
+- Over the 7×7×50 grid, the best dev point was 0/0 @0.44 (0.8233). Both terms @0.64 gave 0.8229, centroid only 0.8230, the old scorer 0.8223. The surface is flat to within a few rows.
+- Choosing a nonzero weight after seeing that would have overridden the rule set in advance, so the agent did not.
+- Rejected alternative: keep the L2 proxy. Its held-out AUROC is lower on every route.
+
+**Q3. Blast radius.**
+- The threshold change 0.45 → 0.44 moves the auto-review trigger, the report novelty table, the partner summaries/incidents/alerts and `/health` in both services. On test that is +7 flags (4 true, 3 false) and 0 lost.
+- At weight 0, a bad or missing artefact cannot change scores. It only switches `details.method` to `norm_proxy` and logs a warning. A newly promoted head (plant_v2 / bacteria_v2 candidates) would have no artefact and fall back silently: nothing in the promote flow builds centroids.
+- Stored decisions from 1.2.0 and 1.3.0 are not comparable.
+- The worker dispatcher was restarted on the merged tree on 2026-10-27.
+
+**Q4. Verification (held-out TEST, 3,238 rows, seed 1024).**
+- Signal AUROC, possible_novelty vs known (proxy → centroid; reference low identity):
+
+  | Route | Proxy | Centroid | Reference |
+  |---|---|---|---|
+  | fish | 0.920 | 0.922 | 0.496 |
+  | plant | 0.930 | 0.979 | 0.496 |
+  | animal | 0.742 | 0.976 | 0.549 |
+  | bacteria | 0.868 | 0.953 | 0.594 |
+  | misc | 0.924 | 0.965 | 0.785 |
+  | **mean** | **0.877** | **0.959** | **0.584** |
+
+- Final flag, mean F1: old @0.45 **0.7958**, served @0.44 **0.7964**. Paired bootstrap (2000 resamples within routes) difference +0.0006, 95% CI [−0.0012, +0.0027]. The old scorer at 0.44 alone scores 0.7962.
+- Pooled P/R/F1: .941/.745/.832 (48 FP) → .938/.749/.833 (51 FP). Human: 0 flagged on 300 known rows.
+- Dev-fixed weightings that are not served, test mean F1:
+  - both terms: 0.7961 (fish raw AUROC 0.9215 → 0.891; misc FP 15 → 23)
+  - centroid only: 0.7970
+  - reference only: 0.7955 (40 new flags, 22 of them false)
+  - Every CI of the difference vs old includes 0.
+- The served path used the centroid term on 3,234 of 3,234 usable rows, with 0 proxy fallbacks.
+- Tests: `tests/test_novelty_centroids.py:327` checks that each served head resolves a verified artefact.
+- Suites on the merged tree (2026-10-27): worker 546 passed, API 751 passed / 3 skipped, Playwright 64/64.
+
+**Q5. Defence: "The centroid has weight zero, so novelty doesn't use it."**
+Correct, and this record says so. What was delivered:
+- the proxy is out of the served path whenever an artefact exists;
+- the centroid signal is measured on held-out data (AUROC 0.959 vs 0.877; animal 0.742 → 0.976, fish 0.920 → 0.922);
+- it is recorded on every novelty record.
+
+No flag gain was delivered. The flag is dominated by the head's own possible_novelty class (OR rule) and by the reference gate (821 of 3,238 test rows suppressed). The labels follow the scheme the head was trained on, so a second signal that agrees with the head adds little on this benchmark.
+
+Whether to turn the weight on is an **owner decision**, still open on 2026-10-27. It is a one-line change: `scorer.WEIGHTS["embedding_isolation"]`.
+
+**Q6. Defence: "Is the +0.0006 F1 real?"**
+No. The CI includes 0, and the threshold change alone accounts for it. Fish recall is 0.405 on test (0.631 on dev) in every configuration; B5 neither caused nor fixed it. The test split was scored twice: the second run only added the paired statistics, and every other number was identical. The 2026-10-27 dev rerun reproduced the 2026-10-20 selection exactly.
+
+## QNA-039 — 2026-10-27 — Integrity sweep: MockTag deleted, the Novelty DNA "no alignment step" text replaced by the stored decision, ConfidenceChip on model scores, DetectionWindowBadge on Legislative, partner-page stale-response and CSV-formula fixes (D6; tracker t-1028-3)
+
+**Commit:** `b503d2a` on `sprint/d15-integrity-sweep` (`576403e` chips + Novelty DNA + MockTag deletion, `72e6c2b` Legislative, `d089aec` Industrial, `1ea42f0` Academia, `b503d2a` e2e), cut from `d59be3a`. Merged into `LATEST_USHNIK` as `77e950c`, with a follow-up wording fix in `af8e796`.
+
+**Q1. Mechanism: how does the Novelty DNA drawer get the closest match now?**
+- The first time a drawer opens for an analysis, `web_frontend/src/pages/researcher/NoveltyDNA.jsx` calls `getAnalysis(id, {includeTrace:false})` once. It maps `sequence_id` to the result row.
+- `ReferenceLookup` (~:185–250) renders the row's `decision`: final_route, result_class, rule, reference_db(_version), predicted_taxon/taxon_rank and percent_identity.
+- Stale replies are dropped: the state is tagged with its analysis id, and a reply is applied only while the tag still matches.
+- If there is no match, the panel says why: the analysis predates the orchestrator, the database was searched with no assignment, there is no stored row, or the load failed.
+- Coverage and E-value exist only in the trace, so the panel points to Results › Why this answer.
+- ConfidenceChip wording lives in `src/lib/scoreChips.js`.
+  - Placements: NoveltyDNA :154/:231/:315/:317, AnalysisResults :630, ReviewQueue :135/:141, Industrial :290–291.
+  - DetectionWindowBadge: Legislative :682 (alert card) and :786 (dialog), fed by the alert's own `collected_at`.
+
+**Q2. Rationale.**
+- **MockTag:** the roadmap premise was wrong. At `d59be3a` MockTag was imported nowhere; `NoveltyDNA.jsx:47` only named it in a comment. What that comment marked was the drawer's fixed text saying the tool "doesn't run a reference alignment step", which is false for orchestrator-1.x analyses: `seq_e2e_orch_tuna_01` has 99.84% against `synthveda-reference/fish` v2. The stored decision replaced it, so no new API was needed.
+- **Chips:** they went only on model or evidence scores (novelty, contamination, identity). Plain counts and count ratios (Legislative flag rates, KPIs, Jaccard), external environmental values (which already carry source lines) and evaluation metrics were excluded on purpose. A chip that says "Modeled estimate" on a count would itself be misleading.
+- **Wording fix at merge (`af8e796`):** the agent's novelty basis said "6 expert-weighted signals". After QNA-038 only 3 terms carry weight (`scorer.py:76-82`); centroid and reference identity are at 0. The basis now says "expert-weighted signals", and the comment names the weight-0 terms.
+
+**Q3. Blast radius.**
+- **CSV guard:** `Legislative.jsx` `csvCell` prefixes `'` to any non-numeric cell that starts with `= + - @`, a tab or a CR. Worst case, a text cell gains a visible `'`. Real numbers are never changed (`-12.5` stays `-12.5`). A southern or western `cell_id` such as `-13:68` exports as `'-13:68`, on purpose.
+- **Race fixes:** a wrong fix would show the previous scope's or upload's data under the new label. That is the bug being fixed, and the tests in Q4 check it.
+- **Academia copy button:** the one `setTimeout` that faked success. It showed "Copied ✓" before `writeText` resolved; now it shows only on success. Audited and not faking: JobProgress (:146/:156), ResetPassword (:151).
+- **Custody:** after every FAIR export (even a failed one, since the server records the export before streaming), custody is re-read on Legislative and Industrial `DocumentHub.jsx`.
+
+**Q4. Verification.**
+- New `web_frontend/e2e/integrity.spec.js`, 16 tests. Superseded responses are held back with a 1500 ms page-level route delay.
+- Against base source `d59be3a` (`git checkout d59be3a -- web_frontend/src`), **15 of 16 failed for the expected reason**:
+  - 3 stale "STALE-MINE.fasta" rows on Industrial;
+  - the old pending reason left beside the new error on Academia;
+  - the chain stuck at "2 event(s)" after a FAIR export on Legislative.
+  The one that passed is the successful-copy case, which the old code also handles.
+- On the merged tree (`af8e796`): `npm run build` OK, Playwright **80/80**, `grep -rn MockTag web_frontend/src` → 0 matches. No API change, so pytest and fixtures were not affected.
+
+**Q5. Defence: "ConfidenceChip on every computed number, yet Legislative has none?"** Legislative shows no model score; its numbers are counts and flag rates (flagged ÷ analysed). It gets the DetectionWindowBadge instead, which qualifies a detection in time. Its 1–14 day window is the spec's frontend default; the backend has no degradation model, and the badge shows "unavailable (no sample timestamp)" when collected_at is missing.
+
+**Q6. Open (as reported by the agent, 2026-10-27).**
+- The Novelty DNA header and footer still say "Reference DB: pending configuration" (`referenceDb={null}`), which is misleading for orchestrated analyses.
+- Academia's `getReport` effect (~:432) has no stale guard.
+- Human-route contamination still shows as a red Industrial incident until `sprint/d15-review-fixes` lands.
+- ConfidenceChip always reads "Modeled estimate", even for an alignment identity.
+- Six pre-existing ESLint errors remain in `main.jsx` and `AuthContext.jsx`.

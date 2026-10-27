@@ -17,7 +17,9 @@ Each wraps existing code; none re-implements a scorer.
   novelty           app/novelty/scorer.score_sequence(). Needs the head's
                     prediction on the same route: without one it is
                     "skipped" (the scorer would read a stub's confidence 0.0
-                    as maximal uncertainty and call it novel).
+                    as maximal uncertainty and call it novel). Reads the
+                    head's centroid artifact and the route's reference
+                    evidence (B5).
 
 Statuses: see app/evidence/base.py.
 """
@@ -262,10 +264,18 @@ class NoveltyProvider:
 
     context[i] must carry the head's result_class, confidence, label_scores
     (and embedding when there is one) for this route, plus the contamination
-    provider's contamination_score; "head_ok" False -> skipped."""
+    provider's contamination_score; "head_ok" False -> skipped.
+
+    2.0 (B5, t-1024-1): context also carries the head's model_version_used,
+    which selects that head's centroid artifact for the embedding-isolation
+    term (app/novelty/centroids.py; missing -> the old L2-norm proxy, with
+    "embedding_proxy_<why>" in reason_codes and details), and "reference",
+    the route's reference EvidenceRecord.to_dict(), for the separate
+    reference_low_identity term. payload["details"] records both terms'
+    method, inputs and weight."""
 
     name = "novelty"
-    version = "1.0"
+    version = "2.0"
 
     def __init__(self, score_fn: Callable[[dict], Any] | None = None):
         if score_fn is None:
@@ -299,6 +309,7 @@ class NoveltyProvider:
                 "reason_codes": list(nr.reason_codes),
                 "abyss_recommendation": str(nr.abyss_recommendation),
                 "requires_cloud_confirmation": bool(nr.requires_cloud_confirmation),
+                "details": getattr(nr, "details", None) or {},
             })
             out.append(EvidenceRecord(self.name, self.version, str(sid), route, EVIDENCE_OK, payload=payload,
                                       elapsed_ms=elapsed_ms_since(t0)))

@@ -4,6 +4,8 @@ import SidebarMenu from "../components/sidebar/SidebarMenu";
 import ProvenanceTag from "../components/shared/ProvenanceTag";
 import NegativeControlFlag from "../components/shared/NegativeControlFlag";
 import DisclaimerBanner from "../components/shared/DisclaimerBanner";
+import ConfidenceChip from "../components/shared/ConfidenceChip";
+import { NOVELTY_CHIP } from "../lib/scoreChips";
 import { tokens, pillStyle } from "../components/shared/tokens";
 import { formatMetadataField } from "../lib/sampleMetadata";
 import { ArrowRightIcon } from "../components/shared/icons";
@@ -605,6 +607,7 @@ export default function AnalysisResults() {
                     <span style={{ fontSize: s(13), fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{n.sequence_id}</span>
                     <span style={plainTagStyle("accent")}>{(n.novelty_score * 100).toFixed(1)}% novel</span>
                   </div>
+                  <ConfidenceChip {...NOVELTY_CHIP} style={{ whiteSpace: "normal" }} />
                   <div style={{ display: "flex", justifyContent: "center", gap: s(8), flexWrap: "wrap" }}>
                     <span style={plainTagStyle("accent")}>{n.route}</span>
                     <span style={plainTagStyle(n.requires_cloud_confirmation ? "warning" : "success")}>

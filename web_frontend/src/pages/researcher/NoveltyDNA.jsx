@@ -3,10 +3,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import SidebarMenu from "../../components/sidebar/SidebarMenu";
 import ProvenanceTag from "../../components/shared/ProvenanceTag";
 import DisclaimerBanner from "../../components/shared/DisclaimerBanner";
+import ConfidenceChip from "../../components/shared/ConfidenceChip";
 import { tokens } from "../../components/shared/tokens";
 import Dropdown from "../../components/shared/Dropdown";
-import { getReportSummary, getNoveltyTable, getContaminationWarnings, listReports } from "../../lib/api";
+import { getAnalysis, getReportSummary, getNoveltyTable, getContaminationWarnings, listReports } from "../../lib/api";
 import { useNoveltyThreshold } from "../../lib/noveltyThreshold";
+import { CONTAMINATION_CHIP, NOVELTY_CHIP, identityChip } from "../../lib/scoreChips";
 
 // The backend only returns novelty entries already at or above its flagging
 // threshold, so the slider's floor is that threshold -- there's no real data
@@ -44,8 +46,7 @@ const panelStyle = {
 // Plain colored text, no capsule chrome -- same tone→color mapping as
 // pillStyle (tokens.js), minus the padding/border/pill background, for the
 // candidate list's inline tags. pillStyle itself stays untouched since it's
-// shared with other pages (severity pills, MockTag-adjacent badges
-// elsewhere) that weren't asked to change.
+// shared with other pages' severity pills.
 function plainTagStyle(tone = "pending") {
   return {
     color: tokens[tone] ?? tokens.pending,
@@ -94,7 +95,7 @@ function SolidButton({ children, onClick, disabled, title }) {
 // shared bordered container, a header row, per-row borderBottom dividers)
 // instead of a stack of separately-bordered/rounded cards, so the two
 // Researcher Mode list pages read as one consistent design.
-const GRID_COLS = "26px 170px 1fr 1.4fr 168px";
+const GRID_COLS = "26px 170px 1.5fr 1fr 168px";
 
 function CandidateRow({ n, i, bulkMode, selected, contaminationFlagged, onToggleSelect, onOpen }) {
   const pct = (n.novelty_score * 100).toFixed(1);
@@ -150,6 +151,7 @@ function CandidateRow({ n, i, bulkMode, selected, contaminationFlagged, onToggle
           {n.requires_cloud_confirmation ? "cloud confirm needed" : n.abyss_recommendation}
         </span>
         {contaminationFlagged && <span style={plainTagStyle("warning")}>contamination warning</span>}
+        <ConfidenceChip {...NOVELTY_CHIP} style={{ whiteSpace: "normal" }} />
       </span>
       <span style={{ fontSize: 12, color: tokens.pending }}>{n.reason_codes?.length > 0 ? n.reason_codes.join(" · ") : "—"}</span>
       <SolidButton
@@ -163,7 +165,89 @@ function CandidateRow({ n, i, bulkMode, selected, contaminationFlagged, onToggle
   );
 }
 
-function AlignmentViewerDrawer({ candidate, contaminationFlagged, onClose }) {
+const lookupBoxStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  padding: "14px 18px",
+  borderRadius: 6,
+  border: `1px solid ${tokens.sectionBorder}`,
+  background: "#04070E",
+  fontSize: 12.5,
+  lineHeight: 1.6,
+  color: tokens.sectionSubtext,
+};
+
+function LookupKV({ label, children }) {
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+      <span style={{ width: 120, flexShrink: 0, fontSize: 11.5, letterSpacing: "0.05em", color: tokens.labelText }}>{label}</span>
+      <span style={{ color: tokens.wordmark }}>{children}</span>
+    </div>
+  );
+}
+
+// What the orchestrator recorded for this sequence's reference lookup, read
+// from GET /analysis/{id} (results[].decision). Only fields the decision
+// stores are shown; query coverage and E-value live in the decision trace
+// (Results page, "Why this answer"), and an analysis written before the
+// orchestrator has no lookup at all -- each case says so instead of showing
+// a placeholder.
+function ReferenceLookup({ lookup, analysisId }) {
+  let body;
+  if (lookup.status === "loading") {
+    body = <span>Loading the stored decision…</span>;
+  } else if (lookup.status === "error") {
+    body = <span style={{ color: tokens.danger }}>The stored decision could not be loaded: {lookup.error}</span>;
+  } else if (!lookup.row) {
+    body = <span>No stored per-sequence result for this sequence, so no reference lookup can be shown.</span>;
+  } else if (!lookup.row.decision) {
+    body = (
+      <span>
+        No reference lookup recorded for this sequence. The analysis predates the orchestrator, which is what records
+        the reference database, closest match and identity, so none of them exist for this result.
+      </span>
+    );
+  } else {
+    const d = lookup.row.decision;
+    const dbLabel = d.reference_db
+      ? `${d.reference_db}${d.reference_db_version ? ` v${String(d.reference_db_version).replace(/^v/i, "")}` : ""}`
+      : null;
+    body = (
+      <>
+        <LookupKV label="FINAL ROUTE">
+          {d.final_route ?? "not recorded"}{d.result_class ? ` · ${d.result_class}` : ""}{d.rule ? ` · rule ${d.rule}` : ""}
+        </LookupKV>
+        <LookupKV label="REFERENCE DB">{dbLabel ?? "no lookup result recorded"}</LookupKV>
+        <LookupKV label="CLOSEST MATCH">
+          {d.predicted_taxon
+            ? <><em>{d.predicted_taxon}</em>{d.taxon_rank ? ` (${d.taxon_rank})` : " (rank not recorded)"}</>
+            : dbLabel ? "searched, no reference assignment" : "none"}
+        </LookupKV>
+        {d.percent_identity != null && (
+          <LookupKV label="IDENTITY">
+            <span style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              {d.percent_identity.toFixed(2)}%
+              <ConfidenceChip {...identityChip(d)} style={{ whiteSpace: "normal" }} />
+            </span>
+          </LookupKV>
+        )}
+        <span style={{ fontSize: 11.5, color: tokens.pending }}>
+          Query coverage and E-value are not stored on the decision; when a trace was recorded they are under{" "}
+          <Link to={`/analysis/${analysisId}`} style={{ color: tokens.accentBlue }}>Results › Why this answer</Link>.
+        </span>
+      </>
+    );
+  }
+  return (
+    <div style={lookupBoxStyle} data-testid="reference-lookup">
+      <span style={{ fontSize: 12, letterSpacing: "0.08em", color: tokens.labelText }}>REFERENCE LOOKUP (STORED DECISION)</span>
+      {body}
+    </div>
+  );
+}
+
+function AlignmentViewerDrawer({ candidate, contaminationFlagged, lookup, analysisId, onClose }) {
   if (!candidate) return null;
   const pct = (candidate.novelty_score * 100).toFixed(1);
   const fastaLines = candidate.sequence ? candidate.sequence.match(/.{1,60}/g) ?? [] : [];
@@ -226,6 +310,12 @@ function AlignmentViewerDrawer({ candidate, contaminationFlagged, onClose }) {
             {contaminationFlagged && " · flagged"}
           </span>
         </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 11.5, color: tokens.pending }}>Novelty {pct}%</span>
+          <ConfidenceChip {...NOVELTY_CHIP} style={{ whiteSpace: "normal" }} />
+          <span style={{ fontSize: 11.5, color: tokens.pending }}>Contamination {(candidate.contamination_score * 100).toFixed(1)}%</span>
+          <ConfidenceChip {...CONTAMINATION_CHIP} style={{ whiteSpace: "normal" }} />
+        </div>
 
         <div>
           <div style={{ fontSize: 12, letterSpacing: "0.08em", color: tokens.labelText, marginBottom: 8 }}>REASON CODES</div>
@@ -258,20 +348,7 @@ function AlignmentViewerDrawer({ candidate, contaminationFlagged, onClose }) {
           </div>
         </div>
 
-        <div
-          style={{
-            padding: "14px 18px",
-            borderRadius: 6,
-            border: `1px solid ${tokens.warningBorder}`,
-            background: tokens.warningBg,
-            fontSize: 12.5,
-            lineHeight: 1.6,
-            color: "#C8B79A",
-          }}
-        >
-          <span style={{ fontWeight: 600, color: tokens.warningAlt }}>Closest match, alignment identity, E-value, and query coverage aren't available. </span>
-          This deployment scores novelty from DNABERT-2 embeddings only — it doesn't run a reference alignment step (BLAST/DIAMOND) against a curated database yet, so there's no real closest-hit comparison to show.
-        </div>
+        <ReferenceLookup lookup={lookup} analysisId={analysisId} />
 
         <SolidButton disabled title="Cloud Confirm (deeper reference search) isn't wired to a compute backend on this deployment yet">
           Cloud Confirm
@@ -300,6 +377,12 @@ export default function NoveltyDNA() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState({});
   const [drawerId, setDrawerId] = useState(null);
+  // Stored per-sequence results (GET /analysis/{id}, no traces), fetched the
+  // first time a candidate is opened: the drawer's reference lookup reads
+  // each row's decision from it. Tagged with its analysis id so a switch
+  // never shows the previous analysis's rows.
+  const [stored, setStored] = useState({ analysisId: null, status: "idle", byId: null, error: "" });
+  const storedFor = stored.analysisId === analysisId ? stored.status : "idle";
 
   // Resolve which analysis to show: an explicit ?analysis_id= wins;
   // otherwise fall back to the user's most recent one. The sidebar's
@@ -344,6 +427,21 @@ export default function NoveltyDNA() {
     return () => { live = false; };
   }, [analysisId]);
 
+  // Loads once per analysis, when a drawer first opens. No cleanup flag: a
+  // response is applied only while `stored` still belongs to the analysis it
+  // was requested for, so a late reply for an earlier analysis is dropped,
+  // and closing the drawer mid-request does not lose the reply. A failed
+  // load stays failed until the analysis changes (no retry loop).
+  useEffect(() => {
+    if (!drawerId || !analysisId || storedFor !== "idle") return;
+    const id = analysisId;
+    const settle = (next) => setStored((prev) => (prev.analysisId === id ? { analysisId: id, ...next } : prev));
+    setStored({ analysisId: id, status: "loading", byId: null, error: "" });
+    getAnalysis(id, { includeTrace: false })
+      .then((a) => settle({ status: "ready", byId: new Map((a.results ?? []).map((r) => [r.sequence_id, r])), error: "" }))
+      .catch((e) => settle({ status: "error", byId: null, error: e.message || "request failed" }));
+  }, [drawerId, analysisId, storedFor]);
+
   const routes = useMemo(() => {
     if (!report) return [];
     return [...new Set(report.candidates.map((n) => n.route))].sort();
@@ -362,6 +460,11 @@ export default function NoveltyDNA() {
 
   const selCount = Object.values(selected).filter(Boolean).length;
   const drawerCandidate = report?.candidates.find((n) => n.sequence_id === drawerId) ?? null;
+  const lookup = {
+    status: storedFor === "idle" ? "loading" : storedFor,
+    error: stored.error,
+    row: storedFor === "ready" ? stored.byId.get(drawerId) ?? null : null,
+  };
 
   const toggleBulk = () => {
     setBulkMode((b) => !b);
@@ -577,6 +680,8 @@ export default function NoveltyDNA() {
       <AlignmentViewerDrawer
         candidate={drawerCandidate}
         contaminationFlagged={!!drawerCandidate && report.contaminatedIds.has(drawerCandidate.sequence_id)}
+        lookup={lookup}
+        analysisId={analysisId}
         onClose={() => setDrawerId(null)}
       />
     </div>

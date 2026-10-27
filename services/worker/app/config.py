@@ -10,7 +10,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # image defines the same default in services/api/app/config.py (the two
 # services share no package); services/api/tests/test_novelty_threshold.py
 # checks the two are equal.
-DEFAULT_NOVELTY_THRESHOLD = 0.45
+# 0.44 since 2026-10-20 (B5, t-1024-1): recalibrated on the DEV split with the
+# centroid/reference novelty terms (training/eval_novelty_centroid.py
+# calibrate; docs/ml/results/novelty_centroid_2026-10-27.json). Was 0.45.
+DEFAULT_NOVELTY_THRESHOLD = 0.44
 
 
 class WorkerSettings(BaseSettings):

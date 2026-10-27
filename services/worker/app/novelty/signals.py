@@ -10,7 +10,9 @@ Signals defined here:
   route_model_disagreement  — router assigned one route but model is uncertain
   high_sequence_quality     — high quality sequence + low confidence = real signal
   not_contamination         — contamination already ruled out (reduces false positives)
-  embedding_isolation       — [CLS] embedding far from cluster centres (Phase 14: train)
+  embedding_isolation       — [CLS] embedding far from the routed head's known-class
+                              centroids (B5; old L2-norm proxy only as a fallback)
+  reference_low_identity    — no reference hit at or above the family band (B5)
 
 These are combined in scorer.py using a weighted sum with learned/tunable weights.
 """
@@ -166,28 +168,119 @@ def signal_not_contamination(seq: dict) -> tuple[float, str]:
 
 
 # ---------------------------------------------------------------------------
-# Signal 6: Embedding isolation (Phase 14 — placeholder)
+# Signal 6: Embedding isolation (B5: nearest-centroid cosine distance)
 # ---------------------------------------------------------------------------
 
-def signal_embedding_isolation(seq: dict) -> tuple[float, str]:
-    """
-    Measures how isolated the sequence's [CLS] embedding is from the cluster
-    centres of known species in the embedding space.
+# Legacy proxy (pre-B5): L2 norm of the [CLS] embedding vs a hardcoded
+# "typical" norm. Kept only as the fallback when the routed head has no
+# usable centroid artifact (app/novelty/centroids.py); the novelty record
+# then says so (method "norm_proxy" + reason code "embedding_proxy_<why>").
+LEGACY_TYPICAL_NORM = 14.0   # rough expected norm for DNABERT-2 [CLS] embeddings
 
-    Phase 14 trains cluster centres from curated sequences. Until then this
-    returns 0.0 (no isolation data) so it doesn't inflate novelty scores.
+# A read whose nearest-centroid distance is beyond this share of the known
+# calibration reads gets the "embedding_isolated" reason code. Display only:
+# the score uses the continuous value.
+EMBEDDING_ISOLATED_ECDF = 0.95
+
+METHOD_CENTROID = "centroid_cosine"
+METHOD_PROXY = "norm_proxy"
+METHOD_NONE = "none"
+
+
+def _norm_proxy(embedding) -> float:
+    norm = math.sqrt(sum(float(x) * float(x) for x in embedding))
+    deviation = abs(norm - LEGACY_TYPICAL_NORM) / LEGACY_TYPICAL_NORM
+    return min(deviation, 1.0)
+
+
+def embedding_isolation(seq: dict, resolver=None) -> tuple[float, str, dict]:
+    """
+    How far the read's [CLS] embedding sits from the known reads of the head
+    that produced it: (score in [0, 1], reason code, detail).
+
+    With the head's centroid artifact (seq["model_version_used"] names the
+    head): cosine distance to the nearest known-class centroid, mapped
+    through the empirical CDF of the same distance on held-out known
+    training reads (CentroidSet.ecdf). Without one: the old L2-norm proxy,
+    with detail["method"] = "norm_proxy" and the fallback reason.
     """
     embedding = seq.get("embedding")
     if embedding is None:
-        return 0.0, "no_embedding"
+        return 0.0, "no_embedding", {"method": METHOD_NONE}
 
-    # TODO Phase 14: compute cosine distance to nearest cluster centre.
-    # For now, signal is based on the embedding L2 norm relative to expected
-    # norm for known sequences — a weak proxy for isolation.
-    norm = math.sqrt(sum(x * x for x in embedding))
-    typical_norm = 14.0   # rough expected norm for DNABERT-2 [CLS] embeddings
-    deviation = abs(norm - typical_norm) / typical_norm
-    score = min(deviation, 1.0)
+    if resolver is None:
+        from .centroids import centroids_for_model as resolver
+    cs, why = resolver(seq.get("model_version_used"))
+    fallback_detail = None
+    if cs is not None:
+        try:
+            distance, j = cs.nearest(embedding)
+        except ValueError as exc:
+            from .centroids import DIM_MISMATCH
+            why, fallback_detail = DIM_MISMATCH, str(exc)[:200]
+        else:
+            score = cs.ecdf(distance)
+            code = "embedding_isolated" if score >= EMBEDDING_ISOLATED_ECDF else "embedding_near_known"
+            detail = {"method": METHOD_CENTROID, "cosine_distance": round(distance, 5),
+                      "nearest_centroid": j, "nearest_class": cs.centroid_class[j],
+                      "ecdf": round(score, 4), **cs.describe()}
+            return round(score, 4), code, detail
 
+    score = round(_norm_proxy(embedding), 4)
     code = "embedding_isolated" if score > 0.4 else "embedding_normal"
-    return round(score, 4), code
+    detail = {"method": METHOD_PROXY, "fallback_reason": why, "typical_norm": LEGACY_TYPICAL_NORM}
+    if fallback_detail:
+        detail["fallback_detail"] = fallback_detail
+    return score, code, detail
+
+
+def signal_embedding_isolation(seq: dict) -> tuple[float, str]:
+    """(score, code) form of embedding_isolation(), like the other signals."""
+    score, code, _ = embedding_isolation(seq)
+    return score, code
+
+
+# ---------------------------------------------------------------------------
+# Signal 7: Reference low identity (B5)
+# ---------------------------------------------------------------------------
+
+def reference_low_identity(seq: dict, family_identity: float, search_floor: float
+                           ) -> tuple[float | None, str, dict]:
+    """
+    Novelty evidence from the reference lookup on the routed head's route:
+    the read has no eligible hit (over the coverage floor) at or above the
+    family band (REFERENCE_FAMILY_IDENTITY, provisional 90 %).
+
+      no eligible hit (status no_hit)          -> 1.0
+      best eligible identity id < family band  -> (family - id) / (family - search_floor),
+                                                  clipped to [0, 1]. The search reports no hit
+                                                  below REFERENCE_SEARCH_MIN_IDENTITY (80 %), so
+                                                  the term ramps linearly across 90 -> 80 %.
+      best eligible identity >= family band    -> 0.0
+      lookup not run / unavailable / skipped   -> None: the term is left out of the score
+                                                  (a missing DB is not evidence of novelty)
+
+    seq["reference"] is the route's reference EvidenceRecord.to_dict()
+    (status + compact payload; app/evidence/providers.ReferenceEvidenceProvider).
+    A strong hit is the combiner's job, not this term's: it gates the final
+    score to 0 (novelty_suppressed_by_reference) or keeps the flag with a
+    downgrade (app/orchestrator/combiner.py).
+    """
+    rec = seq.get("reference")
+    if not rec or rec.get("status") != "ok":
+        return None, "reference_unavailable", {"evidence_status": (rec or {}).get("status") or "not_run"}
+    p = rec.get("payload") or {}
+    status = p.get("status")
+    ident = p.get("identity")
+    detail = {"reference_status": status, "identity": ident, "family_identity": family_identity,
+              "search_floor": search_floor}
+    if status == "no_hit" or ident is None:
+        return 1.0, "reference_no_hit", detail
+    ident = float(ident)
+    if ident >= family_identity:
+        return 0.0, "reference_hit_at_or_above_family", detail
+    span = max(family_identity - search_floor, 1e-6)
+    score = max(0.0, min(1.0, (family_identity - ident) / span))
+    return round(score, 4), "reference_low_identity", detail
+
+
