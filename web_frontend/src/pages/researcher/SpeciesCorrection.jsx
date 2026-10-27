@@ -113,6 +113,7 @@ function SolidButton({ children, onClick, disabled, title, tone = "accent" }) {
 
 function OverrideDrawer({ analysisId, entry, onClose }) {
   const { user } = useAuth();
+  const entryRef = taxonCall(entry);
   const [proposed, setProposed] = useState("");
   const [justification, setJustification] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -213,7 +214,7 @@ function OverrideDrawer({ analysisId, entry, onClose }) {
           </div>
           <span style={{ fontSize: 11.5, color: tokens.sectionSubtext }}>
             {entry.length.toLocaleString()} bp · route {entry.route} · matched against{" "}
-            <span style={{ fontFamily: "ui-monospace,monospace" }}>pending configuration</span>
+            <span style={{ fontFamily: "ui-monospace,monospace" }}>{entryRef.referenceDb ? `${entryRef.referenceDb}${entryRef.referenceDbVersion ? ` v${String(entryRef.referenceDbVersion).replace(/^v/i, "")}` : ""}` : "not recorded"}</span>
           </span>
         </div>
 
