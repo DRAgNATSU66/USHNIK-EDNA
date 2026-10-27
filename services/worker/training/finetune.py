@@ -41,7 +41,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from app.inference.heads import DNAClassifierHead
-from app.inference.models import ROUTE_LABEL_SETS
+from app.inference.models import CURRENT_LABEL_SET_VERSION, ROUTE_LABEL_SETS
 
 
 class SequenceDataset(Dataset):
@@ -204,6 +204,10 @@ def save_checkpoint(
         "base_model": args.base_model,
         "route": args.route,
         "num_classes": len(labels),
+        # The head's output order; registry entries copy these, and the
+        # worker builds the head from them (models.labels_for).
+        "label_set_version": CURRENT_LABEL_SET_VERSION,
+        "label_set": [str(label) for label in labels],
         "train_size": len(train_ds),
         "dev_size": len(dev_ds),
         "test_size": len(test_ds),

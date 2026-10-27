@@ -42,8 +42,26 @@ import torch
 from torch.utils.data import DataLoader
 
 from app.inference.heads import DNAClassifierHead
-from app.inference.models import ROUTE_LABEL_SETS
+from app.inference.models import LABEL_SETS_BY_VERSION, ROUTE_LABEL_SETS
 from training.finetune import SequenceDataset, build_eval_report, collate, extract_cls
+
+
+def checkpoint_labels(route: str, saved_metrics: dict, current: list[str]) -> list[str]:
+    """The labels a checkpoint's head outputs, in order: metrics.json
+    "label_set" (written since label set v2), else the label_set_version
+    list whose length matches "num_classes" (older checkpoints recorded only
+    that). Label sets only ever append, so the result must be a prefix of
+    `current`: output i of an older head is still class i of the test data."""
+    found = saved_metrics.get("label_set")
+    if not found:
+        n = saved_metrics.get("num_classes", len(current))
+        found = next((v[route] for v in LABEL_SETS_BY_VERSION.values() if len(v.get(route, ())) == n), None)
+        if found is None:
+            raise SystemExit(f"no {route} label set has {n} classes")
+    found = [str(label) for label in found]
+    if current[:len(found)] != found:
+        raise SystemExit(f"checkpoint labels {found} are not a prefix of the current {current}")
+    return found
 
 
 def main() -> None:
@@ -65,6 +83,8 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"device: {device}")
 
+    # Test rows are labelled with the current label set; the head may have
+    # been trained on an older one (see checkpoint_labels below).
     labels = ROUTE_LABEL_SETS[args.route]
     label_names = [str(l) for l in labels]
     label_to_idx = {name: i for i, name in enumerate(label_names)}
@@ -93,7 +113,11 @@ def main() -> None:
     if embedding_dim is None:
         embedding_dim = backbone.config.hidden_size
 
-    head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(labels)).to(device)
+    head_labels = checkpoint_labels(args.route, saved_metrics, label_names)
+    if head_labels != label_names:
+        print(f"head trained on {len(head_labels)} labels {head_labels}; scoring on {label_names}. "
+              f"Rows of the newer labels count as errors for this head.")
+    head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(head_labels)).to(device)
     head.load_state_dict(torch.load(head_path, map_location=device, weights_only=True))
     head.eval()
 

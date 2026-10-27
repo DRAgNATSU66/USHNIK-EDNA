@@ -26,11 +26,11 @@ from .heads import HeadUnavailableError, get_cls_embedding, get_head, tokenize_d
 from .loader import get_or_load, torch_available
 from .max_length import resolve_max_length
 from .models import (
-    ROUTE_LABEL_SETS,
     InferenceMode,
     ModelRegistryEntry,
     PredictionResult,
     SequenceResultClass,
+    labels_for,
 )
 from .registry import get_registry
 
@@ -158,6 +158,7 @@ def _run_model(
     try:
         # Classifier head first: without trained head weights there is no
         # model prediction to make, so don't spend a backbone forward pass.
+        labels = labels_for(route, entry.label_set_version, entry.label_set)
         try:
             head = get_head(
                 route=route,
@@ -165,6 +166,7 @@ def _run_model(
                 embedding_dim=entry.embedding_dim,
                 head_weights_path=entry.artifact_uri if entry.artifact_uri and
                                   entry.artifact_uri.endswith((".pt", ".bin")) else None,
+                labels=labels,
             )
         except HeadUnavailableError as exc:
             # Already logged (once per route) by get_head.
@@ -187,7 +189,6 @@ def _run_model(
             logits = head(cls_emb)  # (1, num_classes)
             probs = torch.softmax(logits, dim=-1).squeeze(0).tolist()
 
-        labels = ROUTE_LABEL_SETS.get(route, [])
         label_scores = dict(zip(labels, probs))
 
         # Determine result_class and confidence from probabilities.

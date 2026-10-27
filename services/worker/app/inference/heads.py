@@ -99,9 +99,12 @@ def get_head(
     model_id: str,
     embedding_dim: int,
     head_weights_path: str | None = None,
+    labels: list[str] | None = None,
 ) -> Any | None:
     """
     Return a DNAClassifierHead for the given route with trained weights loaded.
+    `labels` is the list the head was trained with (models.labels_for); it
+    sets the output size. Defaults to the route's current label set.
 
     Returns None when torch is not available or the route has no label set.
     Raises HeadUnavailableError when the trained weights are missing or cannot
@@ -116,7 +119,8 @@ def get_head(
     if cache_key in _HEAD_FAILURES:
         raise HeadUnavailableError(*_HEAD_FAILURES[cache_key])
 
-    labels = ROUTE_LABEL_SETS.get(route, [])
+    if labels is None:
+        labels = ROUTE_LABEL_SETS.get(route, [])
     if not labels:
         logger.warning("No label set defined for route %r", route)
         return None
