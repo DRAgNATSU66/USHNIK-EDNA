@@ -2795,3 +2795,151 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - The dev Mongo and Redis containers (made outside this compose file) were set with `docker update --restart unless-stopped`. That is a local setting, not in git.
 
 **Q5. Defence: "Why not let a supervisor restart it?"** There is no supervisor on the native dev path or on a field laptop. Inside compose, a restart policy restarts the whole process, which reloads the route heads (DNABERT-2 per route) on every Redis blip. Retrying in the loop keeps the loaded models.
+
+## QNA-045 — 2026-10-27 — BOLD downloaded (23-Oct-2026 package); the BOLD loaders rewritten after the real file exposed eight defects (tracker t-1014-3)
+
+**Commit:** `cc9146c` on `sprint/d18-bold-data`. Data on disk (gitignored):
+`synthveda-data/raw/bold/BOLD_Public.23-Oct-2026.parquet`. Measured numbers:
+`docs/ml/results/bold_normalisation_2026-10-27_pass1.json` and `bold_normalisation_2026-10-27.json` (pass 2).
+
+**Q1. What was downloaded, and how?**
+- The owner logged in to BOLD and requested the **Latest** package, `BOLD_Public.23-Oct-2026`
+  (doi:10.5883/DP-Latest, CC BY-SA 4.0), in Parquet (zstd).
+- The browser download died at 23:16:21 when Chrome exited. The system log shows a clean exit, not an
+  OOM kill and nothing from this session. The file was then fetched with resumable `curl -C -` from
+  the 24-hour link BOLD generated, straight into `raw/bold/`. It took 23:17 → 23:25.
+- **Measured:** 2,440,823,182 bytes; **24,503,138 rows**, which equals BOLD's published sequence count
+  for the package; 76 columns; 246 row groups; ZSTD.
+- The *Second Latest* package (16-Oct, 24,092,442 specimens) was deliberately not used. It is the
+  same library one week earlier, so using both would put nearly every record in twice.
+
+**Q2. Mechanism: what do the loaders do now?** There is one function,
+`sources.bold_lineage(row)`, used by both `sources.iter_bold` (training set) and
+`build_reference_db.bold_rows_to_records` (reference DB).
+1. **Kingdom → NCBI names:** Animalia→Metazoa and Plantae→Viridiplantae (both Eukaryota); Fungi; Protista
+   (Eukaryota, no kingdom); Bacteria and Viruses become the *superkingdom*. "Mixture" and anything
+   unlisted is dropped.
+2. **Genus:** must be one capitalised Latin word, or the row is dropped. This removes placeholders such as
+   `EntomobryidaeGEN` and `Galumnidae_incertae_sedis`.
+3. **Species:** kept only if `identification_rank` is species or subspecies (or absent) and the name is
+   `<genus> <epithet> [<epithet>]`, with lowercase Latin epithets that are none of
+   sp/cf/aff/nr/complex/group. Anything else becomes `"<Genus> sp."` with no species in the lineage.
+4. **Fish classes → NCBI:** Teleostei, Chondrostei, Holostei, Cladistii→Actinopteri;
+   Elasmobranchii, Holocephali→Chondrichthyes; Petromyzonti→Hyperoartia; Coelacanthi→Coelacanthimorpha;
+   Dipneusti→Sarcopterygii.
+5. **`bold_sequence`:** strips `-` alignment gaps, then applies the usual cleaning.
+6. **Reference DB only:** the accepted name is resolved through `NameResolver` (species, else genus,
+   within the domain), and the NCBI lineage and taxid replace BOLD's, as for SILVA and UNITE. Names NCBI
+   does not know keep the normalised BOLD lineage.
+7. **`build_dataset`:** scans BOLD up to `BOLD_MAX_SCAN = 50,000,000`, not the 2M per-source cap.
+
+**Q3. Why was each change needed?** Each defect was found by measuring the real file, not by reading code.
+
+| Defect | Measured consequence |
+|---|---|
+| raw "Animalia" ≠ routing's "Metazoa" | pass 1: old loader routed 17,086,770 rows to misc_unknown and 714,464 to animal_general |
+| family-only rows reached `assign_label` with name `""` | labelled known_species; 12,788,228 rows have neither genus nor species |
+| provisional names taken as species | 165,639 of 659,975 distinct species strings contain digits; more forms were found in review |
+| BOLD fish classes unknown to routing | fish route 424 rows → **464,609** after the mapping |
+| `-` gaps failed the base check | 3,836,703 sequences rejected whole |
+| 2M scan cap on a file sorted by `processid` | would have sampled only the alphabetically first projects |
+| ref DB: Bacteria and Viruses given superkingdom Eukaryota | 21,206 Bacteria + 998 Virus rows |
+| ref DB: BOLD orders and families ≠ NCBI's, so `lca_lineage` cuts merged duplicates | in a 3-row-group review sample, 4,575 MIDORI2+BOLD duplicates named the same species and lost it (e.g. Cyprinidae vs Leuciscidae 552, Eupercaria_incertae_sedis vs Lutjaniformes 528) |
+
+**Q4. Results (measured, full file).**
+- **Pass 2** (gap stripping and fish mapping; before the name-shape, placeholder-genus and NCBI-rank
+  fixes, so slightly high):
+  - **Kept:** 11,336,476.
+  - **Dropped:** null/empty `nuc` 2,337,046; no genus 10,790,728; Mixture/unknown kingdom 38,871; other
+    characters 17.
+  - **Routes:** animal 9,878,294, plant 565,504, fish 464,609, misc 327,637, human 79,641,
+    bacteria 20,791.
+  - Degapped length p5/p50/p95 is 418/654/822. Wall time 249.5 s.
+- **Genus-level share**, measured separately with the same rules: fish 50,561 of 464,713 (10.9%) and plant
+  33,139 of 566,761 (5.8%). These were labelled known_species because those routes had no genus-level
+  class, which led to QNA-046.
+- **animal_general likely_taxonomic_group:** 4,299,154 BOLD candidates. The current build has **271**
+  rows of this class (QNA-016), its thinnest.
+
+**Q5. Blast radius and the mistakes made along the way.**
+- **This session caused an out-of-memory crash.** At 23:33:22 a diagnostic
+  `pq.read_table(columns=["nuc", ...])` reached 8.5 GB RSS on the 14 GB machine. The kernel OOM killer
+  took down the editor and the Claude session; the OS did not reboot and no data was lost. Since then,
+  BOLD is only ever streamed by row group under `systemd-run --user --scope -p MemoryMax=…`. A
+  `ulimit -v` attempt failed (pyarrow reserves virtual memory up front, so it raised `bad_alloc`), and it
+  was replaced by the systemd cap.
+- **Review** (3 independent reviewers, memory-capped, 900k sampled rows) found the
+  ref-DB rank clash (high), the fish/plant genus-level label (medium), missed provisional forms (low,
+  about 0.23% of species-level rows) and placeholder genera (low, about 0.16–0.42%). All were fixed
+  in `cc9146c`, except fish/plant, which QNA-046 addresses.
+- **Not fixed:** rows where BOLD's genus and species disagree (16 in the sample, mostly fungal synonymy)
+  now become genus-level. NCBI-unresolved BOLD names keep BOLD's own order and family, so a clash can
+  still occur for those.
+- Nothing served changes until the dataset and reference DB are rebuilt and heads retrained (to follow).
+
+**Q6. Verification.**
+- `services/worker/tests/test_bold_source.py`: 59 tests (kingdoms, fish classes, gaps, provisional and
+  valid names, placeholders, NCBI rank replacement, end-to-end parquet).
+- `tests/test_build_dataset.py::test_build_reads_bold_with_its_own_scan_cap`.
+- Worker suite **610 passed** at `cc9146c`.
+
+**Q7. Defence: "You rewrote the source's taxonomy."** Only names. The kingdom and fish-class maps
+rename BOLD's ranks to the NCBI names that the routing and every other source already use. Sequences and
+species names are untouched. In the reference DB, a BOLD name that NCBI knows gets NCBI's lineage,
+which is what SILVA and UNITE already get. Leaving BOLD's own ranks there measurably *deleted* species
+from merged entries (Q3). Rows were dropped only when there is no organism to name (Mixture, no genus,
+or a placeholder genus), and every drop is counted in the results JSON.
+
+## QNA-046 — 2026-10-27 — Label set v2: fish and plant get likely_taxonomic_group; each head is loaded with the label set it was trained on
+
+**Commit:** `6d54f0d` on `sprint/d18-bold-data`. **The owner chose this** over "drop genus-level
+rows" and "keep as is" on 2026-10-27, after seeing QNA-045 Q4's 10.9% / 5.8%.
+
+**Q1. Mechanism.**
+- `app/inference/models.py`: `LABEL_SETS_BY_VERSION = {"v1": …, "v2": …}`. v2 appends
+  `likely_taxonomic_group` to fish (now 4 classes) and plant (now 5). The other routes are identical.
+- `ROUTE_LABEL_SETS` now points at v2, so the dataset build labels `"Genus sp."` fish and plant rows
+  as likely_taxonomic_group, and new heads train with it.
+- `labels_for(route, version, label_set)` returns the entry's own `label_set` if it has one, else its
+  `label_set_version`'s list.
+- `registry._parse_entry` reads `label_set`; `predictor` passes `labels_for(...)` to `heads.get_head(labels=…)`,
+  which sizes the head from it. Before this, the worker ignored the entry's `label_set` and always used
+  the global list.
+- `finetune.py` writes `label_set` and `label_set_version` into `metrics.json`.
+- `evaluate_checkpoint.checkpoint_labels` takes the head's labels from `metrics.json`, or from the
+  version whose list length equals `num_classes` for older checkpoints. It refuses anything that is not a
+  prefix of the current list.
+
+**Q2. Rationale.**
+- *Append rather than insert:* a head trained on v1 outputs index i = class i of v1, and with append-only
+  versions that is still class i of v2. That is what lets fish v2 and plant v1, both in production and
+  both trained on v1, keep working with no retrain.
+- *Per-entry label sets rather than a global list:* the old design (which the old
+  `test_registry_entries` docstring described) meant any label change silently relabelled every deployed
+  head's outputs.
+
+**Q3. Blast radius.**
+- **Old heads scored on new data:** for v1 fish and plant heads, every likely_taxonomic_group test row
+  counts as an error, because they cannot output it. That is correct, but it lowers their
+  same-test-rows baseline and has to be stated whenever v1 and v3 are compared.
+- **Promotion:** the API's `comparability_warnings` will say "label sets differ" for fish and plant
+  candidates, which is true.
+- **Unchanged:** predictor's low-confidence step-down to likely_taxonomic_group already existed on every
+  route, so the frontend already renders this class for fish and plant. The API has no per-route label
+  list.
+
+**Q4. Verification.**
+- New tests:
+  - `test_label_set_versions_only_append` (prefix property)
+  - `test_v2_adds_genus_level_class_to_fish_and_plant_only`
+  - `test_labels_for_prefers_the_entry_label_set`
+  - `test_registry_parses_label_set`
+  - `test_v1_head_is_not_built_at_the_v2_size`
+  - `test_v2_head_can_predict_the_genus_level_class`
+  - `tests/test_checkpoint_labels.py` (5)
+- Every checked-in registry entry's `label_set` must equal its version's list.
+- Worker **621 passed**; API **758 passed / 3 skipped** (unchanged).
+
+**Q5. Defence: "Why not drop genus-level rows instead?"** Dropping them hides real data: eDNA reads are
+often only identifiable to genus, and the heads should learn to say so. With the class in place, a fish
+read that matches only to genus can be reported as genus-level, not as a confident species.
