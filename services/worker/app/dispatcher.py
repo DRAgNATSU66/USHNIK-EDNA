@@ -9,18 +9,40 @@ import signal
 import sys
 
 from motor.motor_asyncio import AsyncIOMotorClient
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from .config import get_worker_settings
 from .queue import connect_redis, close_redis, dequeue_job, queue_depth
 from .job_runner import run_job
 
+# Backoff while Redis is unreachable: doubles up to the cap. The client's pool
+# opens a fresh connection on the next BRPOP once Redis is back.
+REDIS_RETRY_INITIAL_S = 1.0
+REDIS_RETRY_MAX_S = 30.0
+
 
 async def _process_loop(db, semaphore: asyncio.Semaphore, shutdown: asyncio.Event) -> None:
     settings = get_worker_settings()
     print("[dispatcher] ready — polling for jobs")
+    retry_s = None  # None while Redis answers
 
     while not shutdown.is_set():
-        envelope = await dequeue_job(timeout=int(settings.poll_interval_seconds))
+        try:
+            envelope = await dequeue_job(timeout=int(settings.poll_interval_seconds))
+        except (RedisConnectionError, RedisTimeoutError) as exc:
+            # A Redis restart used to end the process here (QNA-042 Q6). Wait
+            # and retry instead; a shutdown signal cuts the wait short.
+            retry_s = REDIS_RETRY_INITIAL_S if retry_s is None else min(retry_s * 2, REDIS_RETRY_MAX_S)
+            print(f"[dispatcher] Redis unavailable ({type(exc).__name__}: {exc}) — retrying in {retry_s:g}s")
+            try:
+                await asyncio.wait_for(shutdown.wait(), timeout=retry_s)
+            except asyncio.TimeoutError:
+                pass
+            continue
+        if retry_s is not None:
+            print("[dispatcher] Redis reachable again — polling resumed")
+            retry_s = None
 
         if envelope is None:
             continue
