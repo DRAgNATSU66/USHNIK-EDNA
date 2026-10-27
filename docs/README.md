@@ -10,7 +10,10 @@ Living, canonical docs (updated as the project changes, not archived once writte
 - `phases.md` — phase breakdown (full detail in `architecture/SYNTH_VEDA_PHASE_PLAN.md`).
 - `design.md` — color/typography/material tokens actually in use.
 - `memory.md` — current status: what's done, in progress, left, lacking.
-- `ROADMAP_REAL_DATA.md` — current working plan: full mock/frontend↔backend difference list and the day-wise roadmap to remove it (2026-10-14).
+- `ROADMAP_REAL_DATA.md` — current working plan: full mock/frontend↔backend difference list and the day-wise roadmap to remove it (2026-10-14). Part A status table: what is resolved or still open (2026-10-27).
+- `qna.md` — the contemporaneous, append-only record of every major change and its measured numbers (QNA-001…). The source the other docs and the paper cite.
+- `AUDIT_MOCKS_STUBS_TODOS.md` — the 2026-09-03 mock/stub audit, with a resolution status per item (2026-10-27).
+- `ml/results/` — measured result files (router, heads, reference lookup, orchestrator, taxon evaluation, novelty) that the paper's numbers come from.
 
 Historical/deep-dive material (superseded by the above for current decisions, kept for
 depth and context):

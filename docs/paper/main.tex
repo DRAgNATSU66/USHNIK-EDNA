@@ -1,6 +1,20 @@
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 
+% Every number in this paper is copied from a measured source. Updated 2026-10-27 (Day 17,
+% t-1030-3) against the code at 32f38ef. Sources, all in the repository unless noted:
+%   router            synthveda-data/checkpoints/router/{v1,v2}/eval_report.json,
+%                     router/v2/v1_on_same_test.json; docs/qna.md QNA-001, QNA-010, QNA-021
+%   route heads       docs/ml/results/heads_v2/{v1,v2}_<route>_on_new.json; QNA-022, QNA-023
+%   August history    docs/ml/THEORY_README.md (leakage section, NT-500M retrospective);
+%                     synthveda-data/checkpoints/bacteria_pathogen_nt500m_clean/eval_report.json
+%   v0 leakage audit  synthveda-data/processed_v0/leakage_report.json; QNA-016
+%   reference lookup  docs/ml/results/reference_lookup_v2_blast_2026-10-18.json; QNA-020
+%   orchestrator      docs/ml/results/orchestrator_smoke_2026-10-19.json (orchestrator-1.2.0); QNA-025
+%   taxon assignment  docs/ml/results/taxon_eval_2026-10-20.{md,json}; QNA-033
+%   novelty           docs/ml/results/novelty_centroid_2026-10-27.{md,json}; QNA-038
+%   figures           docs/paper/make_figures.py (plots the heads_v2 JSON files, recomputes nothing)
+
 \usepackage{cite}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
@@ -16,7 +30,7 @@
 
 \begin{document}
 
-\title{Synth Veda: A Two-Stage Routing and Fine-Tuned Transformer Pipeline for Environmental DNA Biodiversity Triage}
+\title{Synth Veda: Learned Routing, Route-Specific Transformers and Reference Evidence for Environmental DNA Biodiversity Triage}
 
 \author{
 \IEEEauthorblockN{Author Name\IEEEauthorrefmark{1}}
@@ -28,7 +42,7 @@ email@example.com}
 \maketitle
 
 \begin{abstract}
-Environmental DNA (eDNA) sampling produces mixed-organism sequence pools that must be sorted into taxonomic groups, screened for contamination, and checked for signs of undescribed diversity before a survey result means anything to a field biologist. We describe Synth Veda, a working pipeline that routes each sequence to one of six coarse groups (fish, plant, bacteria/pathogen, general animal, human/domestic contamination, and a residual unknown group) using a hand-tuned marker-gene and biophysical heuristic, then classifies within each group using a fine-tuned transformer -- DNABERT-2 for five of the six groups and the Nucleotide Transformer for the group that proved hardest -- into known species, an uncertain taxonomic match, a possible-novelty flag, a possible-contamination flag, or a low-quality flag. On held-out per-route test splits the five easier routes reach 93.6--100\% accuracy (macro F1 0.83--1.00); the bacteria/pathogen route, evaluated after we found and fixed a train/test leakage bug in an earlier version of the dataset, reaches 83.1\% accuracy against an internal 85\% operating target. We report that leakage investigation in full: a sequence-level audit across all six routes shows the earlier duplicate-crossing-splits problem was real but had a measurable accuracy effect of under one point everywhere except the bacteria route, where it had inflated the headline number by roughly 2.5 points. We also describe two supporting subsystems built around the classifiers -- a composite novelty/contamination scorer and a curated, human-reviewed monthly retraining loop with an explicit no-live-update rule -- and are explicit about what remains heuristic rather than learned, including the router itself and the offline field-triage mode.
+Environmental DNA (eDNA) sampling produces mixed-organism sequence pools that must be sorted into taxonomic groups, screened for contamination, and checked for signs of undescribed diversity before a survey result means anything to a field biologist. We describe Synth Veda, a working pipeline that routes each sequence to one of six coarse groups (fish, plant, bacteria/pathogen, general animal, human/domestic contamination, and a residual unknown group) with a learned, strand-invariant k-mer router, classifies it with a fine-tuned DNABERT-2 head for that group, and names it, where the evidence allows, by a thresholded reference lookup; a deterministic orchestrator combines these evidence sources per sequence and stores a decision trace. Our first measurement of the original hand-tuned routing heuristic found it picked the correct group for only 24.1\% of held-out sequences, which made every per-group accuracy we had reported earlier meaningless as a system number. The learned router reaches 91.6\% on an 8{,}300-sequence held-out test set, identically on both strands. Rebuilding the dataset with near-duplicate-aware splits, after finding 479 exact cross-split duplicates in the earlier one, the retrained route heads score 83.2--97.9\% accuracy. On 8{,}668 held-out sequences the full pipeline's taxon assignments have species precision 89.1\% at species recall 34.0\% (genus 95.2\% / 58.4\%): it is usually right when it names a species, and usually declines to. We report the unflattering results as measured, including a reference rule that lowers agreement with the dataset labels from 86.3\% to 77.3\%, a novelty signal that separates novel from known reads far better than its predecessor yet is served at weight zero because it did not improve the final flag, and what remains rule-based, including the offline field-triage mode.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -39,27 +53,27 @@ environmental DNA, eDNA metabarcoding, DNA barcoding, transformer fine-tuning, D
 
 A field team running an environmental DNA survey does not get back a tidy list of species. They get a pool of short reads pulled out of water, soil, or sediment, some belonging to the organisms they meant to sample, some belonging to whatever else was in the water at the time -- a passing swimmer, a dog on the shoreline, reagent carryover from the lab -- and, if the site is interesting, a handful of reads that do not match anything in a reference database at all \cite{deiner2017edna,ficetola2008edna,taberlet2012edna}. Turning that pool into something a biologist can act on requires three separate judgments for every read: what kind of organism is this likely to be, is this actually a new observation or a known one, and is this a real signal or contamination. Treating those as one classification problem tends to produce a system that is mediocre at all three.
 
-The approach in this paper splits the problem instead of unifying it. A cheap, deterministic first pass decides which of six broad groups a sequence probably belongs to -- based on which marker-gene region it looks like and simple compositional statistics, not a trained model -- and routes it to a classifier fine-tuned specifically for that group. Within each group, the classifier makes a five-way call: a recognized species, a plausible but uncertain taxonomic match, a candidate for novelty, a candidate for contamination, or a read too degraded to use. That five-way output feeds a second, independent scoring step that combines model confidence, entropy of the class distribution, sequence quality, and a contamination-motif check into a single novelty/contamination signal, because a low-confidence classifier output on its own is a weak basis for calling something a new species.
+The approach in this paper splits the problem instead of unifying it. A cheap first pass -- a linear classifier over k-mer counts, trained and calibrated, not hand-tuned -- estimates which of six broad groups a sequence belongs to and how sure it is. A deterministic orchestrator then decides, per sequence, which groups to examine: one when the router is confident, up to three when it is not. For each candidate group it collects evidence from a classifier fine-tuned for that group (a five-way call between a recognized species, a plausible but uncertain taxonomic match, a novelty candidate, a contamination candidate, or a read too degraded to use) and from a reference lookup against a group-specific sequence database. Only reference evidence may move a sequence to a different group, and only the reference lookup names a taxon. A separate scorer combines model confidence, entropy, quality and a contamination gate into a novelty score, because a low-confidence classifier output on its own is a weak basis for calling something a new species. Every decision is stored with the trace of the rules and evidence that produced it.
 
-We built this as a full pipeline, not a benchmark exercise: an API and worker service pair, a MongoDB-backed job and review data model, a curated monthly retraining loop that keeps unvetted user corrections out of the live model, and an offline field-triage mode for surveys run without connectivity. We describe all of it here, but we are careful throughout to separate what has been trained and evaluated against held-out data from what is still rule-based or scaffolding, because a paper that blurs that line is not useful to anyone trying to reproduce or extend the work.
+We built this as a full pipeline, not a benchmark exercise: an API and worker service pair, a MongoDB-backed job and review data model, a curated retraining loop in which reviewed corrections join a frozen batch and a new model is registered and promoted through an audited endpoint, and an offline field-triage mode for surveys run without connectivity. We describe all of it, but we separate throughout what has been trained and evaluated against held-out data from what is rule-based or scaffolding.
 
-The evaluation results are mixed on purpose -- we are reporting what we measured, not what we hoped for. Five of the six routes perform well by ordinary classification standards. The sixth, bacteria/pathogen classification from 16S-region reads, sits just under an internal 85\% accuracy threshold after two different backbone architectures and a real dataset bug fix, and we discuss why we think that gap reflects a genuinely harder discrimination problem rather than an engineering shortfall. We also describe, in some detail, a train/test leakage bug that inflated an early accuracy number by 2.5 points, because finding it changed how much we trusted every earlier result and because duplicate reference-database records crossing a train/test split is a failure mode that is easy to introduce silently in any project built on public sequence databases.
+The evaluation results are mixed on purpose. Two of them changed the project. The first is that the hand-tuned router we had shipped picked the right group for 24.1\% of held-out sequences, so the 93.6--100\% per-group accuracies we had previously measured on five routes described only correctly routed input, which the system rarely produced. The second is that our earlier train/test splits leaked: an August audit found exact duplicates crossing the bacteria split and inflating its accuracy by about 2.5 points, and an October audit found exact duplicates in four other routes and near-duplicates in all six. We rebuilt the splits, retrained the router and every route head, and report old and new models on the same new test rows rather than as an improvement over numbers measured on a leaky set.
 
 Our contributions are:
 \begin{itemize}
-\item A two-stage design -- heuristic marker-gene routing followed by route-specific fine-tuned transformer classification -- for multi-kingdom eDNA triage, together with an honest account of which stage is learned and which is still rule-based.
-\item Per-route, per-class evaluation (accuracy, macro F1, precision/recall, confusion matrices) for six fine-tuned classifiers built on two different genomic transformer backbones.
-\item A documented train/test leakage investigation: how it was found, how it was fixed for one route, and a follow-up audit quantifying its actual impact on the other five routes, most of which turned out to be only mildly affected.
-\item A description of the supporting novelty/contamination scoring, curated-retraining, and offline-mode subsystems, with explicit notes on which parts of each are currently placeholder logic.
+\item A routed eDNA triage design -- a calibrated, strand-invariant learned router, route-specific fine-tuned transformer heads, a thresholded reference lookup and a deterministic, traced orchestrator -- with an account of which stages are learned and which are rules.
+\item A measured comparison of the original routing heuristic against two learned routers on the same held-out rows, including the failure of a forward-strand router on reverse-complemented reads.
+\item A documented leakage history: an exact-duplicate bug found on one route, a later audit that found exact and near-duplicate leakage on the others, and a near-duplicate-aware rebuild with every model re-scored on the same new test set.
+\item Rank-aware taxon-assignment, routing, novelty and orchestration results on held-out data, reported with their weak points: low species recall, a label-agreement drop caused by a reference rule, and a novelty signal that did not change the final flag.
 \end{itemize}
 
 \section{Related Work}
 
 DNA barcoding -- identifying an organism from a single short, standardized marker region rather than a full genome -- goes back to the proposal that mitochondrial COI could serve as a near-universal animal identifier \cite{hebert2003biological}, with the Barcode of Life Data System (BOLD) established shortly after as the reference repository the field has since converged on \cite{ratnasingham2007bold}. Plant barcoding uses a different marker combination because COI does not vary enough in plants to be useful, settling instead on a matK/rbcL combination \cite{cbol2009plant}, and bacterial community profiling is built almost entirely around 16S rRNA \cite{klindworth201316s}. Fish-specific eDNA metabarcoding has its own dedicated primer sets \cite{miya2015mifish}. This per-kingdom marker specificity is the underlying reason our system routes before it classifies: a single model trained across every marker region at once is trying to learn a much noisier problem than it needs to.
 
-Environmental DNA as a survey method -- detecting species from ambient water, soil, or air rather than from captured specimens -- was demonstrated early for aquatic vertebrates \cite{ficetola2008edna} and has since become a standard biomonitoring tool, reviewed at length elsewhere \cite{deiner2017edna,taberlet2012edna}. That literature is largely concerned with wet-lab protocol and marker choice; it says comparatively little about what happens computationally once the reads come back mixed, low-confidence, and inclusive of sequences that will not match anything in a reference database. That gap is where this paper sits.
+Environmental DNA as a survey method -- detecting species from ambient water, soil, or air rather than from captured specimens -- was demonstrated early for aquatic vertebrates \cite{ficetola2008edna} and has since become a standard biomonitoring tool, reviewed at length elsewhere \cite{deiner2017edna,taberlet2012edna}. That literature is largely concerned with wet-lab protocol and marker choice; it says comparatively little about what happens computationally once the reads come back mixed, low-confidence, and inclusive of sequences that will not match anything in a reference database. Taxonomic names in metabarcoding are conventionally assigned by alignment against curated references -- BLAST \cite{altschul1990blast,camacho2009blastplus} or VSEARCH \cite{rognes2016vsearch} against databases such as SILVA \cite{quast2013silva}, MIDORI2 \cite{leray2022midori2} and UNITE \cite{nilsson2019unite} -- with identity thresholds deciding the rank. We use that convention for naming rather than asking a classifier to produce species names.
 
-On the modeling side, transformer language models pretrained directly on nucleotide sequences -- rather than on hand-engineered k-mer or codon features -- have become the default way to get a general-purpose DNA sequence representation. DNABERT was the first widely adopted example, treating a genome as a sequence of overlapping k-mer tokens and pretraining with a masked-language objective \cite{ji2021dnabert}; DNABERT-2 replaced k-mer tokenization with byte-pair encoding and added architectural changes aimed at cross-species generalization and Windows/GPU-memory-friendlier attention \cite{zhou2023dnabert2}, which is why we use it as our default backbone. The Nucleotide Transformer scales the same basic pretraining recipe to larger parameter counts and a broader multi-species training corpus \cite{dallatorre2023nucleotide}; we use it as an alternative backbone for the one route where DNABERT-2 plateaued short of our accuracy target. Both models descend from the general transformer architecture \cite{vaswani2017attention} and the masked-pretraining-plus-fine-tuning recipe popularized by BERT \cite{devlin2019bert}, applied to a four-letter alphabet instead of natural-language vocabulary. Most published evaluations of these genomic language models target single-organism tasks -- promoter or splice-site prediction in one reference genome, for instance -- rather than a multi-kingdom field triage setting with an explicit unknown/novelty category; we are not aware of published work evaluating this style of model as a route-specific classifier inside a larger routing-and-review pipeline of the kind described here.
+On the modeling side, transformer language models pretrained directly on nucleotide sequences -- rather than on hand-engineered k-mer or codon features -- have become the default way to get a general-purpose DNA sequence representation. DNABERT was the first widely adopted example, treating a genome as a sequence of overlapping k-mer tokens and pretraining with a masked-language objective \cite{ji2021dnabert}; DNABERT-2 replaced k-mer tokenization with byte-pair encoding and added architectural changes aimed at cross-species generalization and memory-friendlier attention \cite{zhou2023dnabert2}, which is why we use it as our backbone. The Nucleotide Transformer scales the same basic pretraining recipe to larger parameter counts and a broader multi-species training corpus \cite{dallatorre2023nucleotide}; we tried it as an alternative backbone on the hardest route in an earlier experiment (Section~\ref{sec:bacteria}) and do not serve it. Both models descend from the general transformer architecture \cite{vaswani2017attention} and the masked-pretraining-plus-fine-tuning recipe popularized by BERT \cite{devlin2019bert}, applied to a four-letter alphabet instead of natural-language vocabulary. Most published evaluations of these genomic language models target single-organism tasks -- promoter or splice-site prediction in one reference genome, for instance -- rather than a multi-kingdom field triage setting with an explicit unknown/novelty category; we are not aware of published work evaluating this style of model as a route-specific classifier inside a larger routing, reference-lookup and review pipeline of the kind described here.
 
 \section{System Architecture}
 
@@ -68,179 +82,267 @@ On the modeling side, transformer language models pretrained directly on nucleot
 \begin{minipage}{0.48\textwidth}
 \footnotesize
 \begin{tabular}{@{}l@{}}
-\textbf{Upload} (FASTA/JSON) \\
+\textbf{Upload} (FASTA/FASTQ, optional sample metadata) \\
 $\downarrow$ \\
-\textbf{QC \& parsing} -- length, GC/N ratio, dedup \\
+\textbf{QC \& parsing} -- length, N ratio, invalid characters \\
 $\downarrow$ \\
-\textbf{Heuristic router} -- marker motif + biophysical score \\
-\quad$\downarrow$\hspace{2.7em}$\downarrow$\hspace{2.7em}$\downarrow$ \\
-\textbf{fish} \quad \textbf{plant} \quad \textbf{...} \quad \textbf{bacteria/path.} \\
-(fine-tuned transformer classifier, one per route) \\
+\textbf{Learned router} -- k-mer LinearSVC, calibrated route probabilities \\
 $\downarrow$ \\
-\textbf{Novelty / contamination scorer} \\
+\textbf{Orchestrator plan} -- 1 route, or up to 3 when unsure \\
 $\downarrow$ \\
-\textbf{Report} $\to$ \textbf{human review queue} $\to$ \textbf{monthly curated retrain} \\[0.3em]
+\textbf{Evidence per planned route}: reference lookup (BLAST) \\
+\quad and fine-tuned transformer head; GRCh38 screen on human \\
+$\downarrow$ \\
+\textbf{Route selection} (reference evidence only) $\to$ \textbf{contamination} \\
+\quad $\to$ \textbf{novelty} $\to$ \textbf{combine} + stored decision trace \\
+$\downarrow$ \\
+\textbf{Report} $\to$ \textbf{human review} $\to$ \textbf{frozen batch} $\to$ \textbf{register/promote} \\[0.3em]
 \hline \\[-0.9em]
-\multicolumn{1}{c}{\emph{(offline: same QC + router + scorer,}}\\
-\multicolumn{1}{c}{\emph{no transformer inference, syncs on reconnect)}}
+\multicolumn{1}{c}{\emph{(offline: same QC + learned router, rule-based}}\\
+\multicolumn{1}{c}{\emph{triage, no transformer inference, syncs on reconnect)}}
 \end{tabular}
 \end{minipage}
-\caption{Pipeline overview. The routing and scoring stages are rule-based; only the per-route classifiers are learned. The offline field-triage path reuses QC, routing, and scoring but skips transformer inference entirely.}
+\caption{Pipeline overview. The router and the route heads are learned; the orchestrator's planning, route-selection and class rules, the reference-lookup thresholds and the novelty weights are fixed rules. The offline field-triage path reuses QC and the router but skips transformer inference entirely.}
 \label{fig:pipeline}
 \end{figure}
 
 Figure~\ref{fig:pipeline} sketches the full pipeline. We describe each stage in turn, and flag explicitly which stages are trained models versus deterministic logic.
 
-\subsection{Heuristic Router}
+\subsection{Learned Router}
+\label{sec:router}
 
-The router assigns each incoming sequence to one of six routes -- \texttt{fish}, \texttt{plant}, \texttt{bacteria\_pathogen}, \texttt{animal\_general}, \texttt{human\_domestic\_contamination}, or \texttt{misc\_unknown} -- before any transformer runs. It is deliberately not a learned model at this stage. It combines two signal families multiplicatively into a per-route score: an exact-substring check against a small set of conserved marker-region motifs specific to each group's standard barcode (16S for bacteria, COI and the MiFish primer region for fish, rbcL/matK for plants, human mitochondrial and Alu regions for the contamination route) \cite{klindworth201316s,miya2015mifish,cbol2009plant}, and a Gaussian-likelihood score over GC ratio, CpG observed/expected ratio, and sequence length against a hand-set reference profile per route. Scores are normalized into a probability over routes, with a confidence tier (high/medium/low) and a fallback-route list attached to low-confidence calls, and a separate low-quality gate applied before routing based on N-content and length. A sequence's 4-mer frequency profile and a minimizer sketch are computed at this stage for downstream similarity comparisons but are not yet part of the routing score itself.
+The router assigns each incoming sequence a calibrated probability over six routes -- \texttt{fish}, \texttt{plant}, \texttt{bacteria\_pathogen}, \texttt{animal\_general}, \texttt{human\_domestic\_contamination}, and \texttt{misc\_unknown} -- before any transformer runs. The first version of this stage was a hand-tuned heuristic: an exact-substring check against conserved marker motifs for each group's standard barcode \cite{klindworth201316s,miya2015mifish,cbol2009plant} multiplied by a Gaussian-likelihood score over GC ratio, CpG ratio and length. We had assumed that motif matching would be close to definitive when it hit. When we finally measured it on held-out sequences it was right for 24.1\% of them (433 of 1{,}800; fish 0.3\%, plant 0.0\%), and it remains in the system only as a recorded fallback.
 
-We are stating plainly that this stage is a heuristic, not a trained classifier, because the natural question is why we did not simply fine-tune one model to do routing and classification together. The answer is that marker-region motif matching is close to definitive when it hits -- a 16S primer match is strong evidence for the bacteria route regardless of what a learned model would say -- and reserving the learned component for the harder within-route decision (known species vs.\ novel vs.\ contaminated vs.\ low-quality) uses the transformer's capacity where cheap heuristics do not already solve the problem.
+The served router counts the exact canonical 9-mers of a sequence (a k-mer and its reverse complement count as one feature, so the router is strand-invariant by construction), L2-normalizes the counts, and scores them with a linear support-vector classifier. A temperature fitted on the validation split \cite{guo2017calibration} turns the scores into calibrated route probabilities; the low-quality gate before it is unchanged. Inference needs only numpy and costs 0.16\,ms per sequence. The configuration was selected on the validation split alone, by a rule fixed before the sweep (highest balanced accuracy on the weaker strand among strand-invariant configurations, over $k \in \{6,\dots,10\}$, three feature modes and three models). The two front-runners differed by one validation row of 8{,}300 and no tie-break had been set in advance; we chose the canonical configuration because its invariance is guaranteed rather than learned, and record that choice as made after seeing the validation result. Strand invariance became a requirement after our first learned router, trained on forward-strand features only, scored 16.6\% on reverse-complemented test reads while still reporting high confidence.
 
 \subsection{Route-Specific Classification}
 \label{sec:routeclassifiers}
 
-Each route has its own fine-tuned classifier: a pretrained transformer backbone plus a linear classification head over the backbone's \texttt{[CLS]}-position embedding, both fine-tuned end to end (no frozen-backbone shortcuts). DNABERT-2-117M \cite{zhou2023dnabert2} is the backbone for five of the six routes. For \texttt{bacteria\_pathogen}, whose 16S-derived reads proved to be the hardest discrimination problem in the whole system, we also trained on the larger Nucleotide Transformer v2-500M backbone \cite{dallatorre2023nucleotide} after DNABERT-2 plateaued below our accuracy target, and report both.
+Each route has its own fine-tuned classifier: DNABERT-2-117M \cite{zhou2023dnabert2} plus a linear classification head over the backbone's \texttt{[CLS]}-position embedding, both fine-tuned end to end. The retrained (v2) heads were trained from the base pretrained weights rather than from the earlier heads, because the earlier heads had seen rows that are now in the test set. The heads currently served are v2 on the fish, animal, human/domestic and misc routes and the earlier v1 heads on plant and bacteria, where v2 did not beat v1 on the same test rows (Section~\ref{sec:results}); each promotion was an explicit, audited decision per route.
 
-Every route's classifier outputs a label from a shared five-class taxonomy, of which each route uses whichever subset is relevant to its data: \texttt{known\_species}, \texttt{likely\_taxonomic\_group} (a plausible higher-level match without species-level confidence), \texttt{possible\_novelty}, \texttt{possible\_contamination}, and \texttt{low\_quality\_unusable}. A sixth label, \texttt{unknown\_needs\_online\_confirmation}, is reserved for the residual \texttt{misc\_unknown} route and for offline-mode output where a definitive call is deferred until reconnection.
+Every route's classifier outputs a label from a shared five-class taxonomy, of which each route uses whichever subset is relevant to its data: \texttt{known\_species}, \texttt{likely\_taxonomic\_group} (a plausible higher-level match without species-level confidence), \texttt{possible\_novelty}, \texttt{possible\_contamination}, and \texttt{low\_quality\_unusable}. A sixth label, \texttt{unknown\_needs\_online\_confirmation}, is reserved for the residual \texttt{misc\_unknown} route and for offline-mode output where a definitive call is deferred until reconnection. The heads classify result classes; they do not name species.
 
-Training uses class-weighted cross-entropy, with weights set by inverse class frequency, because several routes have genuine (not sampling-artifact) class imbalance -- \texttt{likely\_taxonomic\_group} is a rarer real outcome than \texttt{known\_species} for the bacteria route, for instance, and an unweighted loss simply learns to predict the majority class more often. Optimization uses AdamW \cite{loshchilov2019adamw}, 8-bit-quantized for the larger backbone to fit optimizer state in a single consumer-grade GPU's memory budget \cite{dettmers20228bit}, with linear warmup and decay. We track two checkpoint-selection criteria independently through training -- the epoch with lowest validation loss, and the epoch with highest validation accuracy -- and evaluate both against the held-out test set, because committing to one selection criterion up front and never checking whether the other would have generalized better is an easy way to leave measurable performance on the table without ever finding out.
+Training uses class-weighted cross-entropy, with weights set by inverse class frequency, because several routes have genuine class imbalance. Optimization uses AdamW \cite{loshchilov2019adamw} with linear warmup and decay, 6 epochs at a maximum input length of 256 tokens; inference truncates at the length each head was trained with. We save two checkpoints per run -- lowest validation loss and highest validation accuracy -- but committed in advance to the validation-loss checkpoint and report it even where the other scored higher on test (the animal route's validation-accuracy checkpoint scores 0.941 test accuracy against the reported 0.876; choosing it after seeing that would be selection on the test set).
+
+\subsection{Reference Lookup}
+\label{sec:reference}
+
+Species names come from a per-route reference database rather than from a classifier. Each route's database is a deduplicated FASTA with taxonomy in the header, built from MIDORI2 \cite{leray2022midori2} (all genes), SILVA \cite{quast2013silva}, UNITE \cite{nilsson2019unite}, NCBI BLAST databases and UniVec, plus a BLAST index of the GRCh38 human genome on the human route. Every sequence in a validation or test split, and every 400-base window the dataset builder would cut from a longer record, is excluded from the database; a check of the rebuilt splits found 0 of 17{,}251 held-out sequences in it. The lookup runs BLAST+ \cite{camacho2009blastplus} by default (VSEARCH \cite{rognes2016vsearch} is available but used 3.47\,GB against 0.21\,GB for BLAST on our fish benchmark), keeps hits covering at least 80\% of the query over at least 50 aligned bases, collapses hits within 0.5 identity points of the best to their lowest common ancestor, and assigns species, genus or family at 97\%, 95\% and 90\% identity. These are the conventional provisional cut-offs; Section~\ref{sec:results} shows where they fail.
+
+\subsection{Orchestration}
+\label{sec:orchestrator}
+
+The orchestrator is deterministic: the same input, models and reference database give the same decision. For each sequence it (1) plans one route when the router is confident, or the router's top three routes when the top probability is below 0.70, the margin to the second route is below 0.6, or the top route is one of the two weakest (human/domestic, misc); (2) runs the reference lookup on the primary route and adds a route when that lookup misses or its hit's lineage belongs to another route; (3) runs the remaining lookups and every planned route's head; (4) selects the final route, where only reference evidence can override the router -- an assignment at species identity on another planned route, a GRCh38 hit for the human route, or, when the router's own route has no reference assignment, an assignment on another planned route -- because head probabilities from different label sets are not comparable; (5) scores contamination and then novelty on the final route; and (6) combines the evidence through an ordered rule table into one result class and taxon. Two rules matter for the results. A reference hit at species level suppresses a novelty call (reported as \texttt{known\_species}), and a hit at the species identity threshold that resolves only to a coarser rank downgrades it to \texttt{likely\_taxonomic\_group} while keeping the score, so a reviewer still sees it. Plant species names are cut back to genus, because plant species calls at 97\% identity were right only 51.9\% of the time in our first measurement. The stored decision trace records the plan, every provider's evidence (at most three hits, no embeddings) and every combine step.
 
 \subsection{Novelty and Contamination Scoring}
 
-A route classifier's raw output is not treated as the final word on novelty. A separate scoring stage combines the classifier's predicted class and confidence with the softmax entropy across all label scores, a sequence-quality signal from QC, an explicit non-contamination gate, and an embedding-based isolation signal, into a single 0--1 novelty score thresholded into none/low/medium/high. The first four signals are genuinely computed from model output and QC metrics; the embedding-isolation signal is currently a placeholder -- a rough norm-based proxy carrying a deliberately small weight in the composite score -- pending a planned future implementation that would compare an embedding against learned per-route cluster centroids. We are naming this rather than quietly shipping it as if it were finished, because a novelty score is only as trustworthy as its least-finished input signal. Contamination flagging runs a parallel combination of the router's own contamination-route signal, motif matching against known lab-reagent and adapter sequences, and biophysical similarity to human/domestic-animal genomic composition.
+A route classifier's raw output is not treated as the final word on novelty. The scorer combines the final head's predicted class (weight 0.35), one minus the square root of its confidence (0.25) and the normalized entropy of its class distribution (0.07), multiplies by a sequence-quality amplifier and a contamination gate, and thresholds the result at 0.44. Two further terms are computed and stored on every record but carry weight zero: the cosine distance from the read's \texttt{[CLS]} embedding to the nearest known-class centroid of its head, mapped through the distribution of that distance on held-out known training reads, and a reference low-identity term. The centroid term replaced an earlier norm-based placeholder. Its weight, the reference term's weight and the threshold were chosen together on the validation split by a criterion fixed before the run (mean novelty F1 of the final flag over the five novelty-labelled routes); the best point gave both terms weight zero, and we did not override that after seeing the test results (Section~\ref{sec:novelty}). Contamination flagging combines the router's contamination-route signal, motif matching against lab-reagent and adapter sequences, and, on the human route, a GRCh38 hit, unless a strictly closer non-human reference assignment exists.
 
 \subsection{Human-in-the-Loop Curation}
 
-Expert and admin users can confirm, reject, or correct any classifier output, flag possible novelty or contamination directly, and attach supporting evidence, through a review workflow with an explicit state machine (submitted, triaged, needs-evidence, accepted, rejected, duplicate, verified, included-in-training-batch). Corrections do not update any live model. They accumulate in a database and are assembled into a monthly training batch only after review; a new model version is trained on that batch, evaluated against the previous version and a fixed regression set, and promoted only if it does not regress. We treat this as a hard rule rather than a preference, because a pipeline that lets unvetted field corrections retrain a live model in real time is a pipeline that can be quietly poisoned by one persistently wrong or adversarial contributor.
+Expert and admin users can confirm, reject, or correct any result, flag possible novelty or contamination directly, and attach supporting evidence, through a review workflow with an explicit state machine (submitted, triaged, needs-evidence, accepted, rejected, duplicate, verified, included-in-training-batch). Each review stores a snapshot of the result it concerns, including the decision trace. Corrections do not update any live model. Accepted corrections join the monthly batch of the route the sequence was finally assigned to, and a batch is frozen before use. A retrained model is registered with its test metrics and artifact checksum, and promoted by an administrator after a dry run that shows its metric deltas against the current model; the worker serves a promoted model within seconds, and the previous one stays available for rollback. Promotion is not gated automatically on a regression test, and no model has yet been retrained from a curated batch: the heads in this paper were retrained on the rebuilt reference splits. We treat the no-live-update rule as a hard rule, because a pipeline that lets unvetted field corrections retrain a live model in real time can be quietly poisoned by one persistently wrong contributor.
 
 \subsection{Offline Field-Triage Mode}
 
-Surveys run without connectivity -- the motivating case being deep-water or remote sampling -- use a separate offline mode built around a time-boxed, signed offline license issued before departure. Offline analysis runs the same QC and heuristic router described above and the same novelty/contamination scorer, but deliberately does not run transformer inference at all; the route-level and quality signals from QC and routing are enough to support a preserve/resample/continue-sampling recommendation without claiming a species identification the system has not actually computed offline. Every offline action is logged locally and synced for full reanalysis once connectivity returns. Quantized route-specific model packs for genuine offline transformer inference are planned but not yet trained, and we list that explicitly as future work rather than as a shipped capability.
+Surveys run without connectivity use a separate offline mode built around a time-boxed, signed offline license issued before departure. Offline analysis runs QC and the same learned router (an inference-only copy whose output is tested for parity with the online one) but deliberately does not run transformer inference or the reference lookup; its preserve/resample/continue-sampling recommendation comes from routing and quality signals and rule-based scoring, without claiming a species identification the system has not computed. Every offline action is logged locally and synced for full reanalysis once connectivity returns. Quantized route models and an offline reference pack are not built, and we list them as future work rather than as a shipped capability.
 
 \section{Dataset and Preprocessing}
 
-Training sequences are drawn from two public reference resources: BOLD, the standard barcode-of-life repository \cite{ratnasingham2007bold}, and NCBI's curated nucleotide reference collections, queried through a local BLAST database index \cite{altschul1990blast} rather than downloaded wholesale. Records are mapped from their taxonomic lineage to one of the six routes, then labeled into the five-class taxonomy described in Section~\ref{sec:routeclassifiers} using lineage and organism-name heuristics. Sequences longer than 2{,}000 bases are windowed into overlapping 400-base chunks rather than truncated, so a single long reference record does not either dominate a route's training set or lose the information past a fixed cutoff. Because \texttt{possible\_contamination} is inherently cross-route -- a plant sample contaminated with human DNA is still a plant-route sample -- we inject a controlled fraction of already-collected human/domestic sequences into the plant and bacteria routes specifically, rather than relying on that class occurring naturally in a lineage-based split. Each (route, label) combination is capped during collection so that no single well-represented species or source database can dominate a route's training distribution. Table~\ref{tab:dataset} gives the resulting split sizes per route.
+Training sequences come from public reference resources -- MIDORI2 (15 mitochondrial genes), SILVA SSU and LSU, UNITE, GRCh38, UniVec, NCBI's curated BLAST databases \cite{altschul1990blast}, and supplementary records fetched through NCBI E-utilities and ENA for classes that were nearly empty (for example, fish novelty went from 0 to 840 rows). BOLD \cite{ratnasingham2007bold} is supported by the dataset builder but was not available when the current splits were built, so they contain no BOLD records. Records are mapped from their taxonomic lineage to one of the six routes, then labeled into the five-class taxonomy described in Section~\ref{sec:routeclassifiers} using lineage and organism-name rules. Sequences longer than 2{,}000 bases are windowed into overlapping 400-base chunks rather than truncated. Because \texttt{possible\_contamination} is inherently cross-route -- a plant sample contaminated with human DNA is still a plant-route sample -- we inject a controlled fraction of human/domestic and vector sequences into the plant and bacteria routes. Each (route, label) combination is capped during collection. After exact deduplication within a route, near-duplicate groups are formed (MinHash over 16-mers, Jaccard $\geq 0.8$) and each whole group is placed in one split, so no group straddles train and test. Table~\ref{tab:dataset} gives the resulting split sizes.
 
 \begin{table}[t]
 \centering
-\caption{Per-route dataset sizes (sequences).}
+\caption{Per-route dataset sizes (sequences), rebuilt splits.}
 \label{tab:dataset}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
 Route & Train & Dev & Test \\
 \midrule
-fish & 4{,}047 & 505 & 505 \\
-plant & 4{,}849 & 606 & 606 \\
-animal\_general & 8{,}018 & 1{,}002 & 1{,}002 \\
-human\_domestic\_contamination & 4{,}000 & 500 & 500 \\
-misc\_unknown & 12{,}000 & 1{,}500 & 1{,}500 \\
-bacteria\_pathogen (clean split) & 32{,}865 & 4{,}107 & 4{,}107 \\
+fish & 4{,}736 & 594 & 592 \\
+plant & 4{,}755 & 596 & 596 \\
+animal\_general & 7{,}936 & 992 & 992 \\
+human\_domestic\_contamination & 7{,}307 & 914 & 914 \\
+misc\_unknown & 10{,}888 & 1{,}362 & 1{,}362 \\
+bacteria\_pathogen & 33{,}740 & 4{,}219 & 4{,}219 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{A Train/Test Leakage Bug, Found and Fixed}
+The rebuild has costs that we state rather than hide. Some classes are thin: \texttt{animal\_general}'s \texttt{likely\_taxonomic\_group} fell from 5{,}000 rows to 271 (27 in test), for a reason we have not verified (possibly the absence of BOLD). Because groups are placed whole and the largest near-duplicate groups fall in train, the test set leans toward less redundant sequences. 1{,}884 sequences appear in more than one route, mostly by the deliberate contamination injection; the router is trained without them.
+
+\subsection{Two Leakage Findings}
 \label{sec:leakage}
 
-While chasing an accuracy plateau on the bacteria/pathogen route, we found that our train/dev/test split had been performed \emph{after} pooling records from multiple reference-database exports, without deduplicating identical sequences first. Public barcode and reference databases legitimately contain near-duplicate or exactly duplicate records -- the same well-characterized species submitted by multiple labs, for instance -- and a naive random split scatters copies of the same sequence across train and test. Splitting the bacteria route's data by sequence identity showed that roughly 13\% of all rows were exact duplicates, and that a meaningful fraction of the test set had a duplicate sitting in the training set. Evaluating the trained model separately on the leaked and genuinely-unseen portions of that test set made the effect concrete: accuracy on sequences the model had already seen during training was 98.6\%, against 82.4\% on sequences it had genuinely never seen, a sixteen-point gap that has only one explanation.
+\textbf{An exact-duplicate bug on one route.} While chasing an accuracy plateau on the bacteria/pathogen route, we found that the split had been performed \emph{after} pooling records from multiple reference-database exports, without deduplicating identical sequences first. 13.1\% of that route's rows were duplicates, and 720 of its 4{,}729 test rows also appeared in train. Evaluating the trained model separately on the two portions of the test set made the effect concrete: 98.61\% accuracy on the 720 leaked rows against 82.41\% on the 4{,}009 clean rows, so the 84.88\% headline was inflated by about 2.5 points. We deduplicated that route before splitting and retrained.
 
-We fixed this for the bacteria route by deduplicating at the sequence level \emph{before} splitting and retraining from scratch on the clean split; that retrained result (Section~\ref{sec:results}) is the one we report and recommend citing. Because the same pooling process was used for the other five routes and none of them had been re-split, we then ran the identical duplicate-membership audit on all six routes rather than assuming the other five were fine simply because no one had gone looking. Table~\ref{tab:leakage} in Section~\ref{sec:results} reports the result: leakage was real everywhere except the bacteria route (which is now clean by construction) and fish (which happened to have none), but its effect on the headline accuracy number was under one point in every other case -- small enough that we do not consider the pre-existing numbers for those five routes materially wrong, unlike the bacteria route where it briefly inflated the headline by roughly 2.5 points.
+\textbf{The same problem, and a subtler one, elsewhere.} We did not re-split the other five routes at the time, and we should have. A later audit of those splits (Table~\ref{tab:leakage}) found 479 exact cross-split duplicates in total, in the animal, plant, human/domestic and misc routes; only fish and the already-deduplicated bacteria route had none. It also found that exact deduplication is not enough: 9.7--41.8\% of each route's test rows, including 24.0\% of the deduplicated bacteria route's, had a near-duplicate (Jaccard $\geq 0.8$ on 16-mers) in train, which inflates any k-mer-sensitive model, the router included. That is why the splits were rebuilt with near-duplicate grouping. On the rebuilt splits the leakage check finds 0 exact cross-split duplicates and 0 near-duplicates. Every head accuracy we had measured before the rebuild -- 93.6--100\% on five routes -- was measured on these leaky test sets, and we no longer report it as a result. The earlier heads are instead scored on the new test rows, next to the retrained ones.
+
+\begin{table}[t]
+\centering
+\caption{Leakage audit of the earlier (August) splits. Exact: unique sequences present in both train and test. Near-dup: test rows with a near-duplicate in train.}
+\label{tab:leakage}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Route & Test rows & Exact & Near-dup \\
+\midrule
+fish & 505 & 0 & 58 (11.5\%) \\
+plant & 606 & 23 & 119 (19.6\%) \\
+animal\_general & 1{,}002 & 131 & 342 (34.1\%) \\
+human\_domestic\_contam. & 500 & 9 & 209 (41.8\%) \\
+misc\_unknown & 1{,}500 & 47 & 146 (9.7\%) \\
+bacteria\_pathogen$^{*}$ & 4{,}107 & 0 & 986 (24.0\%) \\
+\bottomrule
+\multicolumn{4}{l}{\footnotesize $^{*}$Already deduplicated before splitting (exact duplicates only).}
+\end{tabular}
+\end{table}
 
 \section{Evaluation Methodology}
 
-We report accuracy and macro-averaged F1 -- the unweighted mean of per-class F1 scores -- for each route's held-out test split, plus full per-class precision, recall, and F1, and a confusion matrix. Macro averaging is deliberate: several routes have classes with very little test support (a route's \texttt{possible\_novelty} class may have only a handful of examples), and micro/weighted averages would let a route's accuracy on its dominant class hide poor performance on the classes we actually care most about catching. Test splits were held out from training and from checkpoint selection throughout; checkpoint selection used only the validation split described in Section~\ref{sec:routeclassifiers}.
-
-For the leakage audit described in Section~\ref{sec:leakage}, we define a test row as \emph{leaked} if its exact sequence string also appears anywhere in that route's training split, and report accuracy separately on the leaked and non-leaked (``clean'') subsets of each route's test set, using \texttt{scikit-learn}'s standard classification metrics throughout \cite{pedregosa2011sklearn}.
+All results are on held-out test splits that were not used for training, model selection, threshold choice or calibration; every selection rule was fixed on the validation split, and where we deviated from a rule fixed in advance we say so. For the route heads we report accuracy and macro-averaged F1 -- the unweighted mean of per-class F1 scores -- with per-class F1, because several classes have little test support and micro averages would hide them; metrics use \texttt{scikit-learn} \cite{pedregosa2011sklearn}. Old and new models are always compared on the same rows. For the router we report accuracy on the full non-low-quality test split and on a fixed protocol sample of 300 test rows per route that every router, including the heuristic, is scored on, on the forward strand and on the reverse complement of the same rows, plus the expected calibration error (15 bins). For taxon assignment we trace each test sequence, or the record it was cut from, back to its source records to obtain a ground-truth lineage, and report rank-aware precision and recall: a species call also counts as a genus and a family call, precision is correct calls over calls made at that rank, and recall is correct calls over rows whose truth has that rank. We separately check the evaluated rows for leakage into the reference database (exact sequence, exact source record, a $\geq 99\%$ hit from the same source accession, and GRCh38 windows) and report precision with those rows excluded. The orchestrator is evaluated on a seeded sample of 100 test rows per route, and the novelty flag on a seeded sample of up to 600 test rows per route. All numbers are single training runs.
 
 \section{Results}
 \label{sec:results}
 
+\subsection{Routing}
+
 \begin{table}[t]
 \centering
-\caption{Per-route test accuracy and macro F1.}
-\label{tab:results}
-\begin{tabular}{@{}lrrr@{}}
+\caption{Router accuracy on held-out rows: full test split (8{,}300 rows) and the 1{,}800-row protocol sample; forward strand / reverse complement.}
+\label{tab:router}
+\begin{tabular}{@{}lcc@{}}
 \toprule
-Route & Backbone & Acc. & Macro F1 \\
+Router & Test fwd / RC & Protocol fwd / RC \\
 \midrule
-fish & DNABERT-2 & 99.80\% & 0.833 \\
-plant & DNABERT-2 & 97.03\% & 0.942 \\
-animal\_general & DNABERT-2 & 94.71\% & 0.854 \\
-human\_domestic\_contam. & DNABERT-2 & 100.00\% & 1.000 \\
-misc\_unknown & DNABERT-2 & 93.60\% & 0.935 \\
-bacteria\_pathogen & NT-500M & 83.10\% & 0.835 \\
+heuristic (hand-tuned) & -- & 22.9\% / 15.8\% \\
+learned v1 (8-mer, forward) & 81.4\% / 17.1\% & -- \\
+learned v2 (canonical 9-mer) & 91.6\% / 91.6\% & 90.4\% / 90.4\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:results} and Figure~\ref{fig:barresults} summarize per-route performance; the bacteria/pathogen number is the clean, post-deduplication result from Section~\ref{sec:leakage}. Five of six routes clear 93\% accuracy, and \texttt{human\_domestic\_contamination} -- a near-binary discrimination between human/domestic and non-human sequence composition -- reaches a perfect 100\% on its test split, which we read as a reflection of how compositionally distinct that split's two classes are rather than as evidence the task is trivial in general. Macro F1 is noticeably lower than accuracy for \texttt{fish} (0.833 despite 99.8\% accuracy) and \texttt{animal\_general} (0.854 against 94.7\% accuracy): both routes have a minority class with single-digit test support, and a model that gets most or all of those few examples wrong drags the unweighted macro average down even though it barely moves overall accuracy. We read this as the macro-F1 metric doing its job, not as a modeling failure -- it is surfacing exactly the class the accuracy number would otherwise hide.
+Table~\ref{tab:router} compares the three routers on the rebuilt test split. The heuristic's 22.9\% on the protocol sample agrees with the 24.1\% of our first, unseeded measurement on the earlier split. The forward-strand router v1 collapses on reverse-complemented reads (17.1\%); v2 scores identically on both strands, as its features guarantee. Per route, v2 reaches 97.9\% (fish), 88.9\% (plant), 93.7\% (bacteria), 94.1\% (animal), 83.2\% (human/domestic) and 85.5\% (misc). Temperature scaling lowers its expected calibration error on test from 0.304 to 0.018. Calibration does not make it safe to trust confidence alone: the mean confidence on its errors is 0.712, and 368 of its 701 test errors have confidence $\geq 0.7$, which is why the orchestrator also plans wide for the two weakest routes regardless of confidence. Route labels come from the dataset folder, so the 39 plant test rows labelled \texttt{possible\_contamination} (human or vector DNA injected into plant) count as routing errors although the router sends them to the human/domestic route.
 
-\begin{figure}[t]
+\subsection{Route Heads}
+
+\begin{table}[t]
 \centering
-\includegraphics[width=0.49\textwidth]{figures/route_results.pdf}
-\caption{Accuracy and macro F1 by route. The dashed line marks the 85\% internal accuracy target that applies specifically to the bacteria/pathogen route.}
+\caption{Route heads on the rebuilt test split: accuracy / macro F1. v1 was trained on the earlier split; v2 is retrained. The served head is marked $\dagger$.}
+\label{tab:results}
+\begin{tabular}{@{}lrcc@{}}
+\toprule
+Route & $n$ & v1 & v2 \\
+\midrule
+fish & 592 & .858 / .641 & .899 / .865$^\dagger$ \\
+plant & 596 & .956 / .689$^\dagger$ & .916 / .893 \\
+animal\_general & 992 & .500 / .257 & .876 / .741$^\dagger$ \\
+human\_domestic\_contam. & 914 & .545 / .353 & .979 / .979$^\dagger$ \\
+misc\_unknown & 1{,}362 & .868 / .877 & .936 / .941$^\dagger$ \\
+bacteria\_pathogen & 4{,}219 & .832 / .834$^\dagger$ & .832 / .835 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/route_results.pdf}
+\caption{Accuracy and macro F1 of the v1 and v2 heads on the same rebuilt test split. A triangle marks the head that is served on each route.}
 \label{fig:barresults}
-\end{figure}
+\end{figure*}
+
+Table~\ref{tab:results} and Figure~\ref{fig:barresults} compare the earlier and retrained heads on the same rows. v2 is better on four routes, ties on bacteria, and is worse on plant accuracy (.956 to .916, worse on three of its four classes; its macro F1 rises only because of a class with two test rows), so plant and bacteria keep serving v1. The v1 column flatters v1: some new test rows are exact copies of rows v1 trained on (misc 19.5\%, bacteria 14.2\%, plant 10.6\%, human 4.7\%, fish 1.2\%, animal 1.0\%). Where v1 is poor, it is poor on the classes it barely saw: it had no training rows for fish novelty or human contamination and 17 for animal novelty, and scored F1 0.00, 0.00 and 0.013 on them. The weakest v2 classes are animal \texttt{likely\_taxonomic\_group} (F1 0.410 on 27 test rows, too thin to report as reliable), fish novelty (0.715 on 84) and bacteria \texttt{likely\_taxonomic\_group} (0.646 on 563). The animal head overfits -- its best validation loss is at epoch 2 of 6 -- and two runs selected different epochs, so its training is not deterministic.
 
 \subsection{Bacteria/Pathogen: Two Backbones, One Persistent Gap}
 \label{sec:bacteria}
 
-The bacteria/pathogen route -- four-way classification of 16S-region reads into known species, an uncertain higher taxonomic match, possible novelty, or possible contamination -- is the one route that does not clear our internal accuracy target, and it is worth discussing why we think that reflects the task rather than the setup. Figure~\ref{fig:confmat} shows the confusion matrix for the clean-split, dev-loss-selected checkpoint (83.1\% accuracy, 0.835 macro F1). The confusion is concentrated almost entirely between \texttt{known\_species} and \texttt{likely\_taxonomic\_group}: 169 known-species reads are called an uncertain taxonomic match, and 100 uncertain-match reads are called known-species, against comparatively little confusion involving \texttt{possible\_novelty} or \texttt{possible\_contamination}. \texttt{likely\_taxonomic\_group} also has the lowest per-class F1 of the four (0.648, against 0.815--0.987 for the other three), which is consistent with that boundary being the genuinely hard part of the problem rather than a symptom of a mistuned model: at typical 16S amplicon read lengths, the sequence difference between ``this is species X'' and ``this is somewhere in X's genus but I cannot commit to the species call'' can be a handful of variable-region bases, and no amount of additional model capacity changes how much information is actually present in the input.
+The bacteria/pathogen route -- four-way classification of 16S-region reads into known species, an uncertain higher taxonomic match, possible novelty, or possible contamination -- is the one route that has never reached our internal 85\% accuracy target. Figure~\ref{fig:confmat} shows the confusion matrix for the served head on the rebuilt test split (83.2\% accuracy, 0.834 macro F1). The confusion is concentrated between \texttt{known\_species} and \texttt{likely\_taxonomic\_group}: 207 known-species reads are called an uncertain taxonomic match and 43 uncertain-match reads are called known-species; \texttt{likely\_taxonomic\_group} has the lowest per-class F1 (0.689, against 0.819--0.943 for the other three). That is consistent with that boundary being the hard part of the problem: at typical 16S amplicon read lengths, the difference between ``this is species X'' and ``this is somewhere in X's genus'' can be a handful of variable-region bases.
 
-That last point is why we tried a second, larger backbone rather than only re-tuning the first one. Moving from DNABERT-2-117M to the Nucleotide Transformer at roughly 4.3$\times$ the parameter count, and roughly six to seven times the training wall-clock time on our hardware, bought a 0.3-point accuracy improvement over DNABERT-2's best clean-split result -- a real but modest gain, not the qualitative jump that would suggest the earlier backbone was simply too small for the task. We take that as evidence the \texttt{known\_species}/\texttt{likely\_taxonomic\_group} boundary is close to its information-theoretic ceiling at this read length and marker choice, rather than evidence that a still-larger model would close the remaining 1.4--1.9 points to our target.
+In an earlier experiment on the August split we tried a second, larger backbone, the Nucleotide Transformer v2-500M \cite{dallatorre2023nucleotide} (about 4.3$\times$ the parameters, roughly 6--7$\times$ the training time, 8-bit AdamW \cite{dettmers20228bit} to fit a single consumer GPU). On that split, before the duplicate bug was found, it scored 84.88\% against 84.56\% for the best DNABERT-2 configuration, a gain of 0.32 points; both numbers are inflated by the leakage described in Section~\ref{sec:leakage}. Retrained on the deduplicated split, it scored 83.10\% (validation-loss checkpoint) and 83.64\% (validation-accuracy checkpoint). We did not repeat the comparison on the rebuilt split, and so make no claim about which backbone is better there; we take the small, leakage-confounded gain as weak evidence that capacity is not the main limit on this boundary.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.46\textwidth]{figures/confusion_bacteria.pdf}
-\caption{Confusion matrix, bacteria/pathogen route, clean split (Nucleotide Transformer, dev-loss-selected checkpoint). Cell shading is row-normalized; cell values are raw counts.}
+\caption{Confusion matrix of the served bacteria/pathogen head (DNABERT-2, v1) on the rebuilt test split (4{,}219 rows). Cell shading is row-normalized; cell values are raw counts.}
 \label{fig:confmat}
 \end{figure}
 
-\subsection{Leakage Audit Across All Six Routes}
+\subsection{Taxon Assignment}
 
 \begin{table}[t]
 \centering
-\caption{Train/test leakage audit, all routes.}
-\label{tab:leakage}
-\begin{tabular}{@{}lrrrr@{}}
+\caption{Taxon assignment by the full pipeline on the rebuilt test split, rank-aware precision / recall (\%), by the row's true route.}
+\label{tab:taxon}
+\begin{tabular}{@{}lrcc@{}}
 \toprule
-Route & Leaked & Headline & Clean-only & $\Delta$ \\
+Route & $n$ & Species P / R & Genus P / R \\
 \midrule
-fish & 0.0\% & 99.80\% & 99.80\% & 0.00 \\
-plant & 3.8\% & 97.03\% & 96.91\% & 0.12 \\
-animal\_general & 17.1\% & 94.71\% & 93.74\% & 0.97 \\
-human\_domestic\_contam. & 1.8\% & 100.00\% & 100.00\% & 0.00 \\
-misc\_unknown & 5.1\% & 93.60\% & 93.33\% & 0.27 \\
-bacteria\_pathogen$^{*}$ & 0.0\% & 83.10\% & 83.10\% & 0.00 \\
+fish & 591 & 95.5 / 64.5 & 99.1 / 87.0 \\
+plant$^{*}$ & 595 & 90.0 / \phantom{0}3.9 & 93.3 / 46.7 \\
+animal\_general & 992 & 91.3 / 48.8 & 96.9 / 65.7 \\
+bacteria\_pathogen & 4{,}219 & 86.3 / 32.1 & 93.4 / 54.4 \\
+human\_domestic\_contam. & 914 & 89.1 / 45.2 & 98.6 / 56.1 \\
+misc\_unknown & 1{,}357 & 78.4 / 13.4 & 91.7 / 54.2 \\
+\midrule
+all & 8{,}668 & 89.1 / 34.0 & 95.2 / 58.4 \\
 \bottomrule
-\multicolumn{5}{l}{\footnotesize $^{*}$Rebuilt with sequence-level deduplication (Section~\ref{sec:leakage}).}
+\multicolumn{4}{l}{\footnotesize $^{*}$Plant species names are capped at genus by design.}
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:leakage} reports the audit described in Section~\ref{sec:leakage} applied to all six routes rather than only the one where the problem was first noticed. The \texttt{animal\_general} route has the highest leakage rate of any route by percentage -- 17.1\% of its test rows have a duplicate in training, higher than the bacteria route's original problem -- yet its headline-to-clean accuracy gap is under one point, well short of the sixteen-point leaked-versus-clean gap the bacteria route showed. We read this difference as evidence that leakage's actual damage depends on how hard the underlying task already is: on a task the model generalizes well on regardless, seeing a few memorized duplicates in the test set barely moves the number, whereas on a genuinely difficult discrimination the same duplicates can substitute memorization for generalization and meaningfully overstate performance. Three routes (\texttt{plant}, \texttt{human\_domestic\_contamination}, \texttt{misc\_unknown}) show measurable but small leakage with no practical accuracy effect. We consider the headline numbers for those three, and for \texttt{animal\_general}, defensible as reported, while treating the sub-one-point clean-only figures in the table as the more rigorous number where that level of scrutiny matters.
+Table~\ref{tab:taxon} grades the taxon the pipeline actually reports, after route selection and the plant genus cap. Precision is high and recall is low: overall species precision is 89.1\% at 34.0\% recall, genus 95.2\% at 58.4\%, family 97.2\% at 77.8\%. Most species misses are abstentions rather than wrong names -- 2{,}118 rows had no call on the right route, 159 a wrong call on the right route, 630 no call on a wrong route (366 of them at the low-quality gate) and 26 a wrong call on a wrong route. The plant genus cap is justified on held-out data: without it, plant species precision would be 58.3\%. The human route gives no taxon for 47.2\% of its rows, mostly GRCh38 genome windows (flagged as contamination without a name) and vector sequences whose held-out copies are excluded from the reference. Leakage into the reference is limited but real: 444 evaluated rows have a $\geq 99\%$ hit from the same source accession or are GRCh38 windows, 308 of the accession matches on bacteria, where other rRNA operon copies of the same genome sit in the database. Excluding them, species precision is 88.8\% overall and 83.7\% on bacteria, so the bacteria figure is inflated by about 2.6 points.
+
+\subsection{Orchestration}
+
+On 599 held-out rows (100 per route after QC), the orchestrator planned more than one route for 43.7\% of sequences and had the true route in its plan for 559. Its final route was correct for 88.98\% of rows against 87.98\% for the router alone (12 changed wrong to right, 6 right to wrong); misc became worse (0.66 to 0.62), because misc-labelled reads hit animal or bacteria references at 91--99\% identity. Our first version of the rules made routing worse (0.8798 to 0.8765); three logic fixes were found by reading those test-set route changes and checked on a validation sample before the rerun, so this is test-informed rule design and we report it as such. The result class agrees with the dataset labels on 77.3\% of rows, against 86.3\% for the router-plus-head answer without the orchestrator. The whole difference comes from the reference rule in Section~\ref{sec:orchestrator}: a read labelled \texttt{possible\_novelty} that matches a named reference at $\geq 97\%$ identity is reported as known or as a taxonomic-group match. We kept the rule. On the full test split 1{,}262 novelty-labelled rows are relabelled this way, 739 of them by the reference rules and 523 by the head itself. Every one of their source records is named only as ``uncultured'', ``environmental sample'', ``metagenome'' or ``unidentified''. Checking the source records' own taxonomy against the hit, about half of the relabels (624) are consistent with label noise from that wording, but most of that agreement comes from SILVA's taxonomy path, which SILVA assigns by its own sequence classifier; on independent evidence the share is about a fifth (246). The 77.3\% is therefore a disagreement with proxy labels whose correctness we can establish for only part of the rows. The orchestrator costs 176\,ms per sequence on our hardware, 84\% of it in the reference lookup, and its stored trace averages 5.5\,kB.
+
+\subsection{Novelty}
+\label{sec:novelty}
+
+\begin{table}[t]
+\centering
+\caption{Novelty signal AUROC (\texttt{possible\_novelty} vs.\ known) on held-out test rows.}
+\label{tab:novelty}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Route & Norm proxy & Centroid & Ref.\ low identity \\
+\midrule
+fish & 0.920 & 0.922 & 0.496 \\
+plant & 0.930 & 0.979 & 0.496 \\
+animal\_general & 0.742 & 0.976 & 0.549 \\
+bacteria\_pathogen & 0.868 & 0.953 & 0.594 \\
+misc\_unknown & 0.924 & 0.965 & 0.785 \\
+\midrule
+mean & 0.877 & 0.959 & 0.584 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The centroid signal separates novel from known reads better than the norm-based placeholder it replaced on every route (Table~\ref{tab:novelty}; animal 0.742 to 0.976). It does not change the final flag. With the dev-selected configuration (centroid and reference terms at weight zero, threshold 0.44) the mean novelty F1 over the five novelty routes is 0.7964 against 0.7958 for the old scorer; the paired bootstrap 95\% interval of the difference is $[-0.0012, +0.0027]$, and the threshold change alone accounts for it. No configuration fixed on the validation split that gives the new terms weight did measurably better on test. The flag is dominated by the head's own novelty class and by the reference rule, which suppressed it on 821 of 3{,}238 test rows. Fish novelty recall is 0.405 on test in every configuration.
 
 \section{Discussion and Limitations}
 
 We are stating our limitations plainly rather than folding them into future-work language, because several of them bear directly on how much weight the results above should carry.
 
-\textbf{The router is heuristic, not learned.} Marker-motif matching and biophysical scoring work well when a sequence clearly matches one route's expected signature, and degrade gracefully to a fallback-route list when it does not, but the routing stage has no learned component and no way to improve from data the way the downstream classifiers do. Replacing it with a learned embedding-based router is planned future work, not a solved problem.
+\textbf{Our earlier numbers were not system numbers.} Before the router was measured, we reported per-route head accuracies as if they described the pipeline. With a router that was right for about a quarter of sequences they did not, and they were also measured on leaky test sets. We keep that history in the paper because it is the most transferable lesson here: measure the stage that sends inputs to your accurate models before quoting those models' accuracy.
 
-\textbf{One novelty-scoring signal is a placeholder.} The embedding-isolation component of the composite novelty score is currently a weak proxy carrying a small, deliberately limited weight, pending a planned implementation based on learned per-route cluster centroids. We flag this because a novelty score is a claim researchers may act on, and we would rather understate its current sophistication than have it read as more finished than it is.
+\textbf{The router is learned but still confidently wrong at times.} Calibration fixes its average confidence, not its individual errors; the orchestrator compensates by planning several routes for the weakest groups, and only reference evidence can move a route.
 
-\textbf{Offline mode does not run the trained classifiers at all.} It is a genuine limitation, not a compressed or quantized version of the online pipeline: field-triage recommendations offline are based on QC and routing signals alone, explicitly without a species-level classification, and results are labeled as requiring confirmation once connectivity returns.
+\textbf{Species recall is low by design.} The 97/95/90\% thresholds, LCA over near-ties and the plant genus cap trade recall for being right when a name is given. Whether that trade suits a given survey is a user decision we do not make for them.
 
-\textbf{Results reflect single training runs.} We did not train multiple random seeds per route and report variance; the numbers in Section~\ref{sec:results} are single-run results, and some of the differences discussed here (particularly the sub-point deltas in Table~\ref{tab:leakage}) are close enough to plausible run-to-run noise that they should be read as indicative rather than exact.
+\textbf{The novelty score does not yet use the centroid signal.} It is computed, verified and stored on every record, and served at weight zero by a rule fixed before we saw the test results. Turning it on is an open decision.
 
-\textbf{Training data comes from curated reference databases, not field samples.} Every result in this paper is measured against held-out splits of BOLD and NCBI reference records. We have not yet evaluated the pipeline against raw eDNA reads from an actual field survey, which typically carry degradation, chimeric artifacts, and a different contamination profile than curated database records do; we expect some accuracy drop under that distribution shift and are not in a position to quantify it yet.
+\textbf{Offline mode does not run the trained classifiers.} Offline triage uses the learned router and rule-based scoring only, explicitly without a species-level classification, and results are labelled as requiring confirmation once connectivity returns.
 
-\textbf{The bacteria/pathogen gap is, on current evidence, a hard-task ceiling rather than a fixable bug.} We say this carefully: it is possible that more or better-curated 16S training data, a longer amplicon window, or a different marker region entirely would close the remaining gap to our 85\% target, and we do not want to overstate the case that it cannot be closed. What the two-backbone comparison in Section~\ref{sec:bacteria} rules out, we think, is that simply scaling up model capacity on the current data and read length is the fix.
+\textbf{Results reflect single training runs.} We did not train multiple seeds per route; the animal head selected different epochs in two runs, and small differences (for example plant and bacteria v1 versus v2) should be read as indicative.
+
+\textbf{Training and test data are curated reference records, not field samples.} Every result here is measured on held-out splits of reference-database records, and the current splits contain no BOLD records. We have not evaluated the pipeline on raw eDNA reads from a field survey, which carry degradation, chimeras and a different contamination profile; we expect an accuracy drop under that shift and cannot yet quantify it.
+
+\textbf{Reference proximity, not proof.} A reference database built from the same public sources as the training data will hold near-relatives of many test sequences, even with exact held-out sequences removed. The leakage check bounds the effect on taxon precision (about 2.6 points on bacteria), but it does not make the test set a model of genuinely unseen diversity.
 
 \section{Conclusion and Future Work}
 
-Synth Veda routes environmental DNA reads through a cheap heuristic classifier into six taxonomic groups and then applies a fine-tuned transformer specific to each group, reaching 93.6--100\% accuracy on five routes and 83.1\% on the sixth against an internal target of 85\%. Along the way we found and fixed a genuine train/test leakage bug, and rather than quietly moving on once the one affected route was fixed, we audited all six routes for the same problem and report that most were only mildly affected -- a result we think is worth publishing precisely because it is not the dramatic finding we initially expected once we knew where to look.
+Synth Veda routes environmental DNA reads with a calibrated, strand-invariant learned router (91.6\% on held-out sequences, against 22.9\% for the heuristic it replaced), classifies them with route-specific DNABERT-2 heads (83.2--97.9\% accuracy on a rebuilt, near-duplicate-aware test split), names them by a thresholded reference lookup (species precision 89.1\% at 34.0\% recall) and records why each answer was given. Along the way we found that our original router was mostly wrong and that our original splits leaked on every route but one, and we report the earlier numbers as history rather than as results.
 
-The most immediate next steps are the ones we have flagged as limitations rather than as finished work: replacing the heuristic router with a learned, embedding-based one; finishing the cluster-centroid novelty signal; evaluating against real field-collected reads rather than only reference-database splits; and running multi-seed training to put honest error bars on the numbers in Table~\ref{tab:results}. On the bacteria/pathogen route specifically, we intend to test whether a longer amplicon window or additional curated 16S training data closes the remaining gap before concluding that 83--85\% is the practical ceiling for this task at this read length.
+The most immediate next steps are the ones we have flagged as limitations: evaluating against real field-collected reads; adding BOLD to the training and reference data; deciding, on held-out data, whether the centroid novelty signal should carry weight; running multi-seed training to put error bars on Table~\ref{tab:results}; and testing whether a longer amplicon window, more curated 16S data or a larger backbone on the rebuilt split closes the bacteria route's remaining gap.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
