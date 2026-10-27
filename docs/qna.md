@@ -2726,3 +2726,5 @@ No. The CI includes 0, and the threshold change alone accounts for it. Fish reca
 - The native dispatcher does not reconnect after a Redis disconnect. At 21:31:59 IST the Docker daemon restarted on its own, which stopped the dev Mongo and Redis containers (restart policy "no"). The native worker exited with `redis.exceptions.ConnectionError: Connection closed by server` and did not come back. The compose worker has a healthcheck and a restart path; the native one has neither.
 - The browser Google/Supabase login was not exercised in the fresh stack (Supabase host unresolvable, QNA-023).
 - No CI job runs the built worker image against a real job.
+
+**QNA-042 correction (2026-10-27, same session):** Q6 says "the compose worker has a healthcheck and a restart path". It has the Dockerfile `HEALTHCHECK` only. `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' synthveda-rc-worker-1` → `no`, and the worker service in `infra/docker/docker-compose.yml` sets no `restart:`. A Redis disconnect therefore stops the compose worker too, until someone restarts it. The open item covers both workers.
