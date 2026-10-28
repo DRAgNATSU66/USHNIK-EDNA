@@ -3419,3 +3419,40 @@ user's rules. Nothing else in QNA-048 changes.
   the protocol requires. Those counts are in the QNA entries.
 - The two first-run failures were one environment-dependent test and one static-analysis rule.
   Neither was a regression in behaviour that the local suites missed.
+
+## QNA-052 — 2026-10-28 — nt_50m_fish_experimental: wrong Hub ID corrected and pinned; corrects QNA-051 Q3
+
+**Supersedes:** the first bullet of QNA-051 Q3, which said the entry "now refuses to load until
+someone pins its commit". That was wrong on two counts:
+- The entry has `artifact_uri: null`, so `is_runnable` was always false and it never loaded.
+- Its `base_model` named a repo that does not exist.
+
+QNA-051 is left as written (append-only); this entry is the correction.
+
+**Q1. Mechanism: what changed?** `models/registry/nt_50m_fish_experimental.json`:
+- `base_model`: `InstaDeepAI/nucleotide-transformer-50m-multi-species` →
+  `InstaDeepAI/nucleotide-transformer-v2-50m-multi-species`.
+- Added `base_model_revision`: `81b29e5786726d891dbf929404ef20adca5b36f1`.
+- Nothing else changed (status experimental, no head, thresholds as before).
+
+**Q2. Rationale: why fix an entry that has no head?** Its notes keep it as the planned
+smaller backbone for Abyss Mode, to be benchmarked against DNABERT-2. Whoever trains that head would
+start from a base model that 404s. Under QNA-051's rule they would also need a pin. Both are now in
+place, and the pin fixes the commit the benchmark trains against.
+
+**Q3. Blast radius: what can this affect?** Nothing served.
+- Fish is served by `dnabert2_fish_v3b`, and this entry stays experimental with `artifact_uri` null.
+- The repo has custom code (`custom_code` tag). `trusted_remote_code` was not set here and is still
+  unset, so a future training run must opt in deliberately.
+
+**Q4. Verification: what proves it?**
+- `curl https://huggingface.co/api/models/InstaDeepAI/nucleotide-transformer-50m-multi-species` →
+  HTTP 401 `{"error":"Invalid username or password."}`. That is the Hub's anonymous answer for a
+  repo that does not exist.
+- The `-v2-` ID → 200, `sha` `81b29e57…a5b36f1`, `lastModified` 2025-09-16T12:49:01Z,
+  `library_name` transformers.
+- `tests/test_registry_entries.py` and `tests/test_hub_revision.py`: 53 passed.
+
+**Q5. Defence: "Why pin to today's main instead of the commit the experiment used?"** No head was
+ever trained, so there is no earlier commit to match. The repo has been unchanged since 2025-09-16,
+so today's main is the only version any run could have seen in the last year.
