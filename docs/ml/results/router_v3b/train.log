@@ -1,0 +1,6 @@
+[router] 100994 rows, 99218 unique, 1686 in more than one route
+[router] train 44615 rows: fish=7900, plant=8000, bacteria_pathogen=8000, animal_general=8000, human_domestic_contamination=4812, misc_unknown=7903
+[router] strand canonical: featurise 4.7s, fit 11.2s
+[router] temperature 0.4007; dev ECE 0.2933 -> 0.0170; dev bal fwd 0.9311 rc 0.9311
+[router] test fwd acc 0.9093 (bal 0.8796, ECE 0.2770 -> 0.0238); rc acc 0.9093; protocol learned fwd 0.8756 rc 0.8756 vs heuristic fwd 0.2133 rc 0.1678
+[router] wrote ../../synthveda-data/checkpoints/router/v3b (router.npz sha256 28a64b05ee048d10996901b5e2c2b520e8f4730e114b8a669de92ec0a0b2a469)

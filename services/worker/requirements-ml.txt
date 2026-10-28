@@ -1,0 +1,32 @@
+# ML inference dependencies — optional.
+# The worker runs in stub mode without these.
+# Install only when you want live model inference.
+#
+# GPU (CUDA 12.x):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#
+# CPU-only (slower, but works on any machine):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+# Then install the rest:
+#   pip install -r requirements-ml.txt
+
+torch>=2.1.0
+# DNABERT-2's custom modeling code (unmaintained since ~2023) accesses
+# config.pad_token_id in a way transformers 5.x's internal config layer
+# broke (AttributeError: 'BertConfig' object has no attribute
+# 'pad_token_id') — pin to the last 4.x release rather than the open
+# >=4.40.0 range, which now silently resolves to an incompatible 5.x.
+transformers==4.57.6
+sentencepiece>=0.2.0      # required by DNABERT-2 BPE tokeniser
+einops>=0.7.0             # required by DNABERT-2's custom modeling code
+accelerate>=0.27.0        # faster model loading, mixed precision
+safetensors>=0.4.0        # safe weight format (never pickle)
+
+# Optional: LoRA fine-tuning (Phase 14)
+# peft>=0.10.0
+# bitsandbytes>=0.43.0  # 8-bit / 4-bit quantisation (Linux/WSL2 only)
+
+# Dataset builder: reads the BOLD_Public*.parquet package (training/sources.py
+# iter_bold, build_reference_db.iter_bold_ref). Training-time only.
+pyarrow==26.0.0

@@ -1,0 +1,40 @@
+{
+ "file": "BOLD_Public.23-Oct-2026.parquet",
+ "rows": 24503138,
+ "kept": 8875129,
+ "dropped": {
+  "bad_or_empty_seq": 6173253,
+  "no_genus": 9416031,
+  "mixture_or_unknown_kingdom": 38725
+ },
+ "route_new": {
+  "animal_general": 8071770,
+  "plant": 410404,
+  "misc_unknown": 300541,
+  "human_domestic_contamination": 72624,
+  "bacteria_pathogen": 19366,
+  "fish": 424
+ },
+ "route_old_raw_columns": {
+  "misc_unknown": 17086770,
+  "animal_general": 714464,
+  "plant": 455603,
+  "human_domestic_contamination": 72624,
+  "fish": 424
+ },
+ "label_by_route_new": {
+  "animal_general/known_species": 4616026,
+  "animal_general/likely_taxonomic_group": 3455465,
+  "plant/known_species": 410403,
+  "misc_unknown/unknown_needs_online_confirmation": 300527,
+  "human_domestic_contamination/known_species": 72624,
+  "bacteria_pathogen/known_species": 16984,
+  "bacteria_pathogen/likely_taxonomic_group": 2382,
+  "fish/known_species": 424,
+  "animal_general/possible_novelty": 279,
+  "misc_unknown/possible_novelty": 14,
+  "plant/possible_novelty": 1
+ },
+ "note": "labels computed with a fixed 240-nt placeholder sequence, so low_quality_unusable is not exercised here",
+ "seconds": 189.9
+}

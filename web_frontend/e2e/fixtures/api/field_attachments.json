@@ -1,0 +1,14 @@
+[
+  {
+    "analysis_id": "ana_e2e0000000001",
+    "attachment_id": "fla_e2e_ctd00001",
+    "checksum_sha256": "4f2c9a0000000000000000000000000000000000000000000000000000000000",
+    "content_type": "application/pdf",
+    "created_at": "2026-10-10T09:30:00",
+    "entry_id": "fle_e2e_note0001",
+    "original_filename": "ctd_cast_station7.pdf",
+    "size_bytes": 248113,
+    "uploader_id": "usr_e2e_researcher",
+    "uploader_name": "Rhea Researcher"
+  }
+]

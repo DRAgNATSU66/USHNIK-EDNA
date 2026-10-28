@@ -1,0 +1,377 @@
+/**
+ * Synth Veda API client.
+ * All HTTP calls to the backend go through this module.
+ * No hardcoded localhost — base URL comes from VITE_API_URL env var.
+ */
+
+export const API_BASE =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
+  "http://127.0.0.1:8000";
+
+function getToken() {
+  try {
+    return localStorage.getItem("sv_access_token");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Core fetch wrapper. Throws ApiError on non-2xx responses.
+ * @param {string} method
+ * @param {string} path
+ * @param {{ body?: object|FormData, params?: object }} [opts]
+ */
+async function request(method, path, opts = {}) {
+  const { body, params } = opts;
+  const tok = getToken();
+
+  const url = new URL(`${API_BASE.replace(/\/$/, "")}${path}`);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+    }
+  }
+
+  const headers = { Accept: "application/json" };
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  if (body && !(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const resp = await fetch(url.toString(), {
+    method,
+    headers,
+    body:
+      body instanceof FormData
+        ? body
+        : body !== undefined
+        ? JSON.stringify(body)
+        : undefined,
+  });
+
+  if (!resp.ok) {
+    let detail = `HTTP ${resp.status}`;
+    let rawDetail;
+    try {
+      const err = await resp.json();
+      rawDetail = err.detail;
+      detail = err.detail || err.message || detail;
+    } catch {
+      // Error body wasn't JSON -- keep the generic "HTTP {status}" detail.
+    }
+    // FastAPI 422s carry detail as [{loc, msg, type}]; keep the list on
+    // e.detail for field-level display and give the message readable text.
+    if (Array.isArray(detail)) detail = detail.map((d) => d?.msg || String(d)).join("; ");
+    const e = new Error(detail);
+    e.status = resp.status;
+    e.detail = rawDetail;
+    throw e;
+  }
+
+  const ct = resp.headers.get("content-type") || "";
+  const isDownload = (resp.headers.get("content-disposition") || "").includes("attachment");
+  if (ct.includes("application/json") && !isDownload) return resp.json();
+  // Return raw Response for non-JSON, and for JSON marked as a file download
+  // (e.g. /export/json, which is application/json but must stay a Response
+  // so callers can call .blob() on it) -- content-type alone isn't enough.
+  return resp;
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/** Exchange a Google OAuth 2.0 authorization code for a Synth Veda JWT + user profile. */
+export const authGoogleCodeExchange = (code) =>
+  request("POST", "/auth/google/code-exchange", { body: { code } });
+
+/** Get current user profile from JWT (validates token). */
+export const authMe = () => request("GET", "/auth/me");
+
+/** Exchange a Supabase Auth session access token for a Synth Veda JWT + user profile. */
+export const authSupabaseExchange = (access_token) =>
+  request("POST", "/auth/supabase/exchange", { body: { access_token } });
+
+/** Redeem an admin invite key to elevate role. */
+export const authRedeemKey = (key) =>
+  request("POST", "/auth/admin-key/redeem", { body: { key } });
+
+// ---------------------------------------------------------------------------
+// Uploads
+// ---------------------------------------------------------------------------
+
+/**
+ * Upload a FASTA/JSON file with optional environmental metadata.
+ * @param {FormData} formData - must include `file` field + optional metadata fields
+ */
+export const createUpload = (formData) =>
+  request("POST", "/uploads", { body: formData });
+
+export const getUpload = (upload_id) =>
+  request("GET", `/uploads/${upload_id}`);
+
+// ---------------------------------------------------------------------------
+// Environmental context (Q5): public temperature / salinity / DO / pH /
+// currents / wind for an upload with coordinates + collected_at.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cached environmental context for an upload. `status` is not_applicable |
+ * pending | complete | partial | failed; each entry in `variables` has
+ * status ok | user_provided | unavailable (with `reason`), the value + unit,
+ * and `public` (source, dataset_id, query_url, grid_point, retrieved_at).
+ * A user-entered DO/pH/temperature/salinity wins; the public value is kept
+ * alongside it.
+ */
+export const getEnvironmentContext = (upload_id) =>
+  request("GET", `/environment/uploads/${upload_id}`);
+
+/** Admin only: re-fetch from the public sources, skipping the shared cache. */
+export const refreshEnvironmentContext = (upload_id) =>
+  request("POST", `/environment/uploads/${upload_id}/refresh`);
+
+// ---------------------------------------------------------------------------
+// Analysis jobs
+// ---------------------------------------------------------------------------
+
+export const createAnalysisJob = (upload_id, mode = "online_full") =>
+  request("POST", "/analysis/jobs", { body: { upload_id, mode } });
+
+export const getJob = (job_id) => request("GET", `/analysis/jobs/${job_id}`);
+
+/**
+ * The stored per-sequence results (GET /analysis/{id}), including each
+ * row's orchestrator `decision` (absent on pre-orchestrator analyses).
+ * include_trace=false drops every decision_trace (mean ~5.5 KB per sequence,
+ * QNA-025) -- the Results page loads the rows without traces and fetches the
+ * traces only when a reader opens "Why this answer". Pages that need the
+ * assembled report still use /reports/{id}.
+ */
+export const getAnalysis = (analysis_id, { includeTrace = true } = {}) =>
+  request("GET", `/analysis/${analysis_id}`, { params: { include_trace: includeTrace } });
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+/** List the current user's own analyses, most recent first (summary fields only). */
+export const listReports = (limit) =>
+  request("GET", "/reports", { params: { limit } });
+
+export const getReport = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}`);
+
+export const getReportSummary = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/summary`);
+
+export const getNoveltyTable = (analysis_id, min_score) =>
+  request("GET", `/reports/${analysis_id}/novelty`, {
+    params: { min_score },
+  });
+
+export const getContaminationWarnings = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/contamination`);
+
+/** Returns a raw Response — caller should create object URL for download. */
+export const exportReportJson = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/json`);
+
+/** Returns a raw Response — caller should create object URL for download. */
+export const exportReportCsv = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/csv`);
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+
+export const getReviewStats = () => request("GET", "/reviews/stats");
+
+export const getReviewQueue = (params) =>
+  request("GET", "/reviews/queue", { params });
+
+// No getReview (GET /reviews/{id}) helper: the queue already returns full
+// review docs, triage/decision change state (which can move the review out
+// of the state-filtered queue, so the page reloads the queue), and
+// POST /evidence already returns the updated doc.
+
+/** Correction history for one sequence -- conflict detection + version history. */
+export const listReviewsForSequence = (analysis_id, sequence_id) =>
+  request("GET", "/reviews/by-sequence", { params: { analysis_id, sequence_id } });
+
+export const submitReview = (data) =>
+  request("POST", "/reviews", { body: data });
+
+export const triageReview = (review_id, data) =>
+  request("POST", `/reviews/${review_id}/triage`, { body: data });
+
+export const addEvidence = (review_id, data) =>
+  request("POST", `/reviews/${review_id}/evidence`, { body: data });
+
+export const makeDecision = (review_id, data) =>
+  request("POST", `/reviews/${review_id}/decision`, { body: data });
+
+export const createTrainingBatch = (data) =>
+  request("POST", "/reviews/batch/create", { body: data });
+
+export const freezeTrainingBatch = (batch_id) =>
+  request("POST", `/reviews/batch/${batch_id}/freeze`, { body: {} });
+
+// ---------------------------------------------------------------------------
+// Field Log (notes + team discussion)
+// ---------------------------------------------------------------------------
+
+export const listFieldEntries = (analysis_id, kind) =>
+  request("GET", "/field-log/entries", { params: { analysis_id, kind } });
+
+export const createFieldEntry = (data) =>
+  request("POST", "/field-log/entries", { body: data });
+
+// No getFieldEntry (GET /field-log/entries/{id}) helper: the list already
+// carries every entry's `edits`, and PATCH returns the updated entry.
+
+/**
+ * Edit an entry's `body` and/or `anchor_sequence_id`. The server appends
+ * {editor, edited_at, changes: [{field, old, new}]} to `edits`; 409 means
+ * someone else edited it first.
+ */
+export const updateFieldEntry = (entry_id, changes) =>
+  request("PATCH", `/field-log/entries/${entry_id}`, { body: changes });
+
+export const listFieldAttachments = (analysis_id) =>
+  request("GET", "/field-log/attachments", { params: { analysis_id } });
+
+/** PDF, JPEG or PNG; the server checks size, type (by content) and sha256. */
+export const uploadFieldAttachment = (analysis_id, file, entry_id) => {
+  const form = new FormData();
+  form.append("analysis_id", analysis_id);
+  if (entry_id) form.append("entry_id", entry_id);
+  form.append("file", file);
+  return request("POST", "/field-log/attachments", { body: form });
+};
+
+/** Returns a raw Response (Content-Disposition: attachment) — call .blob(). */
+export const downloadFieldAttachment = (attachment_id) =>
+  request("GET", `/field-log/attachments/${attachment_id}/download`);
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+export const getModels = () => request("GET", "/models/registry");
+
+/**
+ * Per-route head readiness as the API process sees it (registry + data root
+ * on disk). Not the worker's live state: the response says so in `note`.
+ */
+export const getModelStatus = () => request("GET", "/models/status");
+
+/**
+ * Promote a registered model to production for its route (admin only, B8).
+ * { dry_run: true } returns the plan (current model, metric deltas, demotions,
+ * warnings) and writes nothing. The real call should pass
+ * expected_current_model_id from that plan; 409 means the route changed since.
+ */
+export const promoteModel = (model_id, body) =>
+  request("POST", `/models/${encodeURIComponent(model_id)}/promote`, { body });
+
+/** Recent model_registered / model_promoted audit events, newest first (admin only). */
+export const getModelPromotions = (limit = 10) =>
+  request("GET", "/models/promotions", { params: { limit } });
+
+// ---------------------------------------------------------------------------
+// Abyss Mode
+// ---------------------------------------------------------------------------
+
+export const getExpeditions = () =>
+  request("GET", "/abyss/expeditions");
+
+export const createExpedition = (data) =>
+  request("POST", "/abyss/expeditions", { body: data });
+
+export const getExpedition = (expedition_id) =>
+  request("GET", `/abyss/expeditions/${expedition_id}`);
+
+export const activateExpedition = (expedition_id) =>
+  request("POST", `/abyss/expeditions/${expedition_id}/activate`);
+
+export const getPackManifest = (expedition_id) =>
+  request("GET", `/abyss/expeditions/${expedition_id}/pack-manifest`);
+
+export const issueLicense = (expedition_id, duration_days) =>
+  request("POST", `/abyss/expeditions/${expedition_id}/license`, {
+    body: { duration_days },
+  });
+
+/** Field triage. The body carries the offline license token (not a bearer token). */
+export const runAbyssAnalysis = (body) =>
+  request("POST", "/abyss/analyze", { body });
+
+/** Offline expedition session token for this device (U4). */
+export const createExpeditionSession = (expedition_id, device_fingerprint) =>
+  request("POST", "/auth/expedition/session", {
+    body: { expedition_id, device_fingerprint },
+  });
+
+export const verifyExpeditionSession = (expedition_session_token) =>
+  request("POST", "/auth/expedition/verify", {
+    body: { expedition_session_token },
+  });
+
+export const syncExpedition = (expedition_id, syncData) =>
+  request("POST", "/abyss/sync", {
+    body: { ...syncData, expedition_id },
+  });
+
+// ---------------------------------------------------------------------------
+// Health
+// ---------------------------------------------------------------------------
+
+export const healthCheck = () => request("GET", "/health");
+
+// ---------------------------------------------------------------------------
+// Partner pages: Academia (t-1027-1), Legislative (t-1027-3), Industrial (t-1028-2)
+// ---------------------------------------------------------------------------
+
+/** Cross-run counts + time series incl. environmental-context coverage ({scope, user_id, date_from, date_to, interval, top_taxa}). */
+export const getPartnerSummary = (params) =>
+  request("GET", "/partner/summary", { params });
+
+/** Taxon pairs found in the same sample, at one rank (params: rank, limit, scope). */
+export const getPartnerCooccurrence = (params) =>
+  request("GET", "/partner/cooccurrence", { params });
+
+/** Uploads / detections by UTC hour of day and day of week. */
+export const getPartnerRhythms = (params) =>
+  request("GET", "/partner/rhythms", { params });
+
+/** Uploads with coordinates aggregated into a cell_deg grid ({scope, date_from, date_to, cell_deg}). */
+export const getPartnerHotspots = (params) =>
+  request("GET", "/partner/hotspots", { params });
+
+/** Analyses with novelty/contamination flags or open urgent reviews ({scope, date_from, date_to, limit}). */
+export const getPartnerAlerts = (params) =>
+  request("GET", "/partner/alerts", { params });
+
+/** Analyses with contamination/novelty flags or open urgent reviews, plus those reviews. */
+export const getPartnerIncidents = (params) =>
+  request("GET", "/partner/incidents", { params });
+
+/** Field-log tasks (kind=task) across the analyses in scope. */
+export const getPartnerTasks = (params) =>
+  request("GET", "/partner/tasks", { params });
+
+export const listPartnerAudits = (params) =>
+  request("GET", "/partner/audits", { params });
+
+/** 422 detail is FastAPI's [{loc, msg, ...}] list; see formatApiError on the Industrial page. */
+export const createPartnerAudit = (data) =>
+  request("POST", "/partner/audits", { body: data });
+
+/** Hash-chained chain of custody for an analysis's sample, verified on the server. */
+export const getReportCustody = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/custody`);
+
+/** FAIR ZIP (results, metadata, provenance, custody). Returns a raw Response — call .blob(). Recorded on the custody chain. */
+export const exportReportFair = (analysis_id) =>
+  request("GET", `/reports/${analysis_id}/export/fair`);

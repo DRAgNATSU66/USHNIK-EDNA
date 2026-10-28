@@ -1,0 +1,697 @@
+{
+ "fish": {
+  "route": "fish",
+  "method": "blast",
+  "reference_db": "synthveda-reference/fish",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "assigned": 289,
+     "below_threshold": 11
+    },
+    "assigned_pct": 96.3,
+    "rank_pct": {
+     "species": 65.3,
+     "genus": 21.3,
+     "family": 7.3,
+     "order": 0.7,
+     "class": 1.7
+    },
+    "with_hit_pct": 100.0,
+    "top_identity_median": 99.83,
+    "top_identity_quartiles": [
+     99.42,
+     99.83,
+     100.0
+    ],
+    "top_identity_bins": {
+     ">=99": 247,
+     "97-99": 27,
+     "95-97": 11,
+     "90-95": 4,
+     "<90": 11
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 86,
+    "ground_truth": {
+     "traced": 300,
+     "traced_pct": 100.0,
+     "species": {
+      "n": 294,
+      "assigned_at_species": 196,
+      "correct": 188,
+      "wrong": 8,
+      "recall_pct": 63.9,
+      "precision_pct": 95.9
+     },
+     "genus": {
+      "n": 298,
+      "assigned_with_genus": 260,
+      "correct": 258,
+      "wrong": 2,
+      "recall_pct": 86.6,
+      "precision_pct": 99.2
+     }
+    }
+   },
+   "possible_novelty": {
+    "n": 84,
+    "status": {
+     "assigned": 82,
+     "no_hit": 2
+    },
+    "assigned_pct": 97.6,
+    "rank_pct": {
+     "species": 58.3,
+     "genus": 6.0,
+     "family": 31.0,
+     "class": 2.4
+    },
+    "with_hit_pct": 97.6,
+    "top_identity_median": 99.6,
+    "top_identity_quartiles": [
+     99.2,
+     99.6,
+     99.81
+    ],
+    "top_identity_bins": {
+     ">=99": 65,
+     "97-99": 11,
+     "95-97": 5,
+     "90-95": 1,
+     "<90": 0
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 29,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   }
+  },
+  "wall_seconds": 21.4,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 384,
+   "unique_queries": 384,
+   "threads": 4,
+   "search_seconds": 18.02,
+   "peak_rss_mb": 206.7,
+   "elapsed_seconds": 21.42,
+   "per_sequence_seconds": 0.0558
+  }
+ },
+ "plant": {
+  "route": "plant",
+  "method": "blast",
+  "reference_db": "synthveda-reference/plant",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "assigned": 275,
+     "no_hit": 15,
+     "below_threshold": 10
+    },
+    "assigned_pct": 91.7,
+    "rank_pct": {
+     "species": 19.7,
+     "genus": 30.0,
+     "family": 25.0,
+     "order": 7.3,
+     "class": 8.3,
+     "phylum": 0.7,
+     "kingdom": 0.7
+    },
+    "with_hit_pct": 95.0,
+    "top_identity_median": 98.98,
+    "top_identity_quartiles": [
+     96.7,
+     98.98,
+     99.93
+    ],
+    "top_identity_bins": {
+     ">=99": 141,
+     "97-99": 57,
+     "95-97": 49,
+     "90-95": 28,
+     "<90": 10
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 170,
+    "ground_truth": {
+     "traced": 295,
+     "traced_pct": 98.3,
+     "species": {
+      "n": 249,
+      "assigned_at_species": 54,
+      "correct": 28,
+      "wrong": 26,
+      "recall_pct": 11.2,
+      "precision_pct": 51.9
+     },
+     "genus": {
+      "n": 281,
+      "assigned_with_genus": 146,
+      "correct": 139,
+      "wrong": 7,
+      "recall_pct": 49.5,
+      "precision_pct": 95.2
+     }
+    }
+   },
+   "possible_novelty": {
+    "n": 70,
+    "status": {
+     "assigned": 64,
+     "no_hit": 4,
+     "below_threshold": 2
+    },
+    "assigned_pct": 91.4,
+    "rank_pct": {
+     "species": 11.4,
+     "genus": 40.0,
+     "family": 12.9,
+     "order": 12.9,
+     "class": 8.6,
+     "phylum": 4.3,
+     "kingdom": 1.4
+    },
+    "with_hit_pct": 94.3,
+    "top_identity_median": 98.44,
+    "top_identity_quartiles": [
+     97.09,
+     98.44,
+     98.97
+    ],
+    "top_identity_bins": {
+     ">=99": 15,
+     "97-99": 36,
+     "95-97": 8,
+     "90-95": 5,
+     "<90": 2
+    },
+    "top_qcov_median": 99.0,
+    "lca_tied": 44,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   }
+  },
+  "wall_seconds": 15.5,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 370,
+   "unique_queries": 370,
+   "threads": 4,
+   "search_seconds": 15.42,
+   "peak_rss_mb": 104.3,
+   "elapsed_seconds": 15.5,
+   "per_sequence_seconds": 0.0419
+  }
+ },
+ "animal_general": {
+  "route": "animal_general",
+  "method": "blast",
+  "reference_db": "synthveda-reference/animal_general",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "below_threshold": 26,
+     "assigned": 272,
+     "no_hit": 2
+    },
+    "assigned_pct": 90.7,
+    "rank_pct": {
+     "species": 56.3,
+     "genus": 20.3,
+     "family": 13.3,
+     "order": 0.7
+    },
+    "with_hit_pct": 99.3,
+    "top_identity_median": 98.95,
+    "top_identity_quartiles": [
+     96.56,
+     98.95,
+     99.74
+    ],
+    "top_identity_bins": {
+     ">=99": 148,
+     "97-99": 64,
+     "95-97": 24,
+     "90-95": 36,
+     "<90": 26
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 67,
+    "ground_truth": {
+     "traced": 300,
+     "traced_pct": 100.0,
+     "species": {
+      "n": 295,
+      "assigned_at_species": 167,
+      "correct": 154,
+      "wrong": 13,
+      "recall_pct": 52.2,
+      "precision_pct": 92.2
+     },
+     "genus": {
+      "n": 298,
+      "assigned_with_genus": 230,
+      "correct": 224,
+      "wrong": 6,
+      "recall_pct": 75.2,
+      "precision_pct": 97.4
+     }
+    }
+   },
+   "possible_novelty": {
+    "n": 100,
+    "status": {
+     "assigned": 76,
+     "below_threshold": 21,
+     "no_hit": 3
+    },
+    "assigned_pct": 76.0,
+    "rank_pct": {
+     "species": 25.0,
+     "genus": 16.0,
+     "family": 27.0,
+     "order": 6.0,
+     "class": 2.0
+    },
+    "with_hit_pct": 97.0,
+    "top_identity_median": 96.01,
+    "top_identity_quartiles": [
+     90.21,
+     96.01,
+     98.55
+    ],
+    "top_identity_bins": {
+     ">=99": 15,
+     "97-99": 27,
+     "95-97": 11,
+     "90-95": 23,
+     "<90": 21
+    },
+    "top_qcov_median": 99.0,
+    "lca_tied": 40,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   }
+  },
+  "wall_seconds": 21.9,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 400,
+   "unique_queries": 400,
+   "threads": 4,
+   "search_seconds": 21.82,
+   "peak_rss_mb": 333.0,
+   "elapsed_seconds": 21.91,
+   "per_sequence_seconds": 0.0548
+  }
+ },
+ "bacteria_pathogen": {
+  "route": "bacteria_pathogen",
+  "method": "blast",
+  "reference_db": "synthveda-reference/bacteria_pathogen",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "assigned": 286,
+     "below_threshold": 4,
+     "no_hit": 10
+    },
+    "assigned_pct": 95.3,
+    "rank_pct": {
+     "species": 31.3,
+     "genus": 34.0,
+     "family": 16.0,
+     "order": 6.3,
+     "class": 4.7,
+     "phylum": 1.3,
+     "superkingdom": 1.7
+    },
+    "with_hit_pct": 96.7,
+    "top_identity_median": 100.0,
+    "top_identity_quartiles": [
+     99.45,
+     100.0,
+     100.0
+    ],
+    "top_identity_bins": {
+     ">=99": 239,
+     "97-99": 28,
+     "95-97": 12,
+     "90-95": 7,
+     "<90": 4
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 168,
+    "ground_truth": {
+     "traced": 300,
+     "traced_pct": 100.0,
+     "species": {
+      "n": 244,
+      "assigned_at_species": 88,
+      "correct": 75,
+      "wrong": 13,
+      "recall_pct": 30.7,
+      "precision_pct": 85.2
+     },
+     "genus": {
+      "n": 280,
+      "assigned_with_genus": 188,
+      "correct": 181,
+      "wrong": 7,
+      "recall_pct": 64.6,
+      "precision_pct": 96.3
+     }
+    }
+   },
+   "possible_novelty": {
+    "n": 100,
+    "status": {
+     "assigned": 72,
+     "below_threshold": 27,
+     "no_hit": 1
+    },
+    "assigned_pct": 72.0,
+    "rank_pct": {
+     "species": 12.0,
+     "genus": 14.0,
+     "family": 19.0,
+     "order": 8.0,
+     "class": 4.0,
+     "phylum": 4.0,
+     "superkingdom": 11.0
+    },
+    "with_hit_pct": 99.0,
+    "top_identity_median": 94.4,
+    "top_identity_quartiles": [
+     89.72,
+     94.4,
+     97.69
+    ],
+    "top_identity_bins": {
+     ">=99": 4,
+     "97-99": 27,
+     "95-97": 17,
+     "90-95": 24,
+     "<90": 27
+    },
+    "top_qcov_median": 99.0,
+    "lca_tied": 44,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   }
+  },
+  "wall_seconds": 168.3,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 400,
+   "unique_queries": 400,
+   "threads": 4,
+   "search_seconds": 168.16,
+   "peak_rss_mb": 154.8,
+   "elapsed_seconds": 168.26,
+   "per_sequence_seconds": 0.4206
+  }
+ },
+ "human_domestic_contamination": {
+  "route": "human_domestic_contamination",
+  "method": "blast",
+  "reference_db": "synthveda-reference/human_domestic_contamination",
+  "reference_db_version": "v2",
+  "by_class": {
+   "known_species": {
+    "n": 300,
+    "status": {
+     "assigned": 232,
+     "no_hit": 68
+    },
+    "assigned_pct": 77.3,
+    "rank_pct": {
+     "species": 77.3
+    },
+    "with_hit_pct": 77.3,
+    "top_identity_median": 99.94,
+    "top_identity_quartiles": [
+     99.94,
+     99.94,
+     99.94
+    ],
+    "top_identity_bins": {
+     ">=99": 227,
+     "97-99": 5,
+     "95-97": 0,
+     "90-95": 0,
+     "<90": 0
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 0,
+    "ground_truth": {
+     "traced": 239,
+     "traced_pct": 79.7,
+     "species": {
+      "n": 238,
+      "assigned_at_species": 231,
+      "correct": 230,
+      "wrong": 1,
+      "recall_pct": 96.6,
+      "precision_pct": 99.6
+     },
+     "genus": {
+      "n": 239,
+      "assigned_with_genus": 232,
+      "correct": 231,
+      "wrong": 1,
+      "recall_pct": 96.7,
+      "precision_pct": 99.6
+     }
+    }
+   }
+  },
+  "wall_seconds": 38.7,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 300,
+   "unique_queries": 300,
+   "threads": 4,
+   "search_seconds": 4.2,
+   "peak_rss_mb": 128.6,
+   "grch38_seconds": 34.44,
+   "grch38_peak_rss_mb": 1402.1,
+   "elapsed_seconds": 38.71,
+   "per_sequence_seconds": 0.129
+  }
+ },
+ "misc_unknown": {
+  "route": "misc_unknown",
+  "method": "blast",
+  "reference_db": "synthveda-reference/misc_unknown",
+  "reference_db_version": "v2",
+  "by_class": {
+   "possible_novelty": {
+    "n": 100,
+    "status": {
+     "no_hit": 80,
+     "below_threshold": 16,
+     "assigned": 4
+    },
+    "assigned_pct": 4.0,
+    "rank_pct": {
+     "genus": 1.0,
+     "family": 1.0,
+     "class": 1.0,
+     "superkingdom": 1.0
+    },
+    "with_hit_pct": 20.0,
+    "top_identity_median": 81.78,
+    "top_identity_quartiles": [
+     80.82,
+     81.78,
+     89.66
+    ],
+    "top_identity_bins": {
+     ">=99": 0,
+     "97-99": 1,
+     "95-97": 1,
+     "90-95": 2,
+     "<90": 16
+    },
+    "top_qcov_median": 89.5,
+    "lca_tied": 8,
+    "ground_truth": {
+     "traced": 0,
+     "traced_pct": 0.0,
+     "species": {
+      "n": 0,
+      "assigned_at_species": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     },
+     "genus": {
+      "n": 0,
+      "assigned_with_genus": 0,
+      "correct": 0,
+      "wrong": 0,
+      "recall_pct": null,
+      "precision_pct": null
+     }
+    }
+   },
+   "unknown_needs_online_confirmation": {
+    "n": 300,
+    "status": {
+     "no_hit": 112,
+     "assigned": 164,
+     "below_threshold": 24
+    },
+    "assigned_pct": 54.7,
+    "rank_pct": {
+     "species": 26.3,
+     "genus": 15.7,
+     "family": 8.3,
+     "order": 1.0,
+     "class": 2.0,
+     "phylum": 0.3,
+     "kingdom": 0.7,
+     "superkingdom": 0.3
+    },
+    "with_hit_pct": 62.7,
+    "top_identity_median": 99.25,
+    "top_identity_quartiles": [
+     95.03,
+     99.25,
+     99.92
+    ],
+    "top_identity_bins": {
+     ">=99": 100,
+     "97-99": 21,
+     "95-97": 20,
+     "90-95": 23,
+     "<90": 24
+    },
+    "top_qcov_median": 100.0,
+    "lca_tied": 64,
+    "ground_truth": {
+     "traced": 229,
+     "traced_pct": 76.3,
+     "species": {
+      "n": 189,
+      "assigned_at_species": 77,
+      "correct": 62,
+      "wrong": 15,
+      "recall_pct": 32.8,
+      "precision_pct": 80.5
+     },
+     "genus": {
+      "n": 209,
+      "assigned_with_genus": 123,
+      "correct": 114,
+      "wrong": 9,
+      "recall_pct": 54.5,
+      "precision_pct": 92.7
+     }
+    }
+   }
+  },
+  "wall_seconds": 16.1,
+  "search": {
+   "method": "blast",
+   "method_reason": "configured",
+   "batch_size": 400,
+   "unique_queries": 398,
+   "threads": 4,
+   "search_seconds": 16.02,
+   "peak_rss_mb": 182.9,
+   "elapsed_seconds": 16.06,
+   "per_sequence_seconds": 0.0401
+  }
+ }
+}

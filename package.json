@@ -1,0 +1,10 @@
+{
+  "name": "synth-veda",
+  "dependencies": {
+    "dom-to-image-more": "^3.7.1",
+    "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.9.1"
+  }
+}

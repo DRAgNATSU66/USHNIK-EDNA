@@ -1,0 +1,9 @@
+-r requirements.txt
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+httpx>=0.24.0
+bandit==1.8.3
+
+# Fakes S3 for tests/test_*storage*.py
+moto[s3]==5.0.28

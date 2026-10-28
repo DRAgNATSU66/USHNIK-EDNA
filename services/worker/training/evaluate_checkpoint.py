@@ -1,0 +1,190 @@
+"""
+Re-evaluates an already-trained checkpoint's test set to backfill per-class
+precision/recall/F1 + a confusion matrix, without retraining.
+
+Only finetune.py's *new* runs write eval_report.json automatically (see
+build_eval_report there). Checkpoints trained before that change only have
+aggregate accuracy/macro-F1 in metrics.json. This script loads the saved
+backbone + head, re-runs one no-grad forward pass over the route's test.csv,
+and writes the same eval_report.json a fresh training run would have
+produced — reusing finetune.py's SequenceDataset/collate/extract_cls/
+build_eval_report so the two never drift into different schemas.
+
+Run from services/worker/:
+    python -m training.evaluate_checkpoint --route bacteria_pathogen
+    python -m training.evaluate_checkpoint --route bacteria_pathogen \
+        --checkpoint-dir E:/synthveda-data/checkpoints/bacteria_pathogen_nt500m_clean
+
+Scoring an old checkpoint on a *different* (e.g. rebuilt) test set must not
+overwrite that checkpoint's own eval_report.json / metrics.json -- those are
+the record of what it scored on the data it was trained against. Pass
+--report-out to write the report elsewhere; the checkpoint dir is then
+left untouched:
+    python -m training.evaluate_checkpoint --route fish --data-dir <root> \
+        --checkpoint-dir <root>/checkpoints/fish --report-out /tmp/fish_v1_on_new.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+# DNABERT-2's custom modeling code falls back to plain PyTorch attention when
+# Triton is unavailable (see bert_layers.py's `except ImportError`) -- but a
+# community `triton-windows` package makes `import triton` succeed while its
+# JIT compiler still isn't available (no C compiler on PATH), so it takes the
+# Triton path and crashes instead of falling back. Force the ImportError so
+# it degrades the way the architecture actually intends on this machine.
+sys.modules["triton"] = None  # type: ignore[assignment]
+
+import torch
+from torch.utils.data import DataLoader
+
+from app.inference.heads import DNAClassifierHead
+from app.inference.models import LABEL_SETS_BY_VERSION, ROUTE_LABEL_SETS
+from training.finetune import SequenceDataset, build_eval_report, collate, extract_cls
+
+
+def checkpoint_labels(route: str, saved_metrics: dict, current: list[str]) -> list[str]:
+    """The labels a checkpoint's head outputs, in order: metrics.json
+    "label_set" (written since label set v2), else the label_set_version
+    list whose length matches "num_classes" (older checkpoints recorded only
+    that). Label sets only ever append, so the result must be a prefix of
+    `current`: output i of an older head is still class i of the test data."""
+    found = saved_metrics.get("label_set")
+    if not found:
+        n = saved_metrics.get("num_classes", len(current))
+        found = next((v[route] for v in LABEL_SETS_BY_VERSION.values() if len(v.get(route, ())) == n), None)
+        if found is None:
+            raise SystemExit(f"no {route} label set has {n} classes")
+    found = [str(label) for label in found]
+    if current[:len(found)] != found:
+        raise SystemExit(f"checkpoint labels {found} are not a prefix of the current {current}")
+    return found
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--route", required=True, choices=list(ROUTE_LABEL_SETS.keys()))
+    parser.add_argument("--data-dir", default="E:/synthveda-data")
+    parser.add_argument("--checkpoint-dir", default=None, help="Defaults to <data-dir>/checkpoints/<route>")
+    parser.add_argument("--max-length", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument(
+        "--report-out", default=None,
+        help="Write eval_report.json here instead of into the checkpoint dir, and leave "
+             "the checkpoint's metrics.json untouched.",
+    )
+    parser.add_argument("--split", choices=["test", "dev"], default="test")
+    parser.add_argument(
+        "--dump-probs", default=None,
+        help="Also write per-row softmax probabilities (.npz: probs, labels, head_labels, "
+             "label_names) for decoding experiments such as training/hier_decode.py.",
+    )
+    args = parser.parse_args()
+    if args.split != "test" and not args.report_out:
+        raise SystemExit("--split dev needs --report-out: the checkpoint's own report is its test score")
+
+    from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, AutoConfig
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"device: {device}")
+
+    # Test rows are labelled with the current label set; the head may have
+    # been trained on an older one (see checkpoint_labels below).
+    labels = ROUTE_LABEL_SETS[args.route]
+    label_names = [str(l) for l in labels]
+    label_to_idx = {name: i for i, name in enumerate(label_names)}
+
+    checkpoint_dir = Path(args.checkpoint_dir) if args.checkpoint_dir else Path(args.data_dir) / "checkpoints" / args.route
+    backbone_dir = checkpoint_dir / "backbone"
+    head_path = checkpoint_dir / "head.pt"
+    if not head_path.exists():
+        raise SystemExit(f"no head.pt at {head_path}")
+
+    metrics_path = checkpoint_dir / "metrics.json"
+    saved_metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
+    embedding_dim = saved_metrics.get("embedding_dim")
+
+    print(f"loading backbone: {backbone_dir}")
+    tokenizer = AutoTokenizer.from_pretrained(backbone_dir, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(backbone_dir, trust_remote_code=True)
+    if "AutoModel" not in getattr(config, "auto_map", {}) and getattr(config, "model_type", None) == "esm":
+        # Mirrors finetune.py/loader.py: some ESM-family repos only map
+        # AutoModelForMaskedLM to their custom gated-FFN encoder.
+        backbone = AutoModelForMaskedLM.from_pretrained(backbone_dir, trust_remote_code=True).esm
+    else:
+        backbone = AutoModel.from_pretrained(backbone_dir, trust_remote_code=True)
+    backbone = backbone.to(device)
+    backbone.eval()
+    if embedding_dim is None:
+        embedding_dim = backbone.config.hidden_size
+
+    head_labels = checkpoint_labels(args.route, saved_metrics, label_names)
+    if head_labels != label_names:
+        print(f"head trained on {len(head_labels)} labels {head_labels}; scoring on {label_names}. "
+              f"Rows of the newer labels count as errors for this head.")
+    head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(head_labels)).to(device)
+    head.load_state_dict(torch.load(head_path, map_location=device, weights_only=True))
+    head.eval()
+
+    data_dir = Path(args.data_dir) / "processed" / args.route
+    split_csv = data_dir / f"{args.split}.csv"
+    test_ds = SequenceDataset(split_csv, label_to_idx, tokenizer, args.max_length)
+    print(f"{args.split}={len(test_ds)}")
+
+    loader_kwargs = {"collate_fn": collate}
+    if device == "cuda":
+        loader_kwargs["pin_memory"] = True
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
+
+    all_preds, all_labels, all_probs = [], [], []
+    with torch.no_grad():
+        for batch, batch_labels in test_loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            out = backbone(**batch)
+            logits = head(extract_cls(out))
+            all_preds.extend(logits.argmax(dim=-1).cpu().tolist())
+            all_labels.extend(batch_labels.tolist())
+            all_probs.append(torch.softmax(logits.float(), dim=-1).cpu())
+
+    if args.dump_probs:
+        import numpy as np
+        dump = Path(args.dump_probs)
+        dump.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(dump, probs=torch.cat(all_probs).numpy(), labels=np.array(all_labels),
+                 head_labels=np.array(head_labels), label_names=np.array(label_names))
+        print(f"saved probs: {dump}")
+
+    report = build_eval_report(all_labels, all_preds, label_names)
+    report["checkpoint_dir"] = str(checkpoint_dir)
+    report["test_csv"] = str(split_csv)
+    report["max_length"] = args.max_length
+    print(f"\nTEST  acc={report['accuracy']:.4f}  macro_f1={report['f1_macro']:.4f}")
+    from sklearn.metrics import classification_report
+    print(classification_report(
+        all_labels, all_preds, target_names=label_names,
+        labels=list(range(len(labels))), zero_division=0,
+    ))
+
+    if args.report_out:
+        report_path = Path(args.report_out)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2))
+        print(f"saved: {report_path} (checkpoint dir left untouched)")
+        return
+
+    report_path = checkpoint_dir / "eval_report.json"
+    report_path.write_text(json.dumps(report, indent=2))
+    print(f"saved: {report_path}")
+
+    if saved_metrics:
+        saved_metrics["test_accuracy"] = round(report["accuracy"], 4)
+        saved_metrics["test_macro_f1"] = round(report["f1_macro"], 4)
+        metrics_path.write_text(json.dumps(saved_metrics, indent=2))
+        print(f"updated: {metrics_path}")
+
+
+if __name__ == "__main__":
+    main()

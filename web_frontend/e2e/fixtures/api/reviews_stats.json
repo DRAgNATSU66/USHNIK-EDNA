@@ -1,0 +1,14 @@
+{
+  "auto_contamination_pending": 1,
+  "auto_novelty_pending": 1,
+  "by_state": {
+    "accepted": 1,
+    "submitted": 2
+  },
+  "by_type": {
+    "auto_contamination": 1,
+    "auto_novelty": 1,
+    "manual_correction": 1
+  },
+  "total_pending": 2
+}

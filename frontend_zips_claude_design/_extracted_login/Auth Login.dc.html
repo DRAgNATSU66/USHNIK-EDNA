@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9E8E6;font-family:'Instrument Sans',system-ui,sans-serif}
+a{color:#6D5BD0;text-decoration:none}
+a:hover{color:#4F3EB8;text-decoration:underline}
+input::placeholder{color:#B4B2AE}
+@keyframes helixFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box">
+<div data-screen-label="Login" style="width:1240px;max-width:100%;min-height:720px;background:#FCFCFB;border-radius:20px;display:grid;grid-template-columns:minmax(320px,500px) minmax(0,1fr);overflow:hidden;box-shadow:0 24px 60px rgba(20,18,30,0.10)">
+
+  <!-- Left: dark DNA panel -->
+  <div style="position:relative;background:#0C1220;color:#F5F5F3;display:flex;flex-direction:column;justify-content:space-between;padding:44px 44px 40px;overflow:hidden">
+    <div style="position:absolute;inset:0;background:radial-gradient(90% 70% at 15% 100%, rgba(41,171,226,0.20) 0%, rgba(12,18,32,0) 60%), radial-gradient(70% 50% at 90% 8%, rgba(109,91,208,0.22) 0%, rgba(12,18,32,0) 55%)"></div>
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;gap:12px">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M6 2c0 6 14 8 14 13S6 20 6 24" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"></path><path d="M20 2c0 6-14 8-14 13s14 5 14 9" stroke="#8B7BE0" stroke-width="2" stroke-linecap="round"></path></svg>
+      <span style="font-weight:600;letter-spacing:0.22em;font-size:13px">SYNTH VEDA</span>
+    </div>
+    <div style="position:relative;align-self:center;animation:helixFloat 7s ease-in-out infinite">{{ helixCanvas }}</div>
+    <div style="position:relative;display:flex;flex-direction:column;gap:14px">
+      <h1 style="margin:0;font-size:32px;line-height:1.18;font-weight:500;letter-spacing:-0.02em;text-wrap:pretty">Unravel the intricacies of your genetic code.</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:rgba(245,245,243,0.62);max-width:36ch">Precision eDNA sequencing and AI-driven analysis, from sample to insight.</p>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <span style="width:22px;height:4px;border-radius:2px;background:#8B7BE0"></span>
+        <span style="width:8px;height:4px;border-radius:2px;background:rgba(245,245,243,0.25)"></span>
+        <span style="width:8px;height:4px;border-radius:2px;background:rgba(245,245,243,0.25)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: form -->
+  <div style="display:flex;flex-direction:column;padding:44px clamp(32px,7vw,96px) 36px;box-sizing:border-box;min-width:0">
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;font-size:13px;color:#8A8880">
+      <span>New to Synth Veda?</span>
+      <a href="#" style="display:inline-flex;align-items:center;padding:9px 20px;border:1px solid #DDDBD6;border-radius:999px;color:#1A1A18;font-weight:500" style-hover="{{ ghostHover }}">Create account</a>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;max-width:400px;width:100%;align-self:center">
+      <h2 style="margin:0 0 8px;font-size:40px;font-weight:500;letter-spacing:-0.025em;color:#1A1A18">Welcome back</h2>
+      <p style="margin:0 0 32px;font-size:15px;line-height:1.55;color:#8A8880">Sign in to access your <span style="color:#6D5BD0">analysis workspace</span>.</p>
+      <sc-if value="{{ showSso }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <button onClick="{{ noop }}" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 0;border:1px solid #DDDBD6;border-radius:999px;background:#FFFFFF;font-family:inherit;font-size:14.5px;font-weight:500;color:#1A1A18;cursor:pointer" style-hover="{{ googleHover }}">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"></path><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"></path><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"></path><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"></path></svg>
+            Continue with Google
+          </button>
+          <div style="display:flex;align-items:center;gap:14px;color:#B4B2AE;font-size:12px;letter-spacing:0.08em">
+            <span style="flex:1;height:1px;background:#E7E5E0"></span>OR<span style="flex:1;height:1px;background:#E7E5E0"></span>
+          </div>
+        </div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:24px">
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span style="font-size:13px;font-weight:500;color:#5C5A54">Email address</span>
+          <input type="email" placeholder="you@institution.org" style="padding:13px 16px;border:1px solid #DDDBD6;border-radius:12px;background:#FFFFFF;font-family:inherit;font-size:14.5px;color:#1A1A18;outline:none" style-focus="{{ inputFocus }}">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span style="font-size:13px;font-weight:500;color:#5C5A54">Password</span>
+            <a href="#" style="font-size:12.5px">Forgot password?</a>
+          </div>
+          <input type="password" placeholder="Enter your password" style="padding:13px 16px;border:1px solid #DDDBD6;border-radius:12px;background:#FFFFFF;font-family:inherit;font-size:14.5px;color:#1A1A18;outline:none" style-focus="{{ inputFocus }}">
+        </label>
+        <button onClick="{{ noop }}" style="margin-top:8px;width:100%;padding:14px 0;border:none;border-radius:999px;background:#1A1A18;color:#FCFCFB;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px" style-hover="{{ ctaHover }}">
+          Sign in
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#B4B2AE">
+      <span>© 2026 Synth Veda Labs</span>
+      <div style="display:flex;gap:18px"><a href="#" style="color:#8A8880">Privacy</a><a href="#" style="color:#8A8880">Terms</a></div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showSso&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  initHelix(cv) {
+    cancelAnimationFrame(this.raf);
+    const ctx = cv.getContext('2d');
+    const W = 430, H = 500, dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+    const rnd = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
+    const N = 170, R = 100, cx = W / 2, coils = 2.6, PER = 0.55; // perspective strength
+    // 3D web nodes: cloud rotating with the helix (angle offset + radial offset + height)
+    const WEB = [];
+    for (let i = 0; i < 46; i++) {
+      WEB.push({ h: rnd(i * 3), ang: rnd(i * 5 + 1) * Math.PI * 2, rad: 1.15 + rnd(i * 7 + 2) * 0.75, seed: i });
+    }
+    // precomputed satellite cloud around each strand point (3D offsets)
+    const SAT = 4;
+    const draw = (t) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.translate(W / 2, H / 2); ctx.rotate(Math.PI / 6); ctx.scale(0.86, 0.86); ctx.translate(-W / 2, -H / 2);
+      ctx.globalCompositeOperation = 'lighter';
+      const rot = t * 0.00085;
+      const pt = (i, phase, roff, yoff) => {
+        const y = 20 + (i / (N - 1)) * (H - 40) + (yoff || 0);
+        const a = (i / (N - 1)) * coils * Math.PI * 2 + rot + phase;
+        const rr = R * (1 + (roff || 0));
+        const z = Math.cos(a);
+        const persp = 1 + z * 0.001 * PER * 220; // fake perspective scale
+        return { x: cx + Math.sin(a) * rr * (0.9 + 0.1 * persp), y, z, s: 0.75 + ((z + 1) / 2) * 0.55 };
+      };
+      // --- base-pair rungs: paired dots along each rung (detailed look) ---
+      for (let i = 3; i < N - 3; i += 5) {
+        const p1 = pt(i, 0), p2 = pt(i, Math.PI);
+        const d = (p1.z + p2.z + 2) / 4;
+        // thin line
+        ctx.strokeStyle = `rgba(70,180,225,${0.05 + 0.14 * d})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        // beaded dots along the rung
+        const steps = 5;
+        for (let k = 1; k < steps; k++) {
+          const fx = p1.x + (p2.x - p1.x) * (k / steps), fy = p1.y + (p2.y - p1.y) * (k / steps);
+          const a = 0.10 + 0.30 * d * (0.5 + rnd(i * 11 + k) * 0.5);
+          ctx.fillStyle = `rgba(110,205,240,${a})`;
+          ctx.beginPath(); ctx.arc(fx, fy, 0.9 + d * 0.9, 0, 7); ctx.fill();
+        }
+      }
+      // --- low-poly mesh: faint links between nearby strand points ---
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < N - 8; i += 4) {
+        const s = rnd(i * 5) > 0.5 ? 0 : Math.PI;
+        const p1 = pt(i, s), p2 = pt(i + 5 + Math.floor(rnd(i) * 6), s);
+        const d = (p1.z + p2.z + 2) / 4;
+        if (d < 0.45) continue;
+        ctx.strokeStyle = `rgba(120,215,250,${0.05 + 0.10 * d})`;
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      }
+      // --- 3D triangulated web (wireframe cloud rotating with helix) ---
+      const webP = WEB.map((w) => {
+        const y = 20 + w.h * (H - 40);
+        const a = w.h * coils * Math.PI * 2 + rot + w.ang;
+        const z = Math.cos(a) * Math.min(w.rad, 1.4);
+        return { x: cx + Math.sin(a) * R * w.rad, y, z, seed: w.seed };
+      });
+      for (let i = 0; i < webP.length; i++) {
+        const w1 = webP[i];
+        const d1 = (w1.z + 1.4) / 2.8;
+        // link each web node to its 2 nearest strand points and 1-2 web neighbours -> facets
+        let links = 0;
+        for (let j = 0; j < webP.length && links < 2; j++) {
+          if (j === i) continue;
+          const w2 = webP[j];
+          const dx = w1.x - w2.x, dy = w1.y - w2.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 95) {
+            const a = (0.03 + 0.09 * d1) * (1 - dist / 95);
+            ctx.strokeStyle = `rgba(140,220,250,${a})`;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath(); ctx.moveTo(w1.x, w1.y); ctx.lineTo(w2.x, w2.y); ctx.stroke();
+            links++;
+          }
+        }
+        // tether to nearest strand point
+        const si = Math.round(((w1.y - 20) / (H - 40)) * (N - 1));
+        const sp = pt(Math.max(0, Math.min(N - 1, si)), rnd(w1.seed) > 0.5 ? 0 : Math.PI);
+        const td = Math.hypot(w1.x - sp.x, w1.y - sp.y);
+        if (td < 130) {
+          ctx.strokeStyle = `rgba(110,205,245,${0.04 + 0.10 * d1 * (1 - td / 130)})`;
+          ctx.lineWidth = 0.45;
+          ctx.beginPath(); ctx.moveTo(w1.x, w1.y); ctx.lineTo(sp.x, sp.y); ctx.stroke();
+        }
+        // node dot: mix of deep blue and cyan
+        const deep = rnd(w1.seed * 9) > 0.6;
+        const col = deep ? '60,110,235' : '120,215,250';
+        const nr = (deep ? 1.6 : 1.0) * (0.5 + d1);
+        const ng = ctx.createRadialGradient(w1.x, w1.y, 0, w1.x, w1.y, nr * 3);
+        ng.addColorStop(0, `rgba(${col},${0.25 + d1 * 0.55})`);
+        ng.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = ng;
+        ctx.beginPath(); ctx.arc(w1.x, w1.y, nr * 3, 0, 7); ctx.fill();
+      }
+      // occasional glass facet triangles near the front
+      for (let i = 0; i < webP.length - 2; i += 5) {
+        const a1 = webP[i], a2 = webP[i + 1], a3 = webP[i + 2];
+        const dAvg = (a1.z + a2.z + a3.z + 4.2) / 8.4;
+        if (dAvg < 0.55) continue;
+        if (Math.hypot(a1.x - a2.x, a1.y - a2.y) > 110 || Math.hypot(a1.x - a3.x, a1.y - a3.y) > 110) continue;
+        ctx.fillStyle = `rgba(100,200,245,${0.025 + 0.035 * dAvg})`;
+        ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); ctx.lineTo(a3.x, a3.y); ctx.closePath(); ctx.fill();
+      }
+      // --- strands: dense particle backbone + satellite cloud ---
+      for (let s = 0; s < 2; s++) {
+        const phase = s * Math.PI;
+        // depth-sorted: draw back half then front half
+        for (let pass = 0; pass < 2; pass++) {
+          for (let i = 0; i < N; i++) {
+            const p = pt(i, phase);
+            const depth = (p.z + 1) / 2;
+            if (pass === 0 ? depth > 0.5 : depth <= 0.5) continue;
+            const hue = s === 0 ? '155,228,255' : '75,195,245';
+            // backbone core dot
+            const r = (1.0 + depth * 2.4) * p.s;
+            const alpha = 0.16 + depth * 0.8;
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.4);
+            g.addColorStop(0, `rgba(${hue},${alpha})`);
+            g.addColorStop(0.35, `rgba(${hue},${alpha * 0.4})`);
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r * 3.4, 0, 7); ctx.fill();
+            // hard bright core (crisp hi-res center)
+            ctx.fillStyle = `rgba(225,248,255,${alpha * 0.9})`;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.5, 0, 7); ctx.fill();
+            // satellite particles orbiting the backbone
+            for (let k = 0; k < SAT; k++) {
+              const seed = i * 13 + k * 31 + s * 97;
+              const ox = (rnd(seed) - 0.5) * 26 * (0.4 + depth);
+              const oy = (rnd(seed + 1) - 0.5) * 14;
+              const sa = (0.05 + rnd(seed + 2) * 0.3) * (0.3 + depth * 0.7);
+              ctx.fillStyle = `rgba(${hue},${sa})`;
+              ctx.beginPath(); ctx.arc(p.x + ox, p.y + oy, 0.5 + rnd(seed + 3) * 1.3 * p.s, 0, 7); ctx.fill();
+            }
+            // bloom flare nodes on front strand
+            if (rnd(i * 3 + s * 7) > 0.94 && depth > 0.6) {
+              const fr = 20 + rnd(i) * 14;
+              const pulse = 0.7 + 0.3 * Math.sin(t * 0.002 + i);
+              const fg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, fr);
+              fg.addColorStop(0, `rgba(210,245,255,${0.6 * depth * pulse})`);
+              fg.addColorStop(0.25, `rgba(90,200,250,${0.28 * depth * pulse})`);
+              fg.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = fg;
+              ctx.beginPath(); ctx.arc(p.x, p.y, fr, 0, 7); ctx.fill();
+              // 4-point star sparkle
+              ctx.strokeStyle = `rgba(230,250,255,${0.5 * depth * pulse})`;
+              ctx.lineWidth = 0.7;
+              const sl = 7 * pulse;
+              ctx.beginPath();
+              ctx.moveTo(p.x - sl, p.y); ctx.lineTo(p.x + sl, p.y);
+              ctx.moveTo(p.x, p.y - sl); ctx.lineTo(p.x, p.y + sl);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+      // --- ambient dust: two parallax layers ---
+      for (let i = 0; i < 110; i++) {
+        const layer = i < 60 ? 0.4 : 1;
+        const dx = (rnd(i) * W + t * 0.002 * layer * (rnd(i + 7) - 0.5) * 10 + W) % W;
+        const dy = (rnd(i + 60) * H + t * 0.005 * layer * (4 + rnd(i) * 10)) % H;
+        const tw = 0.5 + 0.5 * Math.sin(t * 0.003 + i * 2.7);
+        const a = (0.04 + rnd(i + 120) * 0.2) * layer * tw;
+        ctx.fillStyle = `rgba(130,215,245,${a})`;
+        ctx.beginPath(); ctx.arc(dx, dy, (0.5 + rnd(i + 30) * 1.2) * layer, 0, 7); ctx.fill();
+      }
+      this.raf = requestAnimationFrame(draw);
+    };
+    this.raf = requestAnimationFrame(draw);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  renderVals() {
+    const helixCanvas = React.createElement('canvas', {
+      ref: (el) => { if (el && el !== this.cv) { this.cv = el; this.initHelix(el); } },
+      style: { width: '430px', height: '500px', display: 'block', margin: '-30px 0' },
+    });
+    return {
+      helixCanvas,
+      showSso: this.props.showSso ?? true,
+      noop: () => {},
+      ghostHover: { background: '#F3F2EF', textDecoration: 'none', color: '#1A1A18' },
+      googleHover: { background: '#F7F6F4', borderColor: '#C9C7C1' },
+      ctaHover: { background: '#6D5BD0' },
+      inputFocus: { borderColor: '#6D5BD0', boxShadow: '0 0 0 3px rgba(109,91,208,0.15)' },
+    };
+  }
+}
+</script>
+</body>
+</html>

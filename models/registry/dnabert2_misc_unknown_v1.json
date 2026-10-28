@@ -1,0 +1,33 @@
+{
+  "model_id": "dnabert2_misc_unknown_v1",
+  "route": "misc_unknown",
+  "base_model": "data:checkpoints/misc_unknown/backbone",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v1",
+  "label_set": [
+    "unknown_needs_online_confirmation",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "training_dataset_version": "2026-08-03-cap5000",
+  "metrics": {
+    "test_accuracy": 0.936,
+    "test_macro_f1": 0.935,
+    "dev_loss_best": 0.2007,
+    "train_size": 12000,
+    "dev_size": 1500,
+    "test_size": 1500
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.35
+  },
+  "artifact_uri": "data:checkpoints/misc_unknown/head.pt",
+  "checksum": "4daea3c876b7f5223b3211baf55b943073535b6fbafdea716c23ad78868337b9",
+  "created_at": "2026-08-03",
+  "promoted_by": null,
+  "status": "experimental",
+  "notes": "General-purpose catch-all classifier for sequences that could not be confidently routed. Output is always human-review eligible. This model also produces the reference embedding used by the Phase 8 novelty scorer. Weights trained 2026-08-03 on dataset 2026-08-03-cap5000; metrics from checkpoints/misc_unknown/eval_report.json.",
+  "trusted_remote_code": true
+}

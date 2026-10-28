@@ -1,0 +1,442 @@
+{
+  "data_root_found": false,
+  "errors": [],
+  "note": "Derived from models/registry and the data root as seen by the API process. 'ready' means the selected entry's backbone and head resolve on disk; it does not mean the worker has loaded them. The worker publishes no state, and falls back to stub inference if torch is not installed in its environment or its data root differs from the API's.",
+  "routes": {
+    "animal_general": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/animal_general_v2/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/animal_general_v2/head.pt"
+        }
+      },
+      "created_at": "2026-10-18",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "confusion_label_order": [
+          "known_species",
+          "likely_taxonomic_group",
+          "possible_novelty"
+        ],
+        "confusion_matrix": [
+          [
+            415,
+            56,
+            29
+          ],
+          [
+            0,
+            25,
+            2
+          ],
+          [
+            22,
+            14,
+            429
+          ]
+        ],
+        "dev_loss_best": 0.4049,
+        "dev_size": 992,
+        "epoch_saved": 2,
+        "epochs": 6,
+        "max_length": 256,
+        "per_class": {
+          "known_species": {
+            "f1": 0.8858,
+            "support": 500
+          },
+          "likely_taxonomic_group": {
+            "f1": 0.4098,
+            "support": 27
+          },
+          "possible_novelty": {
+            "f1": 0.9276,
+            "support": 465
+          }
+        },
+        "same_test_baseline": {
+          "model_id": "dnabert2_animal_v1",
+          "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 10/992 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1.",
+          "per_class": {
+            "known_species": {
+              "f1": 0.681,
+              "support": 500
+            },
+            "likely_taxonomic_group": {
+              "f1": 0.0779,
+              "support": 27
+            },
+            "possible_novelty": {
+              "f1": 0.0128,
+              "support": 465
+            }
+          },
+          "test_accuracy": 0.5,
+          "test_macro_f1": 0.2573,
+          "test_rows_in_v1_training_data_exact": 10
+        },
+        "test_accuracy": 0.876,
+        "test_macro_f1": 0.7411,
+        "test_size": 992,
+        "train_seconds": 484.2,
+        "train_size": 7936
+      },
+      "model_id": "dnabert2_animal_v2",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_animal_v1",
+        "dnabert2_animal_v2"
+      ],
+      "registry_status": "production",
+      "status": "missing_artifacts",
+      "training_dataset_version": "processed-2026-10-18T18:17:55+0530"
+    },
+    "bacteria_pathogen": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/bacteria_pathogen/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/bacteria_pathogen/head.pt"
+        }
+      },
+      "created_at": "2026-08-03",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "dev_loss_best": 0.4267,
+        "dev_size": 4729,
+        "test_accuracy": 0.842,
+        "test_macro_f1": 0.8529,
+        "test_size": 4729,
+        "train_size": 37832
+      },
+      "model_id": "dnabert2_bacteria_v1",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_bacteria_v1",
+        "dnabert2_bacteria_v2"
+      ],
+      "registry_status": "experimental",
+      "status": "missing_artifacts",
+      "training_dataset_version": "2026-08-03-cap5000"
+    },
+    "fish": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/fish_v2/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/fish_v2/head.pt"
+        }
+      },
+      "created_at": "2026-10-18",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "confusion_label_order": [
+          "known_species",
+          "possible_novelty",
+          "low_quality_unusable"
+        ],
+        "confusion_matrix": [
+          [
+            450,
+            49,
+            1
+          ],
+          [
+            10,
+            74,
+            0
+          ],
+          [
+            0,
+            0,
+            8
+          ]
+        ],
+        "dev_loss_best": 0.191,
+        "dev_size": 594,
+        "epoch_saved": 5,
+        "epochs": 6,
+        "max_length": 256,
+        "per_class": {
+          "known_species": {
+            "f1": 0.9375,
+            "support": 500
+          },
+          "low_quality_unusable": {
+            "f1": 0.9412,
+            "support": 8
+          },
+          "possible_novelty": {
+            "f1": 0.715,
+            "support": 84
+          }
+        },
+        "same_test_baseline": {
+          "model_id": "dnabert2_fish_v1",
+          "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 7/592 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1.",
+          "per_class": {
+            "known_species": {
+              "f1": 0.9225,
+              "support": 500
+            },
+            "low_quality_unusable": {
+              "f1": 1.0,
+              "support": 8
+            },
+            "possible_novelty": {
+              "f1": 0.0,
+              "support": 84
+            }
+          },
+          "test_accuracy": 0.8581,
+          "test_macro_f1": 0.6408,
+          "test_rows_in_v1_training_data_exact": 7
+        },
+        "test_accuracy": 0.8986,
+        "test_macro_f1": 0.8646,
+        "test_size": 592,
+        "train_seconds": 321.0,
+        "train_size": 4736
+      },
+      "model_id": "dnabert2_fish_v2",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_fish_v1",
+        "dnabert2_fish_v2",
+        "nt_50m_fish_experimental"
+      ],
+      "registry_status": "production",
+      "status": "missing_artifacts",
+      "training_dataset_version": "processed-2026-10-18T18:17:55+0530"
+    },
+    "human_domestic_contamination": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/human_domestic_contamination_v2/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/human_domestic_contamination_v2/head.pt"
+        }
+      },
+      "created_at": "2026-10-18",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "confusion_label_order": [
+          "possible_contamination",
+          "known_species"
+        ],
+        "confusion_matrix": [
+          [
+            407,
+            9
+          ],
+          [
+            10,
+            488
+          ]
+        ],
+        "dev_loss_best": 0.044,
+        "dev_size": 914,
+        "epoch_saved": 6,
+        "epochs": 6,
+        "max_length": 256,
+        "per_class": {
+          "known_species": {
+            "f1": 0.9809,
+            "support": 498
+          },
+          "possible_contamination": {
+            "f1": 0.9772,
+            "support": 416
+          }
+        },
+        "same_test_baseline": {
+          "model_id": "dnabert2_human_domestic_v1",
+          "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 43/914 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1.",
+          "per_class": {
+            "known_species": {
+              "f1": 0.7054,
+              "support": 498
+            },
+            "possible_contamination": {
+              "f1": 0.0,
+              "support": 416
+            }
+          },
+          "test_accuracy": 0.5449,
+          "test_macro_f1": 0.3527,
+          "test_rows_in_v1_training_data_exact": 43
+        },
+        "test_accuracy": 0.9792,
+        "test_macro_f1": 0.979,
+        "test_size": 914,
+        "train_seconds": 447.3,
+        "train_size": 7307
+      },
+      "model_id": "dnabert2_human_domestic_v2",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_human_domestic_v1",
+        "dnabert2_human_domestic_v2"
+      ],
+      "registry_status": "production",
+      "status": "missing_artifacts",
+      "training_dataset_version": "processed-2026-10-18T18:17:55+0530"
+    },
+    "misc_unknown": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/misc_unknown_v2/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/misc_unknown_v2/head.pt"
+        }
+      },
+      "created_at": "2026-10-18",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "confusion_label_order": [
+          "unknown_needs_online_confirmation",
+          "possible_novelty",
+          "low_quality_unusable"
+        ],
+        "confusion_matrix": [
+          [
+            461,
+            35,
+            1
+          ],
+          [
+            47,
+            449,
+            4
+          ],
+          [
+            0,
+            0,
+            365
+          ]
+        ],
+        "dev_loss_best": 0.1895,
+        "dev_size": 1362,
+        "epoch_saved": 5,
+        "epochs": 6,
+        "max_length": 256,
+        "per_class": {
+          "low_quality_unusable": {
+            "f1": 0.9932,
+            "support": 365
+          },
+          "possible_novelty": {
+            "f1": 0.9126,
+            "support": 500
+          },
+          "unknown_needs_online_confirmation": {
+            "f1": 0.9174,
+            "support": 497
+          }
+        },
+        "same_test_baseline": {
+          "model_id": "dnabert2_misc_unknown_v1",
+          "note": "v1 head scored on this same new test set with the same evaluator (training/evaluate_checkpoint.py, max_length 256). This, not the v1 registry test_accuracy (old leaky v0 test set), is the like-for-like comparison. Caveat: 266/1362 of these test rows occur exactly in v1's own training data (processed_v0 train.csv; near-duplicates not counted), so it is optimistic for v1.",
+          "per_class": {
+            "low_quality_unusable": {
+              "f1": 0.9892,
+              "support": 365
+            },
+            "possible_novelty": {
+              "f1": 0.8381,
+              "support": 500
+            },
+            "unknown_needs_online_confirmation": {
+              "f1": 0.804,
+              "support": 497
+            }
+          },
+          "test_accuracy": 0.8678,
+          "test_macro_f1": 0.8771,
+          "test_rows_in_v1_training_data_exact": 266
+        },
+        "test_accuracy": 0.9361,
+        "test_macro_f1": 0.9411,
+        "test_size": 1362,
+        "train_seconds": 632.0,
+        "train_size": 10888
+      },
+      "model_id": "dnabert2_misc_unknown_v2",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_misc_unknown_v1",
+        "dnabert2_misc_unknown_v2"
+      ],
+      "registry_status": "production",
+      "status": "missing_artifacts",
+      "training_dataset_version": "processed-2026-10-18T18:17:55+0530"
+    },
+    "plant": {
+      "artifacts": {
+        "backbone": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/plant/backbone"
+        },
+        "head": {
+          "present": false,
+          "source": "local",
+          "uri": "data:checkpoints/plant/head.pt"
+        }
+      },
+      "created_at": "2026-08-03",
+      "inference_mode": "stub",
+      "label_set_version": "v1",
+      "metrics": {
+        "dev_loss_best": 0.1598,
+        "dev_size": 606,
+        "test_accuracy": 0.9703,
+        "test_macro_f1": 0.9422,
+        "test_size": 606,
+        "train_size": 4849
+      },
+      "model_id": "dnabert2_plant_v1",
+      "reason": "backbone_not_found",
+      "registered_model_ids": [
+        "dnabert2_plant_v1",
+        "dnabert2_plant_v2"
+      ],
+      "registry_status": "experimental",
+      "status": "missing_artifacts",
+      "training_dataset_version": "2026-08-03-cap5000"
+    }
+  },
+  "status": "ok",
+  "worker_state": "not_observable"
+}

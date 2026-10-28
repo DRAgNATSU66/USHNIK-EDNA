@@ -1,0 +1,18 @@
+# Training environment — separate from the API/worker runtime.
+# Install in a dedicated virtualenv: pip install -r scripts/training/requirements.txt
+#
+# GPU: install torch with CUDA variant matching your system before running.
+# CPU-only: the versions below default to CPU builds via PyPI.
+
+torch>=2.2.0
+transformers==4.44.2
+peft==0.12.0
+datasets==2.21.0
+scikit-learn>=1.5.0
+pandas>=2.2.0
+numpy>=1.26.0
+pymongo[srv]>=4.7.0
+motor>=3.4.0          # async MongoDB driver (used by export script)
+python-dotenv>=1.0.0
+tqdm>=4.66.0
+safetensors>=0.4.3

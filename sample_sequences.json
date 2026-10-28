@@ -1,0 +1,13 @@
+﻿{
+    "file_name":  "sample.fasta",
+    "sequences":  [
+                      {
+                          "sequence_id":  "seq1",
+                          "sequence":  "ATGCGTACGTAGCTAGCTAGCTAGCTAG"
+                      },
+                      {
+                          "sequence_id":  "seq2",
+                          "sequence":  "CGTACGTAGCTAACGATGCGATCGATCGA"
+                      }
+                  ]
+}

@@ -1,0 +1,66 @@
+{
+  "what": "GET /partner/summary (scope=all, no date filter) totals vs independent counts on the local dev Mongo",
+  "measured_at": "2026-10-19T11:07:35.504685+00:00",
+  "database": "synthveda (local dev stack; e2e/demo uploads, not field data)",
+  "command": "cd services/api && python <scratch>/crosscheck.py docs/ml/results/partner_summary_crosscheck_2026-10-19.json",
+  "comparison": {
+    "sequences": {
+      "summary_endpoint": 26,
+      "independent": 26,
+      "equal": true
+    },
+    "novelty_flags": {
+      "summary_endpoint": 10,
+      "independent": 10,
+      "equal": true
+    },
+    "contamination_flags": {
+      "summary_endpoint": 6,
+      "independent": 6,
+      "equal": true
+    },
+    "low_quality": {
+      "summary_endpoint": 0,
+      "independent": 0,
+      "equal": true
+    },
+    "reviews_total": {
+      "summary_endpoint": 16,
+      "independent": 16,
+      "equal": true
+    },
+    "uploads": {
+      "summary_endpoint": 5,
+      "independent": 5,
+      "equal": true
+    },
+    "analyses": {
+      "summary_endpoint": 5,
+      "independent": 5,
+      "equal": true
+    }
+  },
+  "summary_totals": {
+    "uploads": 5,
+    "analyses": 5,
+    "sequences": 26,
+    "sequences_with_taxon": 0,
+    "novelty_flags": 10,
+    "contamination_flags": 6,
+    "low_quality": 0,
+    "analyses_with_novelty_flags": 2,
+    "analyses_with_contamination_flags": 2
+  },
+  "sequences_with_taxon": 0,
+  "environment_by_status": {
+    "complete": 0,
+    "partial": 0,
+    "pending": 0,
+    "failed": 0,
+    "not_requested": 2
+  },
+  "notes": [
+    "None of the 26 sequences in scope carries a predicted taxon, so top_taxa is empty."
+  ],
+  "build_summary_elapsed_s": 0.0117
+}

@@ -1,0 +1,11 @@
+{
+  "route": "fish",
+  "checkpoint": "fish_v3b",
+  "tau": 0.76,
+  "rows": 1002,
+  "runtime_label_equals_hier_decode": 1002,
+  "max_abs_prob_diff": 1e-05,
+  "final_result_class_changed_by_confidence_thresholds": 24,
+  "inference_mode": "model",
+  "seconds": 112.4
+}

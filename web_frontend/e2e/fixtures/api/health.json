@@ -1,0 +1,6 @@
+{
+  "max_upload_size_mb": 100,
+  "novelty_threshold": 0.44,
+  "status": "ok",
+  "version": "0.1.0"
+}

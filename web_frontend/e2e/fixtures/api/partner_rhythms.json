@@ -1,0 +1,283 @@
+{
+  "by_hour": [
+    {
+      "bin": 0,
+      "detections": 0,
+      "label": "00:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 1,
+      "detections": 0,
+      "label": "01:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 2,
+      "detections": 0,
+      "label": "02:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 3,
+      "detections": 0,
+      "label": "03:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 4,
+      "detections": 0,
+      "label": "04:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 5,
+      "detections": 0,
+      "label": "05:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 6,
+      "detections": 7,
+      "label": "06:00",
+      "uploads": 2,
+      "uploads_collected_at": 2,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 7,
+      "detections": 0,
+      "label": "07:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 8,
+      "detections": 0,
+      "label": "08:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 9,
+      "detections": 0,
+      "label": "09:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 10,
+      "detections": 0,
+      "label": "10:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 11,
+      "detections": 0,
+      "label": "11:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 12,
+      "detections": 0,
+      "label": "12:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 13,
+      "detections": 0,
+      "label": "13:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 14,
+      "detections": 0,
+      "label": "14:00",
+      "uploads": 1,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 1
+    },
+    {
+      "bin": 15,
+      "detections": 0,
+      "label": "15:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 16,
+      "detections": 0,
+      "label": "16:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 17,
+      "detections": 0,
+      "label": "17:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 18,
+      "detections": 0,
+      "label": "18:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 19,
+      "detections": 0,
+      "label": "19:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 20,
+      "detections": 0,
+      "label": "20:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 21,
+      "detections": 0,
+      "label": "21:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 22,
+      "detections": 0,
+      "label": "22:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 23,
+      "detections": 0,
+      "label": "23:00",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    }
+  ],
+  "by_weekday": [
+    {
+      "bin": 0,
+      "detections": 0,
+      "label": "Mon",
+      "uploads": 1,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 1
+    },
+    {
+      "bin": 1,
+      "detections": 0,
+      "label": "Tue",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 2,
+      "detections": 0,
+      "label": "Wed",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 3,
+      "detections": 5,
+      "label": "Thu",
+      "uploads": 1,
+      "uploads_collected_at": 1,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 4,
+      "detections": 2,
+      "label": "Fri",
+      "uploads": 1,
+      "uploads_collected_at": 1,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 5,
+      "detections": 0,
+      "label": "Sat",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    },
+    {
+      "bin": 6,
+      "detections": 0,
+      "label": "Sun",
+      "uploads": 0,
+      "uploads_collected_at": 0,
+      "uploads_upload_time": 0
+    }
+  ],
+  "definitions": {
+    "detections": "Per sequence: results[].decision.predicted_taxon with decision.taxon_rank when the orchestrator wrote a decision, otherwise the legacy results[].predicted_taxon (rank not recorded). Sequences with contamination_flagged = true are excluded. A taxon is present in a sample when at least one remaining sequence is assigned to it. Detections are those sequences in the sample's newest analysis, counted at the sample's timestamp.",
+    "interpretation": "Counts of when samples were taken and what they contained. A daily or weekly pattern here describes the sampling schedule unless sampling was evenly spread; it is not by itself evidence of an organism's activity cycle.",
+    "sample": "One sample = one upload in scope (owner, upload created_at within [date_from, date_to], UTC, both days inclusive). Its contents are read from its newest stored analysis; older re-runs of the same upload are not counted. An upload with no stored analysis yet is still a sample, with no contents: rhythms places it by its timestamp with 0 detections (totals.uploads counts every sample, totals.samples_analysed those with an analysis), and co-occurrence, which can only pair taxa from analysed samples, reports uploads_in_scope for every sample and samples for the analysed ones.",
+    "timestamp": "Each upload is placed by its collected_at when recorded, otherwise by its upload created_at; the two are counted separately (uploads_collected_at / uploads_upload_time).",
+    "timezone": "Hours and weekdays are in UTC, not local or solar time at the sampling site. A collection date entered without a time is stored as local midnight of the uploader's browser, converted to UTC."
+  },
+  "generated_at": "2026-10-16T09:00:00",
+  "notes": [
+    "1 of 3 uploads have no collected_at and are placed by when they were uploaded, which reflects the uploader's working hours rather than when the sample was taken.",
+    "1 of 3 samples have no stored analysis yet; they are placed by their timestamp and add no detections.",
+    "Only 3 uploads are in scope; a time-of-day pattern from this few samples reflects when they happened to be taken, not an activity rhythm."
+  ],
+  "scope": {
+    "date_from": null,
+    "date_to": null,
+    "mode": "mine",
+    "user_id": "usr_e2e_researcher"
+  },
+  "timezone": "UTC",
+  "totals": {
+    "contamination_sequences_excluded": 2,
+    "detections": 7,
+    "samples_analysed": 2,
+    "uploads": 3,
+    "uploads_collected_at": 2,
+    "uploads_upload_time": 1,
+    "uploads_without_timestamp": 0
+  }
+}

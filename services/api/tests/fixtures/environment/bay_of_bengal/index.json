@@ -1,0 +1,334 @@
+{
+ "recorded_at": "2026-10-18T13:04:47+00:00",
+ "query": {
+  "latitude": 15.6,
+  "longitude": 82.3,
+  "collected_at": "2026-10-01T06:00:00+00:00"
+ },
+ "responses": [
+  {
+   "url": "https://archive-api.open-meteo.com/v1/era5?latitude=15.6&longitude=82.3&start_date=2026-09-25&end_date=2026-10-01&hourly=wind_speed_10m%2Cwind_direction_10m&wind_speed_unit=ms&timezone=UTC",
+   "status": 200,
+   "content_type": "application/json; charset=utf-8",
+   "file": "r000.bin"
+  },
+  {
+   "url": "https://marine-api.open-meteo.com/v1/marine?latitude=15.6&longitude=82.3&start_date=2026-09-25&end_date=2026-10-01&hourly=ocean_current_velocity%2Cocean_current_direction&timezone=UTC",
+   "status": 200,
+   "content_type": "application/json; charset=utf-8",
+   "file": "r001.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/.zmetadata",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r002.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/elevation/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r003.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/latitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r004.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/longitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r005.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/o2/11.16.11.16",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r006.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/o2/11.24.11.16",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r007.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r008.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/1",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r009.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/2",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r010.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/.zmetadata",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r011.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/elevation/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r012.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/latitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r013.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/longitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r014.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/ph/11.16.11.16",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r015.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/ph/11.24.11.16",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r016.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r017.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/1",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r018.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-006/arco/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/geoChunked.zarr/time/2",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r019.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/.zmetadata",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r020.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/elevation/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r021.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/latitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r022.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/longitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r023.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r024.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/1",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r025.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/2",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r026.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/uo/11.24.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r027.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-007/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/vo/11.24.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r028.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/.zmetadata",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r029.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/elevation/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r030.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/latitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r031.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/longitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r032.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/so/11.16.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r033.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/so/11.24.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r034.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r035.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/1",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r036.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-010/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/2",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r037.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/.zmetadata",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r038.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/elevation/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r039.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/latitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r040.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/longitude/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r041.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/thetao/11.16.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r042.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/thetao/11.18.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r043.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/thetao/11.24.35.49",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r044.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/0",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r045.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/1",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r046.bin"
+  },
+  {
+   "url": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-012/arco/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/geoChunked.zarr/time/2",
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "file": "r047.bin"
+  },
+  {
+   "url": "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/dataset.stac.json",
+   "status": 200,
+   "content_type": "application/json",
+   "file": "r048.bin"
+  },
+  {
+   "url": "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311/dataset.stac.json",
+   "status": 200,
+   "content_type": "application/json",
+   "file": "r049.bin"
+  },
+  {
+   "url": "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m_202406/dataset.stac.json",
+   "status": 200,
+   "content_type": "application/json",
+   "file": "r050.bin"
+  },
+  {
+   "url": "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/dataset.stac.json",
+   "status": 200,
+   "content_type": "application/json",
+   "file": "r051.bin"
+  },
+  {
+   "url": "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406/dataset.stac.json",
+   "status": 200,
+   "content_type": "application/json",
+   "file": "r052.bin"
+  },
+  {
+   "url": "https://www.ncei.noaa.gov/erddap/griddap/ncdc_oisst_v2_avhrr_by_time_zlev_lat_lon.json?sst%5B%282026-10-01T12%3A00%3A00Z%29%5D%5B%280.0%29%5D%5B%2815.6%29%5D%5B%2882.3%29%5D=",
+   "status": 200,
+   "content_type": "application/json;charset=UTF-8",
+   "file": "r053.bin"
+  }
+ ]
+}

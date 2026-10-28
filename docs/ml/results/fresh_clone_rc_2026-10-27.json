@@ -1,0 +1,152 @@
+{
+ "what": "t-1031-1 fresh clone (78884f2) -> cp .env.example .env -> make up (compose project synthveda-rc, fresh volumes, CPU worker image) -> upload 12 held-out test rows (2 per route, seed 1031) -> job",
+ "analysis_id": "ana_d78592b9642d4dff",
+ "orchestrator_log": "orchestrator-1.3.0: 12 sequences, 4 planned on >1 route, 0 final route != router route, head modes {model: 12}, 1 possible_novelty, 1 contamination flags (1395.65 ms/sequence)",
+ "job_wall_s": 20,
+ "rows": [
+  {
+   "final_route": "fish",
+   "result_class": "known_species",
+   "predicted_taxon": "Indostomus paradoxus",
+   "taxon_rank": "species",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/fish",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_fish_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "fish",
+   "result_class": "known_species",
+   "predicted_taxon": "Mycteroperca interstitialis",
+   "taxon_rank": "species",
+   "percent_identity": 98.32,
+   "reference_db": "synthveda-reference/fish",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_fish_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "plant",
+   "result_class": "known_species",
+   "predicted_taxon": "Pinaceae",
+   "taxon_rank": "family",
+   "percent_identity": 90.4,
+   "reference_db": "synthveda-reference/plant",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_plant_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "plant",
+   "result_class": "known_species",
+   "predicted_taxon": "Terminalia",
+   "taxon_rank": "genus",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/plant",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_plant_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "animal_general",
+   "result_class": "known_species",
+   "predicted_taxon": "Daphnia magna",
+   "taxon_rank": "species",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/animal_general",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_animal_general_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "animal_general",
+   "result_class": "known_species",
+   "predicted_taxon": "Hestina assimilis",
+   "taxon_rank": "species",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/animal_general",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_animal_general_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "bacteria_pathogen",
+   "result_class": "known_species",
+   "predicted_taxon": "Dickeya",
+   "taxon_rank": "genus",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/bacteria_pathogen",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_bacteria_pathogen_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "bacteria_pathogen",
+   "result_class": "known_species",
+   "predicted_taxon": "Actinomyces",
+   "taxon_rank": "genus",
+   "percent_identity": 100.0,
+   "reference_db": "synthveda-reference/bacteria_pathogen",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_bacteria_pathogen_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "misc_unknown",
+   "result_class": "possible_novelty",
+   "predicted_taxon": null,
+   "taxon_rank": null,
+   "percent_identity": null,
+   "reference_db": "synthveda-reference/misc_unknown",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_human_domestic_contamination_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "human_domestic_contamination",
+   "result_class": "possible_contamination",
+   "predicted_taxon": null,
+   "taxon_rank": null,
+   "percent_identity": null,
+   "reference_db": "synthveda-reference/human_domestic_contamination",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_human_domestic_contamination_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "misc_unknown",
+   "result_class": "unknown_needs_online_confirmation",
+   "predicted_taxon": "Polycephalomycetaceae",
+   "taxon_rank": "family",
+   "percent_identity": 90.18,
+   "reference_db": "synthveda-reference/misc_unknown",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_misc_unknown_0",
+   "inference_mode": "model",
+   "stub_reason": null
+  },
+  {
+   "final_route": "misc_unknown",
+   "result_class": "unknown_needs_online_confirmation",
+   "predicted_taxon": null,
+   "taxon_rank": null,
+   "percent_identity": null,
+   "reference_db": "synthveda-reference/misc_unknown",
+   "reference_db_version": "v2",
+   "sequence_id": "rc_misc_unknown_1",
+   "inference_mode": "model",
+   "stub_reason": null
+  }
+ ]
+}

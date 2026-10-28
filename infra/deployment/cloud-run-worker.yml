@@ -1,0 +1,60 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: synthveda-worker
+  annotations:
+    # Worker is internal-only — not reachable from the public internet.
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        # Keep min 2 instances always running to ensure rapid job pickup.
+        # Workers poll Redis; cold starts cause queue backup during burst traffic.
+        autoscaling.knative.dev/minScale: "2"
+        autoscaling.knative.dev/maxScale: "20"
+
+        # CPU always-on — ML inference is CPU-intensive; throttling causes timeouts.
+        run.googleapis.com/cpu-throttling: "false"
+
+        # VPC connector for private MongoDB Atlas / Upstash Redis access.
+        run.googleapis.com/vpc-access-connector: projects/YOUR_PROJECT_ID/locations/YOUR_REGION/connectors/synthveda-vpc-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+
+        # Increase timeout to match maximum job processing time.
+        # A large eDNA batch can take up to 10 minutes.
+        run.googleapis.com/timeout: "900"
+
+    spec:
+      serviceAccountName: synthveda-production-worker@YOUR_PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 1
+      timeoutSeconds: 900
+
+      containers:
+        - image: us-docker.pkg.dev/YOUR_PROJECT_ID/synthveda/worker:IMAGE_TAG
+
+          resources:
+            limits:
+              # Workers run ML inference locally — generous memory to avoid OOM.
+              cpu: "4"
+              memory: 4Gi
+
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-mongodb-uri
+                  key: latest
+            - name: MONGODB_DB
+              value: synthveda
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: synthveda-redis-url
+                  key: latest
+            - name: WORKER_CONCURRENCY
+              value: "4"
+
+  traffic:
+    - percent: 100
+      latestRevision: true

@@ -1,0 +1,2545 @@
+{
+ "task": "t-1023-3",
+ "date": "2026-10-20",
+ "script": "services/worker/training/eval_taxon.py",
+ "splits": {
+  "test": {
+   "orchestrator_version": "orchestrator-1.2.0",
+   "reference_db_version": "v2",
+   "rows": {
+    "input": 8675,
+    "evaluated": 8668,
+    "dropped_by_parser": 7,
+    "seed": 1023,
+    "chunk": 1000
+   },
+   "timing": {
+    "orchestrator_seconds": 3062.3,
+    "orchestrator_ms_per_sequence": 353.3,
+    "reference_search_seconds_by_route": {
+     "fish": 38.5,
+     "plant": 34.5,
+     "animal_general": 79.4,
+     "bacteria_pathogen": 2579.4,
+     "human_domestic_contamination": 91.6,
+     "misc_unknown": 40.4
+    },
+    "peak_gpu_allocated_mb": 2289.7,
+    "peak_rss_mb_python": 1607.6
+   },
+   "truth": {
+    "meta": {
+     "split": "test",
+     "rows": 8675,
+     "traced_reference_view": 4939,
+     "traced_any_copy": 8675,
+     "seconds_reference_view": 186.9,
+     "seconds_total": 370.3
+    },
+    "reference_view_vs_all_copies_named_lca": {
+     "agree": 4857,
+     "differ": 50
+    }
+   },
+   "leakage": {
+    "reference_version": "v2",
+    "reference_sequences": {
+     "fish": 375184,
+     "plant": 95867,
+     "animal_general": 731396,
+     "bacteria_pathogen": 163454,
+     "human_domestic_contamination": 76756,
+     "misc_unknown": 239062
+    },
+    "rows": 8668,
+    "rows_with_accessions": 8668,
+    "hit_reference_records": 26184,
+    "hit_reference_records_in_ref_fasta": 26184,
+    "hit_reference_records_traced_to_source_accessions": 26184,
+    "exact_row_in_ref": 0,
+    "exact_source_record_in_ref": 0,
+    "same_accession_sequence_in_ref_any_identity": 1936,
+    "same_record_hit_ge99_any_planned_route": 325,
+    "same_record_hit_ge99_final_route": 325,
+    "grch38_window_in_genome_index": 119,
+    "leaky": 444,
+    "seconds": 175.4
+   },
+   "overall": {
+    "n": 8668,
+    "labels": {
+     "known_species": 3485,
+     "likely_taxonomic_group": 590,
+     "possible_novelty": 3119,
+     "possible_contamination": 609,
+     "unknown_needs_online_confirmation": 497,
+     "low_quality_unusable": 368
+    },
+    "human_genome_hit": 467,
+    "final_route_correct": 7679,
+    "truth_basis": {
+     "reference_named": 4936,
+     "unresolved_name_only": 3085,
+     "named_copy_outside_reference_plan": 160,
+     "traced_no_lineage": 487
+    },
+    "assigned_share_by_rank_pct": {
+     "species": 25.6,
+     "genus": 21.6,
+     "family": 13.9,
+     "order": 3.5,
+     "class": 3.6,
+     "phylum": 1.8,
+     "kingdom": 0.2,
+     "superkingdom": 4.8,
+     "none": 25.0
+    },
+    "assigned_by_rank": {
+     "species": 2216,
+     "genus": 1875,
+     "none": 2168,
+     "family": 1204,
+     "order": 300,
+     "class": 315,
+     "superkingdom": 414,
+     "kingdom": 18,
+     "phylum": 158
+    },
+    "rank_metrics_all_traced": {
+     "species": {
+      "gradable": 4442,
+      "called": 1694,
+      "correct": 1509,
+      "wrong": 185,
+      "precision_pct": 89.1,
+      "recall_pct": 34.0,
+      "called_without_truth_at_rank": 510
+     },
+     "genus": {
+      "gradable": 5284,
+      "called": 3241,
+      "correct": 3087,
+      "wrong": 154,
+      "precision_pct": 95.2,
+      "recall_pct": 58.4,
+      "called_without_truth_at_rank": 724
+     },
+     "family": {
+      "gradable": 5097,
+      "called": 4076,
+      "correct": 3963,
+      "wrong": 113,
+      "precision_pct": 97.2,
+      "recall_pct": 77.8,
+      "called_without_truth_at_rank": 1030
+     }
+    },
+    "rank_metrics_known_class": {
+     "species": {
+      "gradable": 3458,
+      "called": 1519,
+      "correct": 1391,
+      "wrong": 128,
+      "precision_pct": 91.6,
+      "recall_pct": 40.2,
+      "called_without_truth_at_rank": 50
+     },
+     "genus": {
+      "gradable": 3712,
+      "called": 2593,
+      "correct": 2496,
+      "wrong": 97,
+      "precision_pct": 96.3,
+      "recall_pct": 67.2,
+      "called_without_truth_at_rank": 33
+     },
+     "family": {
+      "gradable": 3651,
+      "called": 3124,
+      "correct": 3072,
+      "wrong": 52,
+      "precision_pct": 98.3,
+      "recall_pct": 84.1,
+      "called_without_truth_at_rank": 20
+     }
+    },
+    "rank_metrics_possible_novelty": {
+     "species": {
+      "gradable": 0,
+      "called": 0,
+      "correct": 0,
+      "wrong": 0,
+      "precision_pct": null,
+      "recall_pct": null,
+      "called_without_truth_at_rank": 393
+     },
+     "genus": {
+      "gradable": 550,
+      "called": 164,
+      "correct": 141,
+      "wrong": 23,
+      "precision_pct": 86.0,
+      "recall_pct": 25.6,
+      "called_without_truth_at_rank": 681
+     },
+     "family": {
+      "gradable": 738,
+      "called": 423,
+      "correct": 381,
+      "wrong": 42,
+      "precision_pct": 90.1,
+      "recall_pct": 51.6,
+      "called_without_truth_at_rank": 998
+     }
+    },
+    "rank_metrics_reference_named_truth_only": {
+     "species": {
+      "gradable": 3838,
+      "called": 1691,
+      "correct": 1509,
+      "wrong": 182,
+      "precision_pct": 89.2,
+      "recall_pct": 39.3,
+      "called_without_truth_at_rank": 117
+     },
+     "genus": {
+      "gradable": 4592,
+      "called": 3077,
+      "correct": 2946,
+      "wrong": 131,
+      "precision_pct": 95.7,
+      "recall_pct": 64.2,
+      "called_without_truth_at_rank": 43
+     },
+     "family": {
+      "gradable": 4337,
+      "called": 3653,
+      "correct": 3582,
+      "wrong": 71,
+      "precision_pct": 98.1,
+      "recall_pct": 82.6,
+      "called_without_truth_at_rank": 32
+     }
+    },
+    "genus_cap": {
+     "rows_capped": 106,
+     "rows_capped_traced": 106,
+     "capped_with_species_truth": 92,
+     "dropped_species_correct": 46,
+     "species_with_cap": {
+      "gradable": 4442,
+      "called": 1694,
+      "correct": 1509,
+      "wrong": 185,
+      "precision_pct": 89.1,
+      "recall_pct": 34.0,
+      "called_without_truth_at_rank": 510
+     },
+     "species_without_cap": {
+      "gradable": 4442,
+      "called": 1786,
+      "correct": 1555,
+      "wrong": 231,
+      "precision_pct": 87.1,
+      "recall_pct": 35.0,
+      "called_without_truth_at_rank": 524
+     },
+     "dropped_species_precision_pct": 50.0
+    },
+    "errors_by_rank": {
+     "species": {
+      "no_call_right_route": 2118,
+      "wrong_call_right_route": 159,
+      "no_call_wrong_route": 630,
+      "no_call_low_quality_gate": 366,
+      "wrong_call_wrong_route": 26,
+      "wrong_route_true_route_planned": 16,
+      "wrong_route_true_route_reference_correct": 2
+     },
+     "genus": {
+      "no_call_right_route": 1822,
+      "wrong_call_right_route": 135,
+      "no_call_wrong_route": 221,
+      "wrong_call_wrong_route": 19,
+      "wrong_route_true_route_planned": 16,
+      "wrong_route_true_route_reference_correct": 1,
+      "no_call_low_quality_gate": 9
+     },
+     "family": {
+      "wrong_call_right_route": 105,
+      "no_call_right_route": 927,
+      "no_call_wrong_route": 94,
+      "no_call_low_quality_gate": 9,
+      "wrong_call_wrong_route": 8,
+      "wrong_route_true_route_planned": 8,
+      "wrong_route_true_route_reference_correct": 0
+     }
+    },
+    "leaky_rows": 444,
+    "rank_metrics_all_traced_leaky_excluded": {
+     "species": {
+      "gradable": 4082,
+      "called": 1585,
+      "correct": 1407,
+      "wrong": 178,
+      "precision_pct": 88.8,
+      "recall_pct": 34.5,
+      "called_without_truth_at_rank": 509
+     },
+     "genus": {
+      "gradable": 4848,
+      "called": 3022,
+      "correct": 2870,
+      "wrong": 152,
+      "precision_pct": 95.0,
+      "recall_pct": 59.2,
+      "called_without_truth_at_rank": 721
+     },
+     "family": {
+      "gradable": 4782,
+      "called": 3791,
+      "correct": 3679,
+      "wrong": 112,
+      "precision_pct": 97.0,
+      "recall_pct": 76.9,
+      "called_without_truth_at_rank": 1028
+     }
+    },
+    "rank_metrics_known_class_leaky_excluded": {
+     "species": {
+      "gradable": 3115,
+      "called": 1414,
+      "correct": 1289,
+      "wrong": 125,
+      "precision_pct": 91.2,
+      "recall_pct": 41.4,
+      "called_without_truth_at_rank": 49
+     },
+     "genus": {
+      "gradable": 3295,
+      "called": 2375,
+      "correct": 2280,
+      "wrong": 95,
+      "precision_pct": 96.0,
+      "recall_pct": 69.2,
+      "called_without_truth_at_rank": 31
+     },
+     "family": {
+      "gradable": 3340,
+      "called": 2841,
+      "correct": 2790,
+      "wrong": 51,
+      "precision_pct": 98.2,
+      "recall_pct": 83.5,
+      "called_without_truth_at_rank": 18
+     }
+    }
+   },
+   "per_route": {
+    "fish": {
+     "n": 591,
+     "labels": {
+      "known_species": 500,
+      "possible_novelty": 84,
+      "low_quality_unusable": 7
+     },
+     "human_genome_hit": 0,
+     "final_route_correct": 581,
+     "truth_basis": {
+      "reference_named": 507,
+      "unresolved_name_only": 84
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 65.3,
+      "genus": 18.6,
+      "family": 10.0,
+      "order": 0.5,
+      "class": 1.4,
+      "none": 4.2
+     },
+     "assigned_by_rank": {
+      "species": 386,
+      "family": 59,
+      "genus": 110,
+      "none": 25,
+      "order": 3,
+      "class": 8
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 498,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 64.5,
+       "called_without_truth_at_rank": 50
+      },
+      "genus": {
+       "gradable": 516,
+       "called": 453,
+       "correct": 449,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 87.0,
+       "called_without_truth_at_rank": 43
+      },
+      "family": {
+       "gradable": 578,
+       "called": 546,
+       "correct": 545,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 94.3,
+       "called_without_truth_at_rank": 9
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 491,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 65.4,
+       "called_without_truth_at_rank": 1
+      },
+      "genus": {
+       "gradable": 498,
+       "called": 442,
+       "correct": 438,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 88.0,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 499,
+       "called": 475,
+       "correct": 474,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 95.0,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 49
+      },
+      "genus": {
+       "gradable": 11,
+       "called": 11,
+       "correct": 11,
+       "wrong": 0,
+       "precision_pct": 100.0,
+       "recall_pct": 100.0,
+       "called_without_truth_at_rank": 43
+      },
+      "family": {
+       "gradable": 72,
+       "called": 71,
+       "correct": 71,
+       "wrong": 0,
+       "precision_pct": 100.0,
+       "recall_pct": 98.6,
+       "called_without_truth_at_rank": 9
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 498,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 64.5,
+       "called_without_truth_at_rank": 1
+      },
+      "genus": {
+       "gradable": 505,
+       "called": 442,
+       "correct": 438,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 86.7,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 506,
+       "called": 475,
+       "correct": 474,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 93.7,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 0,
+      "rows_capped_traced": 0,
+      "capped_with_species_truth": 0,
+      "dropped_species_correct": 0,
+      "species_with_cap": {
+       "gradable": 498,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 64.5,
+       "called_without_truth_at_rank": 50
+      },
+      "species_without_cap": {
+       "gradable": 498,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 64.5,
+       "called_without_truth_at_rank": 50
+      },
+      "dropped_species_precision_pct": null
+     },
+     "errors_by_rank": {
+      "species": {
+       "no_call_right_route": 154,
+       "no_call_wrong_route": 8,
+       "no_call_low_quality_gate": 7,
+       "wrong_call_right_route": 15
+      },
+      "genus": {
+       "no_call_right_route": 55,
+       "no_call_wrong_route": 8,
+       "no_call_low_quality_gate": 7,
+       "wrong_call_right_route": 4
+      },
+      "family": {
+       "no_call_right_route": 24,
+       "no_call_wrong_route": 8,
+       "no_call_low_quality_gate": 7,
+       "wrong_call_right_route": 1
+      }
+     },
+     "leaky_rows": 0,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 498,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 64.5,
+       "called_without_truth_at_rank": 50
+      },
+      "genus": {
+       "gradable": 516,
+       "called": 453,
+       "correct": 449,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 87.0,
+       "called_without_truth_at_rank": 43
+      },
+      "family": {
+       "gradable": 578,
+       "called": 546,
+       "correct": 545,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 94.3,
+       "called_without_truth_at_rank": 9
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 491,
+       "called": 336,
+       "correct": 321,
+       "wrong": 15,
+       "precision_pct": 95.5,
+       "recall_pct": 65.4,
+       "called_without_truth_at_rank": 1
+      },
+      "genus": {
+       "gradable": 498,
+       "called": 442,
+       "correct": 438,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 88.0,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 499,
+       "called": 475,
+       "correct": 474,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 95.0,
+       "called_without_truth_at_rank": 0
+      }
+     }
+    },
+    "plant": {
+     "n": 595,
+     "labels": {
+      "known_species": 485,
+      "possible_contamination": 39,
+      "possible_novelty": 70,
+      "low_quality_unusable": 1
+     },
+     "human_genome_hit": 15,
+     "final_route_correct": 538,
+     "truth_basis": {
+      "reference_named": 513,
+      "unresolved_name_only": 70,
+      "named_copy_outside_reference_plan": 12
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 3.4,
+      "genus": 45.9,
+      "family": 22.7,
+      "order": 5.9,
+      "class": 9.1,
+      "phylum": 0.8,
+      "kingdom": 0.5,
+      "none": 11.8
+     },
+     "assigned_by_rank": {
+      "genus": 273,
+      "class": 54,
+      "family": 135,
+      "none": 70,
+      "phylum": 5,
+      "order": 35,
+      "species": 20,
+      "kingdom": 3
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 459,
+       "called": 20,
+       "correct": 18,
+       "wrong": 2,
+       "precision_pct": 90.0,
+       "recall_pct": 3.9,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 508,
+       "called": 254,
+       "correct": 237,
+       "wrong": 17,
+       "precision_pct": 93.3,
+       "recall_pct": 46.7,
+       "called_without_truth_at_rank": 39
+      },
+      "family": {
+       "gradable": 517,
+       "called": 390,
+       "correct": 383,
+       "wrong": 7,
+       "precision_pct": 98.2,
+       "recall_pct": 74.1,
+       "called_without_truth_at_rank": 28
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 421,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": 0.0,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 467,
+       "called": 231,
+       "correct": 214,
+       "wrong": 17,
+       "precision_pct": 92.6,
+       "recall_pct": 45.8,
+       "called_without_truth_at_rank": 3
+      },
+      "family": {
+       "gradable": 480,
+       "called": 359,
+       "correct": 352,
+       "wrong": 7,
+       "precision_pct": 98.1,
+       "recall_pct": 73.3,
+       "called_without_truth_at_rank": 1
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 5,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": 0.0,
+       "called_without_truth_at_rank": 36
+      },
+      "family": {
+       "gradable": 18,
+       "called": 13,
+       "correct": 13,
+       "wrong": 0,
+       "precision_pct": 100.0,
+       "recall_pct": 72.2,
+       "called_without_truth_at_rank": 27
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 449,
+       "called": 20,
+       "correct": 18,
+       "wrong": 2,
+       "precision_pct": 90.0,
+       "recall_pct": 4.0,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 492,
+       "called": 254,
+       "correct": 237,
+       "wrong": 17,
+       "precision_pct": 93.3,
+       "recall_pct": 48.2,
+       "called_without_truth_at_rank": 3
+      },
+      "family": {
+       "gradable": 491,
+       "called": 377,
+       "correct": 370,
+       "wrong": 7,
+       "precision_pct": 98.1,
+       "recall_pct": 75.4,
+       "called_without_truth_at_rank": 1
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 97,
+      "rows_capped_traced": 97,
+      "capped_with_species_truth": 83,
+      "dropped_species_correct": 42,
+      "species_with_cap": {
+       "gradable": 459,
+       "called": 20,
+       "correct": 18,
+       "wrong": 2,
+       "precision_pct": 90.0,
+       "recall_pct": 3.9,
+       "called_without_truth_at_rank": 0
+      },
+      "species_without_cap": {
+       "gradable": 459,
+       "called": 103,
+       "correct": 60,
+       "wrong": 43,
+       "precision_pct": 58.3,
+       "recall_pct": 13.1,
+       "called_without_truth_at_rank": 14
+      },
+      "dropped_species_precision_pct": 50.6
+     },
+     "errors_by_rank": {
+      "species": {
+       "no_call_right_route": 407,
+       "no_call_wrong_route": 32,
+       "wrong_call_wrong_route": 2,
+       "no_call_low_quality_gate": 1
+      },
+      "genus": {
+       "no_call_right_route": 225,
+       "wrong_call_right_route": 17,
+       "no_call_wrong_route": 29,
+       "no_call_low_quality_gate": 1
+      },
+      "family": {
+       "no_call_right_route": 112,
+       "wrong_call_right_route": 7,
+       "no_call_wrong_route": 15,
+       "no_call_low_quality_gate": 1
+      }
+     },
+     "leaky_rows": 8,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 451,
+       "called": 20,
+       "correct": 18,
+       "wrong": 2,
+       "precision_pct": 90.0,
+       "recall_pct": 4.0,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 500,
+       "called": 251,
+       "correct": 234,
+       "wrong": 17,
+       "precision_pct": 93.2,
+       "recall_pct": 46.8,
+       "called_without_truth_at_rank": 39
+      },
+      "family": {
+       "gradable": 513,
+       "called": 387,
+       "correct": 380,
+       "wrong": 7,
+       "precision_pct": 98.2,
+       "recall_pct": 74.1,
+       "called_without_truth_at_rank": 28
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 417,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": 0.0,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 463,
+       "called": 228,
+       "correct": 211,
+       "wrong": 17,
+       "precision_pct": 92.5,
+       "recall_pct": 45.6,
+       "called_without_truth_at_rank": 3
+      },
+      "family": {
+       "gradable": 476,
+       "called": 356,
+       "correct": 349,
+       "wrong": 7,
+       "precision_pct": 98.0,
+       "recall_pct": 73.3,
+       "called_without_truth_at_rank": 1
+      }
+     }
+    },
+    "animal_general": {
+     "n": 992,
+     "labels": {
+      "known_species": 500,
+      "possible_novelty": 465,
+      "likely_taxonomic_group": 27
+     },
+     "human_genome_hit": 0,
+     "final_route_correct": 965,
+     "truth_basis": {
+      "reference_named": 527,
+      "unresolved_name_only": 465
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 40.1,
+      "genus": 18.4,
+      "family": 18.6,
+      "order": 3.4,
+      "class": 0.7,
+      "kingdom": 0.1,
+      "none": 18.5
+     },
+     "assigned_by_rank": {
+      "species": 398,
+      "genus": 183,
+      "class": 7,
+      "none": 184,
+      "family": 185,
+      "order": 34,
+      "kingdom": 1
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 134
+      },
+      "genus": {
+       "gradable": 627,
+       "called": 425,
+       "correct": 412,
+       "wrong": 13,
+       "precision_pct": 96.9,
+       "recall_pct": 65.7,
+       "called_without_truth_at_rank": 156
+      },
+      "family": {
+       "gradable": 718,
+       "called": 577,
+       "correct": 567,
+       "wrong": 10,
+       "precision_pct": 98.3,
+       "recall_pct": 79.0,
+       "called_without_truth_at_rank": 188
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 2
+      },
+      "genus": {
+       "gradable": 497,
+       "called": 377,
+       "correct": 366,
+       "wrong": 11,
+       "precision_pct": 97.1,
+       "recall_pct": 73.6,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 498,
+       "called": 440,
+       "correct": 436,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 87.6,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 130
+      },
+      "genus": {
+       "gradable": 104,
+       "called": 41,
+       "correct": 39,
+       "wrong": 2,
+       "precision_pct": 95.1,
+       "recall_pct": 37.5,
+       "called_without_truth_at_rank": 156
+      },
+      "family": {
+       "gradable": 193,
+       "called": 127,
+       "correct": 121,
+       "wrong": 6,
+       "precision_pct": 95.3,
+       "recall_pct": 62.7,
+       "called_without_truth_at_rank": 188
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 4
+      },
+      "genus": {
+       "gradable": 523,
+       "called": 384,
+       "correct": 373,
+       "wrong": 11,
+       "precision_pct": 97.1,
+       "recall_pct": 71.3,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 525,
+       "called": 450,
+       "correct": 446,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 85.0,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 0,
+      "rows_capped_traced": 0,
+      "capped_with_species_truth": 0,
+      "dropped_species_correct": 0,
+      "species_with_cap": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 134
+      },
+      "species_without_cap": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 134
+      },
+      "dropped_species_precision_pct": null
+     },
+     "errors_by_rank": {
+      "species": {
+       "no_call_right_route": 226,
+       "wrong_call_right_route": 23,
+       "no_call_wrong_route": 4
+      },
+      "genus": {
+       "wrong_call_right_route": 13,
+       "no_call_right_route": 189,
+       "no_call_wrong_route": 13
+      },
+      "family": {
+       "no_call_right_route": 128,
+       "no_call_wrong_route": 13,
+       "wrong_call_right_route": 10
+      }
+     },
+     "leaky_rows": 0,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 134
+      },
+      "genus": {
+       "gradable": 627,
+       "called": 425,
+       "correct": 412,
+       "wrong": 13,
+       "precision_pct": 96.9,
+       "recall_pct": 65.7,
+       "called_without_truth_at_rank": 156
+      },
+      "family": {
+       "gradable": 718,
+       "called": 577,
+       "correct": 567,
+       "wrong": 10,
+       "precision_pct": 98.3,
+       "recall_pct": 79.0,
+       "called_without_truth_at_rank": 188
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 494,
+       "called": 264,
+       "correct": 241,
+       "wrong": 23,
+       "precision_pct": 91.3,
+       "recall_pct": 48.8,
+       "called_without_truth_at_rank": 2
+      },
+      "genus": {
+       "gradable": 497,
+       "called": 377,
+       "correct": 366,
+       "wrong": 11,
+       "precision_pct": 97.1,
+       "recall_pct": 73.6,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 498,
+       "called": 440,
+       "correct": 436,
+       "wrong": 4,
+       "precision_pct": 99.1,
+       "recall_pct": 87.6,
+       "called_without_truth_at_rank": 0
+      }
+     }
+    },
+    "bacteria_pathogen": {
+     "n": 4219,
+     "labels": {
+      "likely_taxonomic_group": 563,
+      "possible_novelty": 2000,
+      "known_species": 1502,
+      "possible_contamination": 154
+     },
+     "human_genome_hit": 65,
+     "final_route_correct": 3989,
+     "truth_basis": {
+      "reference_named": 2210,
+      "unresolved_name_only": 1995,
+      "traced_no_lineage": 6,
+      "named_copy_outside_reference_plan": 8
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 19.0,
+      "genus": 28.2,
+      "family": 18.1,
+      "order": 5.2,
+      "class": 5.5,
+      "phylum": 3.4,
+      "kingdom": 0.3,
+      "superkingdom": 8.5,
+      "none": 11.9
+     },
+     "assigned_by_rank": {
+      "genus": 1188,
+      "none": 504,
+      "family": 762,
+      "species": 800,
+      "order": 219,
+      "superkingdom": 357,
+      "kingdom": 13,
+      "class": 232,
+      "phylum": 144
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 1318,
+       "called": 490,
+       "correct": 423,
+       "wrong": 67,
+       "precision_pct": 86.3,
+       "recall_pct": 32.1,
+       "called_without_truth_at_rank": 310
+      },
+      "genus": {
+       "gradable": 2498,
+       "called": 1455,
+       "correct": 1359,
+       "wrong": 96,
+       "precision_pct": 93.4,
+       "recall_pct": 54.4,
+       "called_without_truth_at_rank": 468
+      },
+      "family": {
+       "gradable": 2490,
+       "called": 1892,
+       "correct": 1805,
+       "wrong": 87,
+       "precision_pct": 95.4,
+       "recall_pct": 72.5,
+       "called_without_truth_at_rank": 782
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 1128,
+       "called": 409,
+       "correct": 354,
+       "wrong": 55,
+       "precision_pct": 86.6,
+       "recall_pct": 31.4,
+       "called_without_truth_at_rank": 37
+      },
+      "genus": {
+       "gradable": 1397,
+       "called": 952,
+       "correct": 905,
+       "wrong": 47,
+       "precision_pct": 95.1,
+       "recall_pct": 64.8,
+       "called_without_truth_at_rank": 23
+      },
+      "family": {
+       "gradable": 1432,
+       "called": 1217,
+       "correct": 1185,
+       "wrong": 32,
+       "precision_pct": 97.4,
+       "recall_pct": 82.8,
+       "called_without_truth_at_rank": 10
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 211
+      },
+      "genus": {
+       "gradable": 416,
+       "called": 108,
+       "correct": 89,
+       "wrong": 19,
+       "precision_pct": 82.4,
+       "recall_pct": 21.4,
+       "called_without_truth_at_rank": 443
+      },
+      "family": {
+       "gradable": 440,
+       "called": 207,
+       "correct": 171,
+       "wrong": 36,
+       "precision_pct": 82.6,
+       "recall_pct": 38.9,
+       "called_without_truth_at_rank": 770
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 1310,
+       "called": 490,
+       "correct": 423,
+       "wrong": 67,
+       "precision_pct": 86.3,
+       "recall_pct": 32.3,
+       "called_without_truth_at_rank": 99
+      },
+      "genus": {
+       "gradable": 2074,
+       "called": 1347,
+       "correct": 1270,
+       "wrong": 77,
+       "precision_pct": 94.3,
+       "recall_pct": 61.2,
+       "called_without_truth_at_rank": 25
+      },
+      "family": {
+       "gradable": 2050,
+       "called": 1685,
+       "correct": 1634,
+       "wrong": 51,
+       "precision_pct": 97.0,
+       "recall_pct": 79.7,
+       "called_without_truth_at_rank": 12
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 9,
+      "rows_capped_traced": 9,
+      "capped_with_species_truth": 9,
+      "dropped_species_correct": 4,
+      "species_with_cap": {
+       "gradable": 1318,
+       "called": 490,
+       "correct": 423,
+       "wrong": 67,
+       "precision_pct": 86.3,
+       "recall_pct": 32.1,
+       "called_without_truth_at_rank": 310
+      },
+      "species_without_cap": {
+       "gradable": 1318,
+       "called": 499,
+       "correct": 427,
+       "wrong": 72,
+       "precision_pct": 85.6,
+       "recall_pct": 32.4,
+       "called_without_truth_at_rank": 310
+      },
+      "dropped_species_precision_pct": 44.4
+     },
+     "errors_by_rank": {
+      "species": {
+       "no_call_right_route": 725,
+       "no_call_wrong_route": 103,
+       "wrong_call_right_route": 58,
+       "wrong_call_wrong_route": 9,
+       "wrong_route_true_route_planned": 3,
+       "wrong_route_true_route_reference_correct": 0
+      },
+      "genus": {
+       "wrong_call_right_route": 87,
+       "no_call_right_route": 943,
+       "no_call_wrong_route": 100,
+       "wrong_call_wrong_route": 9,
+       "wrong_route_true_route_planned": 7,
+       "wrong_route_true_route_reference_correct": 0
+      },
+      "family": {
+       "wrong_call_right_route": 81,
+       "no_call_right_route": 560,
+       "no_call_wrong_route": 38,
+       "wrong_call_wrong_route": 6,
+       "wrong_route_true_route_planned": 6,
+       "wrong_route_true_route_reference_correct": 0
+      }
+     },
+     "leaky_rows": 308,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 1094,
+       "called": 398,
+       "correct": 333,
+       "wrong": 65,
+       "precision_pct": 83.7,
+       "recall_pct": 30.4,
+       "called_without_truth_at_rank": 309
+      },
+      "genus": {
+       "gradable": 2196,
+       "called": 1255,
+       "correct": 1160,
+       "wrong": 95,
+       "precision_pct": 92.4,
+       "recall_pct": 52.8,
+       "called_without_truth_at_rank": 466
+      },
+      "family": {
+       "gradable": 2194,
+       "called": 1625,
+       "correct": 1538,
+       "wrong": 87,
+       "precision_pct": 94.6,
+       "recall_pct": 70.1,
+       "called_without_truth_at_rank": 781
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 912,
+       "called": 317,
+       "correct": 264,
+       "wrong": 53,
+       "precision_pct": 83.3,
+       "recall_pct": 28.9,
+       "called_without_truth_at_rank": 36
+      },
+      "genus": {
+       "gradable": 1107,
+       "called": 753,
+       "correct": 707,
+       "wrong": 46,
+       "precision_pct": 93.9,
+       "recall_pct": 63.9,
+       "called_without_truth_at_rank": 21
+      },
+      "family": {
+       "gradable": 1140,
+       "called": 952,
+       "correct": 920,
+       "wrong": 32,
+       "precision_pct": 96.6,
+       "recall_pct": 80.7,
+       "called_without_truth_at_rank": 9
+      }
+     }
+    },
+    "human_domestic_contamination": {
+     "n": 914,
+     "labels": {
+      "known_species": 498,
+      "possible_contamination": 416
+     },
+     "human_genome_hit": 383,
+     "final_route_correct": 816,
+     "truth_basis": {
+      "reference_named": 807,
+      "named_copy_outside_reference_plan": 107
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 49.7,
+      "genus": 1.9,
+      "family": 0.7,
+      "class": 0.1,
+      "superkingdom": 0.5,
+      "none": 47.2
+     },
+     "assigned_by_rank": {
+      "species": 454,
+      "none": 431,
+      "genus": 17,
+      "superkingdom": 5,
+      "family": 6,
+      "class": 1
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 888,
+       "called": 450,
+       "correct": 401,
+       "wrong": 49,
+       "precision_pct": 89.1,
+       "recall_pct": 45.2,
+       "called_without_truth_at_rank": 4
+      },
+      "genus": {
+       "gradable": 766,
+       "called": 436,
+       "correct": 430,
+       "wrong": 6,
+       "precision_pct": 98.6,
+       "recall_pct": 56.1,
+       "called_without_truth_at_rank": 8
+      },
+      "family": {
+       "gradable": 428,
+       "called": 413,
+       "correct": 412,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 96.3,
+       "called_without_truth_at_rank": 10
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 496,
+       "called": 376,
+       "correct": 370,
+       "wrong": 6,
+       "precision_pct": 98.4,
+       "recall_pct": 74.6,
+       "called_without_truth_at_rank": 1
+      },
+      "genus": {
+       "gradable": 498,
+       "called": 377,
+       "correct": 375,
+       "wrong": 2,
+       "precision_pct": 99.5,
+       "recall_pct": 75.3,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 391,
+       "called": 380,
+       "correct": 379,
+       "wrong": 1,
+       "precision_pct": 99.7,
+       "recall_pct": 96.9,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 0
+      },
+      "genus": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 0
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 781,
+       "called": 450,
+       "correct": 401,
+       "wrong": 49,
+       "precision_pct": 89.1,
+       "recall_pct": 51.3,
+       "called_without_truth_at_rank": 4
+      },
+      "genus": {
+       "gradable": 659,
+       "called": 436,
+       "correct": 430,
+       "wrong": 6,
+       "precision_pct": 98.6,
+       "recall_pct": 65.3,
+       "called_without_truth_at_rank": 8
+      },
+      "family": {
+       "gradable": 428,
+       "called": 413,
+       "correct": 412,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 96.3,
+       "called_without_truth_at_rank": 10
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 0,
+      "rows_capped_traced": 0,
+      "capped_with_species_truth": 0,
+      "dropped_species_correct": 0,
+      "species_with_cap": {
+       "gradable": 888,
+       "called": 450,
+       "correct": 401,
+       "wrong": 49,
+       "precision_pct": 89.1,
+       "recall_pct": 45.2,
+       "called_without_truth_at_rank": 4
+      },
+      "species_without_cap": {
+       "gradable": 888,
+       "called": 450,
+       "correct": 401,
+       "wrong": 49,
+       "precision_pct": 89.1,
+       "recall_pct": 45.2,
+       "called_without_truth_at_rank": 4
+      },
+      "dropped_species_precision_pct": null
+     },
+     "errors_by_rank": {
+      "species": {
+       "wrong_call_right_route": 40,
+       "no_call_right_route": 352,
+       "no_call_wrong_route": 86,
+       "no_call_low_quality_gate": 1,
+       "wrong_call_wrong_route": 9,
+       "wrong_route_true_route_planned": 7,
+       "wrong_route_true_route_reference_correct": 2
+      },
+      "genus": {
+       "no_call_right_route": 284,
+       "no_call_wrong_route": 46,
+       "no_call_low_quality_gate": 1,
+       "wrong_call_right_route": 1,
+       "wrong_call_wrong_route": 5,
+       "wrong_route_true_route_planned": 5,
+       "wrong_route_true_route_reference_correct": 1
+      },
+      "family": {
+       "no_call_wrong_route": 3,
+       "no_call_low_quality_gate": 1,
+       "no_call_right_route": 12,
+       "wrong_call_right_route": 1
+      }
+     },
+     "leaky_rows": 112,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 776,
+       "called": 446,
+       "correct": 401,
+       "wrong": 45,
+       "precision_pct": 89.9,
+       "recall_pct": 51.7,
+       "called_without_truth_at_rank": 4
+      },
+      "genus": {
+       "gradable": 656,
+       "called": 436,
+       "correct": 430,
+       "wrong": 6,
+       "precision_pct": 98.6,
+       "recall_pct": 65.5,
+       "called_without_truth_at_rank": 7
+      },
+      "family": {
+       "gradable": 428,
+       "called": 413,
+       "correct": 412,
+       "wrong": 1,
+       "precision_pct": 99.8,
+       "recall_pct": 96.3,
+       "called_without_truth_at_rank": 10
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 389,
+       "called": 376,
+       "correct": 370,
+       "wrong": 6,
+       "precision_pct": 98.4,
+       "recall_pct": 95.1,
+       "called_without_truth_at_rank": 1
+      },
+      "genus": {
+       "gradable": 391,
+       "called": 377,
+       "correct": 375,
+       "wrong": 2,
+       "precision_pct": 99.5,
+       "recall_pct": 95.9,
+       "called_without_truth_at_rank": 0
+      },
+      "family": {
+       "gradable": 391,
+       "called": 380,
+       "correct": 379,
+       "wrong": 1,
+       "precision_pct": 99.7,
+       "recall_pct": 96.9,
+       "called_without_truth_at_rank": 0
+      }
+     }
+    },
+    "misc_unknown": {
+     "n": 1357,
+     "labels": {
+      "unknown_needs_online_confirmation": 497,
+      "low_quality_unusable": 360,
+      "possible_novelty": 500
+     },
+     "human_genome_hit": 4,
+     "final_route_correct": 790,
+     "truth_basis": {
+      "reference_named": 372,
+      "unresolved_name_only": 471,
+      "traced_no_lineage": 481,
+      "named_copy_outside_reference_plan": 33
+     },
+     "assigned_share_by_rank_pct": {
+      "species": 11.6,
+      "genus": 7.7,
+      "family": 4.2,
+      "order": 0.7,
+      "class": 1.0,
+      "phylum": 0.7,
+      "kingdom": 0.1,
+      "superkingdom": 3.8,
+      "none": 70.3
+     },
+     "assigned_by_rank": {
+      "family": 57,
+      "none": 954,
+      "genus": 104,
+      "species": 158,
+      "class": 13,
+      "superkingdom": 52,
+      "phylum": 9,
+      "order": 9,
+      "kingdom": 1
+     },
+     "rank_metrics_all_traced": {
+      "species": {
+       "gradable": 785,
+       "called": 134,
+       "correct": 105,
+       "wrong": 29,
+       "precision_pct": 78.4,
+       "recall_pct": 13.4,
+       "called_without_truth_at_rank": 12
+      },
+      "genus": {
+       "gradable": 369,
+       "called": 218,
+       "correct": 200,
+       "wrong": 18,
+       "precision_pct": 91.7,
+       "recall_pct": 54.2,
+       "called_without_truth_at_rank": 10
+      },
+      "family": {
+       "gradable": 366,
+       "called": 258,
+       "correct": 251,
+       "wrong": 7,
+       "precision_pct": 97.3,
+       "recall_pct": 68.6,
+       "called_without_truth_at_rank": 13
+      }
+     },
+     "rank_metrics_known_class": {
+      "species": {
+       "gradable": 428,
+       "called": 134,
+       "correct": 105,
+       "wrong": 29,
+       "precision_pct": 78.4,
+       "recall_pct": 24.5,
+       "called_without_truth_at_rank": 9
+      },
+      "genus": {
+       "gradable": 355,
+       "called": 214,
+       "correct": 198,
+       "wrong": 16,
+       "precision_pct": 92.5,
+       "recall_pct": 55.8,
+       "called_without_truth_at_rank": 7
+      },
+      "family": {
+       "gradable": 351,
+       "called": 253,
+       "correct": 246,
+       "wrong": 7,
+       "precision_pct": 97.2,
+       "recall_pct": 70.1,
+       "called_without_truth_at_rank": 9
+      }
+     },
+     "rank_metrics_possible_novelty": {
+      "species": {
+       "gradable": 0,
+       "called": 0,
+       "correct": 0,
+       "wrong": 0,
+       "precision_pct": null,
+       "recall_pct": null,
+       "called_without_truth_at_rank": 3
+      },
+      "genus": {
+       "gradable": 14,
+       "called": 4,
+       "correct": 2,
+       "wrong": 2,
+       "precision_pct": 50.0,
+       "recall_pct": 14.3,
+       "called_without_truth_at_rank": 3
+      },
+      "family": {
+       "gradable": 15,
+       "called": 5,
+       "correct": 5,
+       "wrong": 0,
+       "precision_pct": 100.0,
+       "recall_pct": 33.3,
+       "called_without_truth_at_rank": 4
+      }
+     },
+     "rank_metrics_reference_named_truth_only": {
+      "species": {
+       "gradable": 306,
+       "called": 131,
+       "correct": 105,
+       "wrong": 26,
+       "precision_pct": 80.2,
+       "recall_pct": 34.3,
+       "called_without_truth_at_rank": 9
+      },
+      "genus": {
+       "gradable": 339,
+       "called": 214,
+       "correct": 198,
+       "wrong": 16,
+       "precision_pct": 92.5,
+       "recall_pct": 58.4,
+       "called_without_truth_at_rank": 7
+      },
+      "family": {
+       "gradable": 337,
+       "called": 253,
+       "correct": 246,
+       "wrong": 7,
+       "precision_pct": 97.2,
+       "recall_pct": 73.0,
+       "called_without_truth_at_rank": 9
+      }
+     },
+     "genus_cap": {
+      "rows_capped": 0,
+      "rows_capped_traced": 0,
+      "capped_with_species_truth": 0,
+      "dropped_species_correct": 0,
+      "species_with_cap": {
+       "gradable": 785,
+       "called": 134,
+       "correct": 105,
+       "wrong": 29,
+       "precision_pct": 78.4,
+       "recall_pct": 13.4,
+       "called_without_truth_at_rank": 12
+      },
+      "species_without_cap": {
+       "gradable": 785,
+       "called": 134,
+       "correct": 105,
+       "wrong": 29,
+       "precision_pct": 78.4,
+       "recall_pct": 13.4,
+       "called_without_truth_at_rank": 12
+      },
+      "dropped_species_precision_pct": null
+     },
+     "errors_by_rank": {
+      "species": {
+       "no_call_right_route": 254,
+       "no_call_wrong_route": 397,
+       "no_call_low_quality_gate": 357,
+       "wrong_call_wrong_route": 6,
+       "wrong_route_true_route_planned": 6,
+       "wrong_route_true_route_reference_correct": 0,
+       "wrong_call_right_route": 23
+      },
+      "genus": {
+       "no_call_right_route": 126,
+       "no_call_wrong_route": 25,
+       "wrong_call_wrong_route": 5,
+       "wrong_route_true_route_planned": 4,
+       "wrong_route_true_route_reference_correct": 0,
+       "wrong_call_right_route": 13
+      },
+      "family": {
+       "wrong_call_right_route": 5,
+       "no_call_right_route": 91,
+       "wrong_call_wrong_route": 2,
+       "wrong_route_true_route_planned": 2,
+       "wrong_route_true_route_reference_correct": 0,
+       "no_call_wrong_route": 17
+      }
+     },
+     "leaky_rows": 16,
+     "rank_metrics_all_traced_leaky_excluded": {
+      "species": {
+       "gradable": 769,
+       "called": 121,
+       "correct": 93,
+       "wrong": 28,
+       "precision_pct": 76.9,
+       "recall_pct": 12.1,
+       "called_without_truth_at_rank": 12
+      },
+      "genus": {
+       "gradable": 353,
+       "called": 202,
+       "correct": 185,
+       "wrong": 17,
+       "precision_pct": 91.6,
+       "recall_pct": 52.4,
+       "called_without_truth_at_rank": 10
+      },
+      "family": {
+       "gradable": 351,
+       "called": 243,
+       "correct": 237,
+       "wrong": 6,
+       "precision_pct": 97.5,
+       "recall_pct": 67.5,
+       "called_without_truth_at_rank": 12
+      }
+     },
+     "rank_metrics_known_class_leaky_excluded": {
+      "species": {
+       "gradable": 412,
+       "called": 121,
+       "correct": 93,
+       "wrong": 28,
+       "precision_pct": 76.9,
+       "recall_pct": 22.6,
+       "called_without_truth_at_rank": 9
+      },
+      "genus": {
+       "gradable": 339,
+       "called": 198,
+       "correct": 183,
+       "wrong": 15,
+       "precision_pct": 92.4,
+       "recall_pct": 54.0,
+       "called_without_truth_at_rank": 7
+      },
+      "family": {
+       "gradable": 336,
+       "called": 238,
+       "correct": 232,
+       "wrong": 6,
+       "precision_pct": 97.5,
+       "recall_pct": 69.0,
+       "called_without_truth_at_rank": 8
+      }
+     }
+    }
+   },
+   "novelty_relabel_audit": {
+    "all": {
+     "n": 1262,
+     "verdict": {
+      "label_noise": 624,
+      "real_disagreement": 92,
+      "undetermined": 546
+     },
+     "reason": {
+      "the source record names the hit's genus": 427,
+      "the hit resolves only above genus": 203,
+      "the source record names the hit's family (no genus to compare)": 196,
+      "the source carries no name to compare (environmental sample)": 175,
+      "the source carries no name to compare (uncultured)": 135,
+      "the source names a different genus": 54,
+      "the source names a different family": 38,
+      "the source carries no name to compare (metagenome)": 30,
+      "the source carries no name to compare (unidentified)": 3,
+      "the source record names the hit's species": 1
+     },
+     "same_specimen": {
+      "possible_not_confirmable": 293,
+      "no_identity_below_99": 969
+     },
+     "source_name_categories": {
+      "environmental sample": 283,
+      "uncultured": 912,
+      "metagenome": 61,
+      "unidentified": 6
+     },
+     "named_copy_exists": 0,
+     "hit_identity_ge99": 293,
+     "label_noise_by_agreement_rank": {
+      "genus": 427,
+      "family": 196,
+      "species": 1
+     },
+     "label_noise_reported_finer_than_agreement": 246,
+     "verdict_by_reported_rank": {
+      "label_noise": {
+       "species": 238,
+       "genus": 254,
+       "family": 132
+      },
+      "real_disagreement": {
+       "species": 24,
+       "genus": 40,
+       "family": 28
+      },
+      "undetermined": {
+       "species": 140,
+       "superkingdom": 112,
+       "class": 63,
+       "genus": 56,
+       "phylum": 26,
+       "None": 63,
+       "kingdom": 7,
+       "order": 54,
+       "family": 25
+      }
+     },
+     "verdict_without_silva_path": {
+      "label_noise": 246,
+      "undetermined": 985,
+      "real_disagreement": 31
+     },
+     "undetermined_species_call_identity_ge99": 55
+    },
+    "by_result_class": {
+     "known_species": {
+      "n": 440,
+      "verdict": {
+       "label_noise": 231,
+       "real_disagreement": 25,
+       "undetermined": 184
+      },
+      "reason": {
+       "the source record names the hit's genus": 164,
+       "the source carries no name to compare (environmental sample)": 101,
+       "the source record names the hit's family (no genus to compare)": 66,
+       "the hit resolves only above genus": 34,
+       "the source carries no name to compare (uncultured)": 32,
+       "the source carries no name to compare (metagenome)": 16,
+       "the source names a different genus": 14,
+       "the source names a different family": 11,
+       "the source carries no name to compare (unidentified)": 1,
+       "the source record names the hit's species": 1
+      },
+      "same_specimen": {
+       "possible_not_confirmable": 137,
+       "no_identity_below_99": 303
+      },
+      "source_name_categories": {
+       "environmental sample": 161,
+       "uncultured": 242,
+       "metagenome": 34,
+       "unidentified": 3
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 137,
+      "label_noise_by_agreement_rank": {
+       "genus": 164,
+       "family": 66,
+       "species": 1
+      },
+      "label_noise_reported_finer_than_agreement": 194,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "species": 193,
+        "family": 14,
+        "genus": 24
+       },
+       "real_disagreement": {
+        "species": 16,
+        "genus": 5,
+        "family": 4
+       },
+       "undetermined": {
+        "species": 134,
+        "None": 21,
+        "superkingdom": 5,
+        "order": 9,
+        "family": 4,
+        "class": 7,
+        "phylum": 1,
+        "kingdom": 2,
+        "genus": 1
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 105,
+       "undetermined": 324,
+       "real_disagreement": 11
+      },
+      "undetermined_species_call_identity_ge99": 53
+     },
+     "likely_taxonomic_group": {
+      "n": 822,
+      "verdict": {
+       "label_noise": 393,
+       "undetermined": 362,
+       "real_disagreement": 67
+      },
+      "reason": {
+       "the source record names the hit's genus": 263,
+       "the hit resolves only above genus": 169,
+       "the source record names the hit's family (no genus to compare)": 130,
+       "the source carries no name to compare (uncultured)": 103,
+       "the source carries no name to compare (environmental sample)": 74,
+       "the source names a different genus": 40,
+       "the source names a different family": 27,
+       "the source carries no name to compare (metagenome)": 14,
+       "the source carries no name to compare (unidentified)": 2
+      },
+      "same_specimen": {
+       "no_identity_below_99": 666,
+       "possible_not_confirmable": 156
+      },
+      "source_name_categories": {
+       "uncultured": 670,
+       "metagenome": 27,
+       "environmental sample": 122,
+       "unidentified": 3
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 156,
+      "label_noise_by_agreement_rank": {
+       "genus": 263,
+       "family": 130
+      },
+      "label_noise_reported_finer_than_agreement": 52,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "genus": 230,
+        "family": 118,
+        "species": 45
+       },
+       "real_disagreement": {
+        "genus": 35,
+        "family": 24,
+        "species": 8
+       },
+       "undetermined": {
+        "superkingdom": 107,
+        "class": 56,
+        "genus": 55,
+        "phylum": 25,
+        "None": 42,
+        "kingdom": 5,
+        "order": 45,
+        "family": 21,
+        "species": 6
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 141,
+       "undetermined": 661,
+       "real_disagreement": 20
+      },
+      "undetermined_species_call_identity_ge99": 2
+     }
+    },
+    "by_rule": {
+     "head_class": {
+      "n": 523,
+      "verdict": {
+       "label_noise": 244,
+       "real_disagreement": 50,
+       "undetermined": 229
+      },
+      "reason": {
+       "the source record names the hit's genus": 154,
+       "the hit resolves only above genus": 103,
+       "the source record names the hit's family (no genus to compare)": 89,
+       "the source carries no name to compare (uncultured)": 54,
+       "the source carries no name to compare (environmental sample)": 39,
+       "the source carries no name to compare (metagenome)": 30,
+       "the source names a different genus": 27,
+       "the source names a different family": 23,
+       "the source carries no name to compare (unidentified)": 3,
+       "the source record names the hit's species": 1
+      },
+      "same_specimen": {
+       "no_identity_below_99": 452,
+       "possible_not_confirmable": 71
+      },
+      "source_name_categories": {
+       "uncultured": 407,
+       "metagenome": 57,
+       "environmental sample": 53,
+       "unidentified": 6
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 71,
+      "label_noise_by_agreement_rank": {
+       "genus": 154,
+       "family": 89,
+       "species": 1
+      },
+      "label_noise_reported_finer_than_agreement": 56,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "genus": 118,
+        "family": 76,
+        "species": 50
+       },
+       "real_disagreement": {
+        "genus": 21,
+        "species": 9,
+        "family": 20
+       },
+       "undetermined": {
+        "phylum": 13,
+        "superkingdom": 54,
+        "None": 63,
+        "class": 30,
+        "order": 35,
+        "species": 18,
+        "family": 5,
+        "genus": 9,
+        "kingdom": 2
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 81,
+       "undetermined": 420,
+       "real_disagreement": 22
+      },
+      "undetermined_species_call_identity_ge99": 8
+     },
+     "novelty_downgraded_by_reference": {
+      "n": 414,
+      "verdict": {
+       "label_noise": 192,
+       "undetermined": 195,
+       "real_disagreement": 27
+      },
+      "reason": {
+       "the source record names the hit's genus": 134,
+       "the hit resolves only above genus": 85,
+       "the source carries no name to compare (uncultured)": 60,
+       "the source record names the hit's family (no genus to compare)": 58,
+       "the source carries no name to compare (environmental sample)": 50,
+       "the source names a different genus": 17,
+       "the source names a different family": 10
+      },
+      "same_specimen": {
+       "no_identity_below_99": 307,
+       "possible_not_confirmable": 107
+      },
+      "source_name_categories": {
+       "uncultured": 327,
+       "environmental sample": 87
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 107,
+      "label_noise_by_agreement_rank": {
+       "genus": 134,
+       "family": 58
+      },
+      "label_noise_reported_finer_than_agreement": 2,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "genus": 136,
+        "family": 56
+       },
+       "real_disagreement": {
+        "genus": 19,
+        "family": 8
+       },
+       "undetermined": {
+        "superkingdom": 58,
+        "class": 33,
+        "genus": 47,
+        "kingdom": 5,
+        "order": 19,
+        "family": 20,
+        "phylum": 13
+       }
+      },
+      "verdict_without_silva_path": {
+       "undetermined": 333,
+       "label_noise": 78,
+       "real_disagreement": 3
+      },
+      "undetermined_species_call_identity_ge99": 0
+     },
+     "novelty_suppressed_by_reference": {
+      "n": 325,
+      "verdict": {
+       "label_noise": 188,
+       "real_disagreement": 15,
+       "undetermined": 122
+      },
+      "reason": {
+       "the source record names the hit's genus": 139,
+       "the source carries no name to compare (environmental sample)": 86,
+       "the source record names the hit's family (no genus to compare)": 49,
+       "the source carries no name to compare (uncultured)": 21,
+       "the hit resolves only above genus": 15,
+       "the source names a different genus": 10,
+       "the source names a different family": 5
+      },
+      "same_specimen": {
+       "possible_not_confirmable": 115,
+       "no_identity_below_99": 210
+      },
+      "source_name_categories": {
+       "environmental sample": 143,
+       "uncultured": 178,
+       "metagenome": 4
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 115,
+      "label_noise_by_agreement_rank": {
+       "genus": 139,
+       "family": 49
+      },
+      "label_noise_reported_finer_than_agreement": 188,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "species": 188
+       },
+       "real_disagreement": {
+        "species": 15
+       },
+       "undetermined": {
+        "species": 122
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 87,
+       "undetermined": 232,
+       "real_disagreement": 6
+      },
+      "undetermined_species_call_identity_ge99": 47
+     }
+    },
+    "by_true_route": {
+     "fish": {
+      "n": 77,
+      "verdict": {
+       "label_noise": 66,
+       "undetermined": 11
+      },
+      "reason": {
+       "the source record names the hit's family (no genus to compare)": 54,
+       "the source carries no name to compare (environmental sample)": 11,
+       "the source record names the hit's genus": 11,
+       "the source record names the hit's species": 1
+      },
+      "same_specimen": {
+       "no_identity_below_99": 12,
+       "possible_not_confirmable": 65
+      },
+      "source_name_categories": {
+       "environmental sample": 77
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 65,
+      "label_noise_by_agreement_rank": {
+       "family": 54,
+       "genus": 11,
+       "species": 1
+      },
+      "label_noise_reported_finer_than_agreement": 39,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "family": 24,
+        "species": 40,
+        "genus": 2
+       },
+       "real_disagreement": {},
+       "undetermined": {
+        "species": 9,
+        "class": 1,
+        "None": 1
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 66,
+       "undetermined": 11
+      },
+      "undetermined_species_call_identity_ge99": 8
+     },
+     "plant": {
+      "n": 55,
+      "verdict": {
+       "undetermined": 35,
+       "label_noise": 19,
+       "real_disagreement": 1
+      },
+      "reason": {
+       "the source carries no name to compare (uncultured)": 27,
+       "the source record names the hit's genus": 19,
+       "the hit resolves only above genus": 5,
+       "the source names a different family": 1,
+       "the source carries no name to compare (unidentified)": 1,
+       "the source carries no name to compare (metagenome)": 1,
+       "the source carries no name to compare (environmental sample)": 1
+      },
+      "same_specimen": {
+       "possible_not_confirmable": 15,
+       "no_identity_below_99": 40
+      },
+      "source_name_categories": {
+       "uncultured": 51,
+       "environmental sample": 2,
+       "unidentified": 1,
+       "metagenome": 1
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 15,
+      "label_noise_by_agreement_rank": {
+       "genus": 19
+      },
+      "label_noise_reported_finer_than_agreement": 0,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "genus": 19
+       },
+       "real_disagreement": {
+        "family": 1
+       },
+       "undetermined": {
+        "order": 6,
+        "phylum": 2,
+        "family": 6,
+        "genus": 13,
+        "class": 4,
+        "None": 3,
+        "kingdom": 1
+       }
+      },
+      "verdict_without_silva_path": {
+       "undetermined": 35,
+       "label_noise": 19,
+       "real_disagreement": 1
+      },
+      "undetermined_species_call_identity_ge99": 0
+     },
+     "animal_general": {
+      "n": 220,
+      "verdict": {
+       "label_noise": 49,
+       "undetermined": 167,
+       "real_disagreement": 4
+      },
+      "reason": {
+       "the source carries no name to compare (environmental sample)": 163,
+       "the source record names the hit's genus": 39,
+       "the source record names the hit's family (no genus to compare)": 10,
+       "the source names a different genus": 4,
+       "the hit resolves only above genus": 2,
+       "the source carries no name to compare (unidentified)": 1,
+       "the source carries no name to compare (uncultured)": 1
+      },
+      "same_specimen": {
+       "possible_not_confirmable": 82,
+       "no_identity_below_99": 138
+      },
+      "source_name_categories": {
+       "environmental sample": 204,
+       "uncultured": 15,
+       "unidentified": 1
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 82,
+      "label_noise_by_agreement_rank": {
+       "genus": 39,
+       "family": 10
+      },
+      "label_noise_reported_finer_than_agreement": 36,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "species": 36,
+        "family": 6,
+        "genus": 7
+       },
+       "real_disagreement": {
+        "species": 3,
+        "genus": 1
+       },
+       "undetermined": {
+        "species": 91,
+        "genus": 28,
+        "None": 14,
+        "order": 13,
+        "family": 18,
+        "class": 3
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 49,
+       "undetermined": 167,
+       "real_disagreement": 4
+      },
+      "undetermined_species_call_identity_ge99": 39
+     },
+     "bacteria_pathogen": {
+      "n": 833,
+      "verdict": {
+       "label_noise": 488,
+       "real_disagreement": 86,
+       "undetermined": 259
+      },
+      "reason": {
+       "the source record names the hit's genus": 356,
+       "the hit resolves only above genus": 196,
+       "the source record names the hit's family (no genus to compare)": 132,
+       "the source names a different genus": 49,
+       "the source carries no name to compare (uncultured)": 46,
+       "the source names a different family": 37,
+       "the source carries no name to compare (metagenome)": 16,
+       "the source carries no name to compare (unidentified)": 1
+      },
+      "same_specimen": {
+       "no_identity_below_99": 732,
+       "possible_not_confirmable": 101
+      },
+      "source_name_categories": {
+       "uncultured": 782,
+       "metagenome": 47,
+       "unidentified": 4
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 101,
+      "label_noise_by_agreement_rank": {
+       "genus": 356,
+       "family": 132
+      },
+      "label_noise_reported_finer_than_agreement": 169,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "genus": 226,
+        "family": 102,
+        "species": 160
+       },
+       "real_disagreement": {
+        "species": 21,
+        "genus": 38,
+        "family": 27
+       },
+       "undetermined": {
+        "superkingdom": 86,
+        "class": 52,
+        "phylum": 23,
+        "None": 30,
+        "kingdom": 6,
+        "species": 28,
+        "order": 33,
+        "family": 1
+       }
+      },
+      "verdict_without_silva_path": {
+       "label_noise": 110,
+       "undetermined": 698,
+       "real_disagreement": 25
+      },
+      "undetermined_species_call_identity_ge99": 0
+     },
+     "misc_unknown": {
+      "n": 77,
+      "verdict": {
+       "real_disagreement": 1,
+       "undetermined": 74,
+       "label_noise": 2
+      },
+      "reason": {
+       "the source carries no name to compare (uncultured)": 61,
+       "the source carries no name to compare (metagenome)": 13,
+       "the source record names the hit's genus": 2,
+       "the source names a different genus": 1
+      },
+      "same_specimen": {
+       "no_identity_below_99": 47,
+       "possible_not_confirmable": 30
+      },
+      "source_name_categories": {
+       "uncultured": 64,
+       "metagenome": 13
+      },
+      "named_copy_exists": 0,
+      "hit_identity_ge99": 30,
+      "label_noise_by_agreement_rank": {
+       "genus": 2
+      },
+      "label_noise_reported_finer_than_agreement": 2,
+      "verdict_by_reported_rank": {
+       "label_noise": {
+        "species": 2
+       },
+       "real_disagreement": {
+        "genus": 1
+       },
+       "undetermined": {
+        "None": 15,
+        "superkingdom": 26,
+        "species": 12,
+        "class": 3,
+        "genus": 15,
+        "phylum": 1,
+        "order": 2
+       }
+      },
+      "verdict_without_silva_path": {
+       "real_disagreement": 1,
+       "undetermined": 74,
+       "label_noise": 2
+      },
+      "undetermined_species_call_identity_ge99": 8
+     }
+    }
+   }
+  }
+ },
+ "definitions": {
+  "truth": "(normalised truth lineage, basis). The QNA-020 tracer's lineage\n    (eval_reference_lookup.trace_ground_truth: named reference-builder\n    records, LCA over copies) wins; a row it could not trace falls back to\n    the LCA over named copies from the dataset-only sources, then over all\n    copies (names like 'uncultured Salmo sp.' keep their genus).",
+  "rank_metrics": "Rank-aware precision/recall over (predicted lineage, true lineage) pairs.\n\n    At rank R only rows whose truth has a value at R are gradable. A row is\n    called at R when its predicted lineage has a value at R (a species call\n    is also a genus and a family call); it is correct when that value equals\n    the truth's. precision = correct / called, recall = correct / gradable.\n    Rows with truth but no call count against recall only.",
+  "predicted": "(effective, uncapped) predicted lineage of one evaluated row.\n\n    effective: the lineage behind decision.predicted_taxon -- the final\n    route's reference assignment, cut at decision.taxon_rank (so the genus\n    cap's dropped species is gone). uncapped: the same assignment before\n    the genus cap (the trace keeps the reference payload as searched).\n    Both empty when the decision names no taxon.",
+  "relabel_verdict": "(verdict, reason, agreement) for one possible_novelty row the orchestrator\n    relabelled known_species / likely_taxonomic_group.\n\n      label_noise        the hit is the same source record in another\n                         database (shared accession); or the source records\n                         name the hit's species; or its genus (and no\n                         conflicting species); or, when the source names\n                         nothing below family, the hit's family. The\n                         sequence then sits in a taxon its own record\n                         names, and only the 'uncultured / environmental'\n                         wording made the label. The reason says at which\n                         rank the names agree.\n      real_disagreement  the source names a different genus, the same genus\n                         but a different species, or a different family\n      undetermined       the source carries no name to compare ('uncultured\n                         bacterium', 'marine metagenome'), or the hit and the\n                         source share no rank to compare, and no shared\n                         accession\n    agreement: the rank at which source and hit names agree ('accession',\n    'species', 'genus', 'family'), None unless label_noise. A genus or\n    family agreement shows the hit does not contradict the source; it does\n    not show the source was a known species.\n    row_names: names_in(all copies); named_copy_names: names_in(copies with\n    a usable organism name), only used to word the reason.",
+  "same_specimen": "same_accession: a final-route hit at >= 99% identity whose reference record (any merged copy) shares an accession with the row's source records; possible_not_confirmable: assignment identity >= 99% but no shared accession (RefSeq and INSDC copies of one specimen carry different accessions, so this cannot be excluded); no_identity_below_99.",
+  "leaky": "exact row or source record in a ref.fasta, or any planned-route hit >= 99% from the same source record (shared accession; SILVA accessions are compared without their start.end coordinates, so another rRNA operon copy of the same genome assembly counts as the same record), or a GRCh38 window row (the GRCh38 BLAST index is the whole genome, held-out windows included)",
+  "human_genome_hit": "the human route's GRCh38 BLAST screen hit the row (payload.human_genome.hit); it flags contamination but sets no taxon"
+ }
+}

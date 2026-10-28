@@ -1,0 +1,1230 @@
+{
+  "analysis_id": "ana_e2e0000000002",
+  "context": {
+    "accuracy_note": "11 of 14 optional context fields were provided. Missing context can reduce accuracy and limits how these results can be interpreted. No negative control, contamination not ruled out.",
+    "flags": [
+      {
+        "code": "no_negative_control",
+        "message": "No negative control, contamination not ruled out."
+      }
+    ],
+    "labels": {
+      "collected_at": "Collection date/time",
+      "collector": "Collector",
+      "depth_meters": "Depth",
+      "dissolved_oxygen_mg_l": "Dissolved oxygen",
+      "habitat": "Habitat",
+      "latitude": "Latitude",
+      "location_label": "Location",
+      "longitude": "Longitude",
+      "methodology": "Methodology",
+      "negative_control_included": "Negative control",
+      "ph": "pH",
+      "salinity_ppt": "Salinity",
+      "source_type": "Source type",
+      "temperature_celsius": "Temperature"
+    },
+    "missing": [
+      "salinity_ppt",
+      "dissolved_oxygen_mg_l",
+      "ph"
+    ],
+    "negative_control": "not_included",
+    "partner_report": {
+      "available": true,
+      "missing_required": [],
+      "reason": null
+    },
+    "provided": [
+      "collected_at",
+      "latitude",
+      "longitude",
+      "location_label",
+      "depth_meters",
+      "source_type",
+      "habitat",
+      "temperature_celsius",
+      "methodology",
+      "negative_control_included",
+      "collector"
+    ],
+    "upload_found": true
+  },
+  "created_at": "2026-10-09T08:00:00",
+  "job_id": "job_e2e_orch00001",
+  "mode": "online_full",
+  "model_version_set": "stub_none",
+  "orchestrator_version": "orchestrator-1.2.0",
+  "results": [
+    {
+      "confidence": 0.97,
+      "contamination_score": 0.0,
+      "decision": {
+        "confidence": 0.97,
+        "final_route": "fish",
+        "percent_identity": 99.84,
+        "predicted_taxon": "Thunnus albacares",
+        "reference_db": "synthveda-reference/fish",
+        "reference_db_version": "v2",
+        "result_class": "known_species",
+        "rule": "head_class",
+        "taxon_rank": "species"
+      },
+      "decision_trace": {
+        "combine": [
+          {
+            "detail": null,
+            "outcome": "fish",
+            "rule": "single_route",
+            "step": "route"
+          },
+          {
+            "detail": "99.84% identity, synthveda-reference/fish v2",
+            "outcome": {
+              "rank": "species",
+              "taxon": "Thunnus albacares"
+            },
+            "rule": "reference_taxon",
+            "step": "taxon"
+          },
+          {
+            "detail": null,
+            "outcome": "known_species",
+            "rule": "head_class",
+            "step": "class"
+          },
+          {
+            "detail": "reference names Thunnus albacares at 99.84% (QNA-020 Q4)",
+            "outcome": {
+              "downgraded_by_reference": false,
+              "final_flag": false,
+              "final_score": 0.0,
+              "gate": 0.0,
+              "gate_rule": "novelty_suppressed_by_reference",
+              "raw_flag": false,
+              "raw_score": 0.04,
+              "suppressed_by_reference": false
+            },
+            "rule": "novelty_suppressed_by_reference",
+            "step": "novelty"
+          }
+        ],
+        "evidence": [
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.97,
+              "inference_mode": "model",
+              "label_scores": {
+                "known_species": 0.97
+              },
+              "model_version_used": "dnabert2_fish_v2",
+              "result_class": "known_species",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_tuna_01",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [
+                {
+                  "accession": "AB000001.1",
+                  "alignment_length": 300,
+                  "identity": 99.84,
+                  "marker": "COI",
+                  "query_coverage": 100.0,
+                  "rank": "species",
+                  "source": "midori2",
+                  "taxon": "Thunnus albacares"
+                }
+              ],
+              "human_genome": null,
+              "identity": 99.84,
+              "identity_rank": "species",
+              "lca_applied": false,
+              "lineage": {
+                "class": "Actinopteri",
+                "family": "Scombridae",
+                "genus": "Thunnus",
+                "kingdom": "Metazoa",
+                "order": "Scombriformes",
+                "phylum": "Chordata",
+                "species": "Thunnus albacares",
+                "superkingdom": "Eukaryota"
+              },
+              "method": "blast",
+              "query_coverage": 100.0,
+              "rank": "species",
+              "reason": null,
+              "reference_db": "synthveda-reference/fish",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "assigned",
+              "taxon": "Thunnus albacares",
+              "tied_hits": 1,
+              "tied_taxa": 1
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_tuna_01",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.02,
+            "payload": {
+              "contamination_score": 0.01,
+              "contamination_type": null,
+              "flagged": false,
+              "grch38_contamination": false,
+              "heuristic_flagged": false,
+              "human_genome": null,
+              "reason_codes": [
+                "clean_sequence"
+              ],
+              "signals": {
+                "lab_motif": 0.0,
+                "route": 0.0
+              }
+            },
+            "provider": "contamination",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_tuna_01",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.04,
+            "payload": {
+              "abyss_recommendation": "continue_sampling",
+              "novelty_level": "none",
+              "novelty_score": 0.04,
+              "reason_codes": [],
+              "requires_cloud_confirmation": false,
+              "signals": {}
+            },
+            "provider": "novelty",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_tuna_01",
+            "status": "ok"
+          }
+        ],
+        "orchestrator_version": "orchestrator-1.2.0",
+        "plan": {
+          "max_routes": 3,
+          "primary_route": "fish",
+          "router": {
+            "calibrated": true,
+            "margin": 0.94,
+            "method": "learned",
+            "ranked": [
+              [
+                "fish",
+                0.96
+              ],
+              [
+                "animal_general",
+                0.02
+              ],
+              [
+                "misc_unknown",
+                0.01
+              ]
+            ],
+            "top_probability": 0.96,
+            "version": "v2"
+          },
+          "routes": [
+            "fish"
+          ],
+          "rules_fired": [
+            {
+              "added": [],
+              "detail": "no wide-plan rule fired",
+              "rule": "confident_router",
+              "stage": "router"
+            }
+          ]
+        }
+      },
+      "gc_ratio": 0.48,
+      "inference_mode": "model",
+      "length": 300,
+      "model_version_used": "dnabert2_fish_v2",
+      "n_ratio": 0.0,
+      "novelty_score": 0.0,
+      "percent_identity": 99.84,
+      "predicted_taxon": "Thunnus albacares",
+      "reason_codes": [],
+      "reference_db": "synthveda-reference/fish",
+      "reference_db_version": "v2",
+      "result_class": "known_species",
+      "route": "fish",
+      "route_confidence": 0.96,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": true,
+      "router_fallback_reason": null,
+      "router_method": "learned",
+      "router_route": "fish",
+      "router_version": "v2",
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_orch_tuna_01",
+      "stub_reason": null,
+      "taxon_rank": "species",
+      "taxon_source": "decision"
+    },
+    {
+      "confidence": 0.71,
+      "contamination_score": 0.0,
+      "decision": {
+        "confidence": 0.71,
+        "final_route": "plant",
+        "percent_identity": 98.9,
+        "predicted_taxon": "Quercus",
+        "reference_db": "synthveda-reference/plant",
+        "reference_db_version": "v2",
+        "result_class": "likely_taxonomic_group",
+        "rule": "novelty_downgraded_by_reference",
+        "taxon_rank": "genus"
+      },
+      "decision_trace": {
+        "combine": [
+          {
+            "detail": "candidate heads give different classes; heads do not choose the route",
+            "outcome": {
+              "animal_general": "known_species",
+              "misc_unknown": "unknown_needs_online_confirmation",
+              "plant": "possible_novelty"
+            },
+            "rule": "heads_disagree",
+            "step": "disagreement"
+          },
+          {
+            "detail": "plant reference identity 98.9% is within 0.5 of the best (98.9%)",
+            "outcome": "plant",
+            "rule": "reference_confirms_router",
+            "step": "route"
+          },
+          {
+            "detail": "plant species names are capped at genus (species precision 51.9%, QNA-020 Q4)",
+            "outcome": {
+              "from": "Quercus robur",
+              "to": "Quercus"
+            },
+            "rule": "genus_cap",
+            "step": "taxon"
+          },
+          {
+            "detail": "98.9% identity, synthveda-reference/plant v2",
+            "outcome": {
+              "rank": "genus",
+              "taxon": "Quercus"
+            },
+            "rule": "reference_taxon",
+            "step": "taxon"
+          },
+          {
+            "detail": "head said possible_novelty; reference Quercus (genus) at 98.9% counts against novelty (QNA-020 Q4)",
+            "outcome": "likely_taxonomic_group",
+            "rule": "novelty_downgraded_by_reference",
+            "step": "class"
+          },
+          {
+            "detail": "flag kept for review: the reference cannot resolve the species",
+            "outcome": {
+              "downgraded_by_reference": true,
+              "final_flag": true,
+              "final_score": 0.74,
+              "gate": 1.0,
+              "gate_rule": "novelty_downgraded_by_reference",
+              "raw_flag": true,
+              "raw_score": 0.74,
+              "suppressed_by_reference": false
+            },
+            "rule": "novelty_downgraded_by_reference",
+            "step": "novelty"
+          }
+        ],
+        "evidence": [
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.71,
+              "inference_mode": "model",
+              "label_scores": {
+                "possible_novelty": 0.71
+              },
+              "model_version_used": "dnabert2_plant_v1",
+              "result_class": "possible_novelty",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "plant",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [
+                {
+                  "accession": "MN000002.1",
+                  "alignment_length": 300,
+                  "identity": 98.9,
+                  "marker": "rbcL",
+                  "query_coverage": 100.0,
+                  "rank": "species",
+                  "source": "ncbi",
+                  "taxon": "Quercus robur"
+                }
+              ],
+              "human_genome": null,
+              "identity": 98.9,
+              "identity_rank": "species",
+              "lca_applied": false,
+              "lineage": {
+                "family": "Fagaceae",
+                "genus": "Quercus",
+                "kingdom": "Viridiplantae",
+                "order": "Fagales",
+                "phylum": "Streptophyta",
+                "species": "Quercus robur",
+                "superkingdom": "Eukaryota"
+              },
+              "method": "blast",
+              "query_coverage": 100.0,
+              "rank": "species",
+              "reason": null,
+              "reference_db": "synthveda-reference/plant",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "assigned",
+              "taxon": "Quercus robur",
+              "tied_hits": 1,
+              "tied_taxa": 1
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "plant",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.88,
+              "inference_mode": "model",
+              "label_scores": {
+                "unknown_needs_online_confirmation": 0.88
+              },
+              "model_version_used": "dnabert2_misc_unknown_v2",
+              "result_class": "unknown_needs_online_confirmation",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.5,
+            "payload": null,
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": "BLAST database for misc_unknown not found on the worker",
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "unavailable"
+          },
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.64,
+              "inference_mode": "model",
+              "label_scores": {
+                "known_species": 0.64
+              },
+              "model_version_used": "dnabert2_animal_v2",
+              "result_class": "known_species",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [],
+              "human_genome": null,
+              "identity": null,
+              "identity_rank": null,
+              "lca_applied": false,
+              "lineage": {},
+              "method": "blast",
+              "query_coverage": null,
+              "rank": null,
+              "reason": "no reference hit",
+              "reference_db": "synthveda-reference/animal_general",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "no_hit",
+              "taxon": null,
+              "tied_hits": 0,
+              "tied_taxa": 0
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.02,
+            "payload": {
+              "contamination_score": 0.01,
+              "contamination_type": null,
+              "flagged": false,
+              "grch38_contamination": false,
+              "heuristic_flagged": false,
+              "human_genome": null,
+              "reason_codes": [
+                "clean_sequence"
+              ],
+              "signals": {
+                "lab_motif": 0.0,
+                "route": 0.0
+              }
+            },
+            "provider": "contamination",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "plant",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.04,
+            "payload": {
+              "abyss_recommendation": "continue_sampling",
+              "novelty_level": "high",
+              "novelty_score": 0.74,
+              "reason_codes": [],
+              "requires_cloud_confirmation": false,
+              "signals": {}
+            },
+            "provider": "novelty",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "plant",
+            "sequence_id": "seq_e2e_orch_oak_02",
+            "status": "ok"
+          }
+        ],
+        "orchestrator_version": "orchestrator-1.2.0",
+        "plan": {
+          "max_routes": 3,
+          "primary_route": "plant",
+          "router": {
+            "calibrated": true,
+            "margin": 0.27,
+            "method": "learned",
+            "ranked": [
+              [
+                "plant",
+                0.58
+              ],
+              [
+                "misc_unknown",
+                0.31
+              ],
+              [
+                "animal_general",
+                0.06
+              ]
+            ],
+            "top_probability": 0.58,
+            "version": "v2"
+          },
+          "routes": [
+            "plant",
+            "misc_unknown",
+            "animal_general"
+          ],
+          "rules_fired": [
+            {
+              "added": [
+                "misc_unknown",
+                "animal_general"
+              ],
+              "detail": "top probability 0.58 < 0.7",
+              "rule": "low_confidence",
+              "stage": "router"
+            }
+          ]
+        }
+      },
+      "gc_ratio": 0.48,
+      "inference_mode": "model",
+      "length": 300,
+      "model_version_used": "dnabert2_plant_v1",
+      "n_ratio": 0.0,
+      "novelty_score": 0.74,
+      "percent_identity": 98.9,
+      "predicted_taxon": "Quercus",
+      "reason_codes": [],
+      "reference_db": "synthveda-reference/plant",
+      "reference_db_version": "v2",
+      "result_class": "likely_taxonomic_group",
+      "route": "plant",
+      "route_confidence": 0.58,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": true,
+      "router_fallback_reason": null,
+      "router_method": "learned",
+      "router_route": "plant",
+      "router_version": "v2",
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_orch_oak_02",
+      "stub_reason": null,
+      "taxon_rank": "genus",
+      "taxon_source": "decision"
+    },
+    {
+      "confidence": 0.66,
+      "contamination_score": 0.0,
+      "decision": {
+        "confidence": 0.66,
+        "final_route": "animal_general",
+        "percent_identity": 99.67,
+        "predicted_taxon": "Ptychobranchus jonesi",
+        "reference_db": "synthveda-reference/animal_general",
+        "reference_db_version": "v2",
+        "result_class": "known_species",
+        "rule": "novelty_suppressed_by_reference",
+        "taxon_rank": "species"
+      },
+      "decision_trace": {
+        "combine": [
+          {
+            "detail": "candidate heads give different classes; heads do not choose the route",
+            "outcome": {
+              "animal_general": "possible_novelty",
+              "fish": "known_species",
+              "misc_unknown": "unknown_needs_online_confirmation"
+            },
+            "rule": "heads_disagree",
+            "step": "disagreement"
+          },
+          {
+            "detail": "animal_general reference identity 99.67% beats misc_unknown by more than 0.5",
+            "outcome": "animal_general",
+            "rule": "reference_overrides_router",
+            "step": "route"
+          },
+          {
+            "detail": "99.67% identity, synthveda-reference/animal_general v2",
+            "outcome": {
+              "rank": "species",
+              "taxon": "Ptychobranchus jonesi"
+            },
+            "rule": "reference_taxon",
+            "step": "taxon"
+          },
+          {
+            "detail": "head said possible_novelty; reference Ptychobranchus jonesi (species) at 99.67% counts against novelty (QNA-020 Q4)",
+            "outcome": "known_species",
+            "rule": "novelty_suppressed_by_reference",
+            "step": "class"
+          },
+          {
+            "detail": "reference names Ptychobranchus jonesi at 99.67% (QNA-020 Q4)",
+            "outcome": {
+              "downgraded_by_reference": false,
+              "final_flag": false,
+              "final_score": 0.0,
+              "gate": 0.0,
+              "gate_rule": "novelty_suppressed_by_reference",
+              "raw_flag": true,
+              "raw_score": 0.69,
+              "suppressed_by_reference": true
+            },
+            "rule": "novelty_suppressed_by_reference",
+            "step": "novelty"
+          }
+        ],
+        "evidence": [
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.9,
+              "inference_mode": "model",
+              "label_scores": {
+                "unknown_needs_online_confirmation": 0.9
+              },
+              "model_version_used": "dnabert2_misc_unknown_v2",
+              "result_class": "unknown_needs_online_confirmation",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [],
+              "human_genome": null,
+              "identity": null,
+              "identity_rank": null,
+              "lca_applied": false,
+              "lineage": {},
+              "method": "blast",
+              "query_coverage": null,
+              "rank": null,
+              "reason": "best hit below 80% identity",
+              "reference_db": "synthveda-reference/misc_unknown",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "below_threshold",
+              "taxon": null,
+              "tied_hits": 0,
+              "tied_taxa": 0
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.66,
+              "inference_mode": "model",
+              "label_scores": {
+                "possible_novelty": 0.66
+              },
+              "model_version_used": "dnabert2_animal_v2",
+              "result_class": "possible_novelty",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [
+                {
+                  "accession": "JX311522.1",
+                  "alignment_length": 300,
+                  "identity": 99.67,
+                  "marker": "ND1",
+                  "query_coverage": 100.0,
+                  "rank": "species",
+                  "source": "midori2",
+                  "taxon": "Ptychobranchus jonesi"
+                },
+                {
+                  "accession": "JX311518.1",
+                  "alignment_length": 300,
+                  "identity": 90.5,
+                  "marker": "ND1",
+                  "query_coverage": 100.0,
+                  "rank": "species",
+                  "source": "midori2",
+                  "taxon": "Ptychobranchus greenii"
+                }
+              ],
+              "human_genome": null,
+              "identity": 99.67,
+              "identity_rank": "species",
+              "lca_applied": false,
+              "lineage": {
+                "class": "Bivalvia",
+                "family": "Unionidae",
+                "genus": "Ptychobranchus",
+                "kingdom": "Metazoa",
+                "order": "Unionida",
+                "phylum": "Mollusca",
+                "species": "Ptychobranchus jonesi",
+                "superkingdom": "Eukaryota"
+              },
+              "method": "blast",
+              "query_coverage": 100.0,
+              "rank": "species",
+              "reason": null,
+              "reference_db": "synthveda-reference/animal_general",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "assigned",
+              "taxon": "Ptychobranchus jonesi",
+              "tied_hits": 1,
+              "tied_taxa": 1
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.55,
+              "inference_mode": "model",
+              "label_scores": {
+                "known_species": 0.55
+              },
+              "model_version_used": "dnabert2_fish_v2",
+              "result_class": "known_species",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [],
+              "human_genome": null,
+              "identity": null,
+              "identity_rank": null,
+              "lca_applied": false,
+              "lineage": {},
+              "method": "blast",
+              "query_coverage": null,
+              "rank": null,
+              "reason": "no reference hit",
+              "reference_db": "synthveda-reference/fish",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "no_hit",
+              "taxon": null,
+              "tied_hits": 0,
+              "tied_taxa": 0
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "fish",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.02,
+            "payload": {
+              "contamination_score": 0.01,
+              "contamination_type": null,
+              "flagged": false,
+              "grch38_contamination": false,
+              "heuristic_flagged": false,
+              "human_genome": null,
+              "reason_codes": [
+                "clean_sequence"
+              ],
+              "signals": {
+                "lab_motif": 0.0,
+                "route": 0.0
+              }
+            },
+            "provider": "contamination",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.04,
+            "payload": {
+              "abyss_recommendation": "continue_sampling",
+              "novelty_level": "medium",
+              "novelty_score": 0.69,
+              "reason_codes": [],
+              "requires_cloud_confirmation": false,
+              "signals": {}
+            },
+            "provider": "novelty",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "animal_general",
+            "sequence_id": "seq_e2e_orch_mussel_03",
+            "status": "ok"
+          }
+        ],
+        "orchestrator_version": "orchestrator-1.2.0",
+        "plan": {
+          "max_routes": 3,
+          "primary_route": "misc_unknown",
+          "router": {
+            "calibrated": true,
+            "margin": 0.71,
+            "method": "learned",
+            "ranked": [
+              [
+                "misc_unknown",
+                0.82
+              ],
+              [
+                "animal_general",
+                0.11
+              ],
+              [
+                "fish",
+                0.04
+              ]
+            ],
+            "top_probability": 0.82,
+            "version": "v2"
+          },
+          "routes": [
+            "misc_unknown",
+            "animal_general",
+            "fish"
+          ],
+          "rules_fired": [
+            {
+              "added": [
+                "animal_general",
+                "fish"
+              ],
+              "detail": "misc_unknown is a weak route for the router",
+              "rule": "weak_route",
+              "stage": "router"
+            }
+          ]
+        }
+      },
+      "gc_ratio": 0.48,
+      "inference_mode": "model",
+      "length": 300,
+      "model_version_used": "dnabert2_animal_v2",
+      "n_ratio": 0.0,
+      "novelty_score": 0.0,
+      "percent_identity": 99.67,
+      "predicted_taxon": "Ptychobranchus jonesi",
+      "reason_codes": [],
+      "reference_db": "synthveda-reference/animal_general",
+      "reference_db_version": "v2",
+      "result_class": "known_species",
+      "route": "animal_general",
+      "route_confidence": 0.1,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": true,
+      "router_fallback_reason": null,
+      "router_method": "learned",
+      "router_route": "misc_unknown",
+      "router_version": "v2",
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_orch_mussel_03",
+      "stub_reason": null,
+      "taxon_rank": "species",
+      "taxon_source": "decision"
+    },
+    {
+      "confidence": 0.81,
+      "contamination_score": 0.0,
+      "decision": {
+        "confidence": 0.81,
+        "final_route": "bacteria_pathogen",
+        "percent_identity": null,
+        "predicted_taxon": null,
+        "reference_db": "synthveda-reference/bacteria_pathogen",
+        "reference_db_version": "v2",
+        "result_class": "possible_novelty",
+        "rule": "head_class",
+        "taxon_rank": null
+      },
+      "decision_trace": {
+        "combine": [
+          {
+            "detail": "no candidate has a reference assignment",
+            "outcome": "bacteria_pathogen",
+            "rule": "router_primary",
+            "step": "route"
+          },
+          {
+            "detail": "no reference hit",
+            "outcome": "no_hit",
+            "rule": "no_reference_assignment",
+            "step": "taxon"
+          },
+          {
+            "detail": null,
+            "outcome": "possible_novelty",
+            "rule": "head_class",
+            "step": "class"
+          },
+          {
+            "detail": null,
+            "outcome": {
+              "downgraded_by_reference": false,
+              "final_flag": true,
+              "final_score": 0.78,
+              "gate": 1.0,
+              "gate_rule": null,
+              "raw_flag": true,
+              "raw_score": 0.78,
+              "suppressed_by_reference": false
+            },
+            "rule": "novelty_ungated",
+            "step": "novelty"
+          }
+        ],
+        "evidence": [
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.81,
+              "inference_mode": "model",
+              "label_scores": {
+                "possible_novelty": 0.81
+              },
+              "model_version_used": "dnabert2_bacteria_v1",
+              "result_class": "possible_novelty",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "bacteria_pathogen",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [],
+              "human_genome": null,
+              "identity": null,
+              "identity_rank": null,
+              "lca_applied": false,
+              "lineage": {},
+              "method": "blast",
+              "query_coverage": null,
+              "rank": null,
+              "reason": "no reference hit",
+              "reference_db": "synthveda-reference/bacteria_pathogen",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "no_hit",
+              "taxon": null,
+              "tied_hits": 0,
+              "tied_taxa": 0
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "bacteria_pathogen",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 12.0,
+            "payload": {
+              "confidence": 0.62,
+              "inference_mode": "model",
+              "label_scores": {
+                "possible_novelty": 0.62
+              },
+              "model_version_used": "dnabert2_misc_unknown_v2",
+              "result_class": "possible_novelty",
+              "stub_reason": null
+            },
+            "provider": "route_head",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 150.0,
+            "payload": {
+              "batch_seconds": 0.4,
+              "hits": [],
+              "human_genome": null,
+              "identity": null,
+              "identity_rank": null,
+              "lca_applied": false,
+              "lineage": {},
+              "method": "blast",
+              "query_coverage": null,
+              "rank": null,
+              "reason": "no reference hit",
+              "reference_db": "synthveda-reference/misc_unknown",
+              "reference_db_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "reference_db_version": "v2",
+              "status": "no_hit",
+              "taxon": null,
+              "tied_hits": 0,
+              "tied_taxa": 0
+            },
+            "provider": "reference_lookup",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "misc_unknown",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.02,
+            "payload": {
+              "contamination_score": 0.01,
+              "contamination_type": null,
+              "flagged": false,
+              "grch38_contamination": false,
+              "heuristic_flagged": false,
+              "human_genome": null,
+              "reason_codes": [
+                "clean_sequence"
+              ],
+              "signals": {
+                "lab_motif": 0.0,
+                "route": 0.0
+              }
+            },
+            "provider": "contamination",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "bacteria_pathogen",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          },
+          {
+            "elapsed_ms": 0.04,
+            "payload": {
+              "abyss_recommendation": "continue_sampling",
+              "novelty_level": "high",
+              "novelty_score": 0.78,
+              "reason_codes": [],
+              "requires_cloud_confirmation": false,
+              "signals": {}
+            },
+            "provider": "novelty",
+            "provider_version": "1.0",
+            "reason": null,
+            "route": "bacteria_pathogen",
+            "sequence_id": "seq_e2e_orch_vent_04",
+            "status": "ok"
+          }
+        ],
+        "orchestrator_version": "orchestrator-1.2.0",
+        "plan": {
+          "max_routes": 3,
+          "primary_route": "bacteria_pathogen",
+          "router": {
+            "calibrated": true,
+            "margin": 0.88,
+            "method": "learned",
+            "ranked": [
+              [
+                "bacteria_pathogen",
+                0.93
+              ],
+              [
+                "misc_unknown",
+                0.05
+              ],
+              [
+                "plant",
+                0.01
+              ]
+            ],
+            "top_probability": 0.93,
+            "version": "v2"
+          },
+          "routes": [
+            "bacteria_pathogen",
+            "misc_unknown"
+          ],
+          "rules_fired": [
+            {
+              "added": [],
+              "detail": "no wide-plan rule fired",
+              "rule": "confident_router",
+              "stage": "router"
+            },
+            {
+              "added": [
+                "misc_unknown"
+              ],
+              "detail": "bacteria_pathogen reference: no_hit; adding the router's next route misc_unknown",
+              "rule": "reference_miss",
+              "stage": "post_reference"
+            }
+          ]
+        }
+      },
+      "gc_ratio": 0.48,
+      "inference_mode": "model",
+      "length": 300,
+      "model_version_used": "dnabert2_bacteria_v1",
+      "n_ratio": 0.0,
+      "novelty_score": 0.78,
+      "percent_identity": null,
+      "predicted_taxon": null,
+      "reason_codes": [],
+      "reference_db": "synthveda-reference/bacteria_pathogen",
+      "reference_db_version": "v2",
+      "result_class": "possible_novelty",
+      "route": "bacteria_pathogen",
+      "route_confidence": 0.93,
+      "route_probabilities": null,
+      "route_probabilities_calibrated": true,
+      "router_fallback_reason": null,
+      "router_method": "learned",
+      "router_route": "bacteria_pathogen",
+      "router_version": "v2",
+      "sequence": "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGTTGCAACGT",
+      "sequence_id": "seq_e2e_orch_vent_04",
+      "stub_reason": null,
+      "taxon_rank": null,
+      "taxon_source": "decision"
+    }
+  ],
+  "summary": null,
+  "upload_id": "upl_e2e0000000001",
+  "user_id": "usr_e2e_researcher"
+}
