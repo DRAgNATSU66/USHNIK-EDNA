@@ -1,0 +1,13 @@
+11:57:59 train fish wd=0.01
+12:14:56 trained fish TEST  loss=0.3556  acc=0.9641  macro_f1=0.6235 TEST (by_dev_acc checkpoint)  loss=0.3556  acc=0.9641  macro_f1=0.6235 
+fish: tau=0.75  prod test {'n': 1002, 'acc': 0.5469, 'acc_on_prod_classes': 0.9272, 'n_prod_class_rows': 591, 'known_species_recall': 0.9148, 'known_species_precision': 0.552, 'ltg_recall': 0.0, 'ltg_precision': None}
+      hier test {'n': 1002, 'acc': 0.5739, 'acc_on_prod_classes': 0.9239, 'n_prod_class_rows': 591, 'known_species_recall': 0.9249, 'known_species_precision': 0.5435, 'ltg_recall': 0.0706, 'ltg_precision': 0.6444}  ship=False
+12:15:24 train plant wd=0.01
+12:33:54 trained plant TEST  loss=0.3874  acc=0.9703  macro_f1=0.6784 TEST (by_dev_acc checkpoint)  loss=0.4086  acc=0.9676  macro_f1=0.6738 
+plant: tau=0.73  prod test {'n': 1079, 'acc': 0.5255, 'macro_f1': 0.4575, 'acc_on_prod_classes': 0.9058, 'n_prod_class_rows': 626, 'known_species_recall': 0.9897, 'known_species_precision': 0.4903, 'ltg_recall': 0.0, 'ltg_precision': None}
+       hier test {'n': 1079, 'acc': 0.5551, 'macro_f1': 0.6774, 'acc_on_prod_classes': 0.9505, 'n_prod_class_rows': 626, 'known_species_recall': 0.9567, 'known_species_precision': 0.506, 'ltg_recall': 0.0088, 'ltg_precision': 0.8}  ship=False
+12:34:25 train animal_general wd=0.05
+12:55:52 trained animal_general TEST  loss=0.2378  acc=0.9660  macro_f1=0.5312 TEST (by_dev_acc checkpoint)  loss=0.2435  acc=0.9701  macro_f1=0.5345 
+animal_general: tau=0.66  prod test {'n': 1440, 'acc': 0.6118, 'macro_f1': 0.5238, 'acc_on_prod_classes': 0.6118, 'n_prod_class_rows': 1440, 'known_species_recall': 0.9071, 'known_species_precision': 0.4797, 'ltg_recall': 0.0125, 'ltg_precision': 0.1395}
+                hier test {'n': 1440, 'acc': 0.7035, 'macro_f1': 0.6683, 'acc_on_prod_classes': 0.7035, 'n_prod_class_rows': 1440, 'known_species_recall': 0.901, 'known_species_precision': 0.5459, 'ltg_recall': 0.2391, 'ltg_precision': 0.8214}  ship=False
+12:56:23 ALL_DONE

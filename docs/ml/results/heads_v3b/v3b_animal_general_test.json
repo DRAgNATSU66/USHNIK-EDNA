@@ -1,0 +1,63 @@
+{
+  "accuracy": 0.7631944444444444,
+  "f1_macro": 0.7635514974443227,
+  "per_class": {
+    "known_species": {
+      "precision": 0.6892523364485982,
+      "recall": 0.5959595959595959,
+      "f1-score": 0.6392199349945829,
+      "support": 495.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.6647727272727273,
+      "recall": 0.7297297297297297,
+      "f1-score": 0.6957383548067394,
+      "support": 481.0
+    },
+    "possible_novelty": {
+      "precision": 0.9359504132231405,
+      "recall": 0.9762931034482759,
+      "f1-score": 0.9556962025316456,
+      "support": 464.0
+    },
+    "accuracy": 0.7631944444444444,
+    "macro avg": {
+      "precision": 0.7633251589814888,
+      "recall": 0.7673274763792005,
+      "f1-score": 0.7635514974443227,
+      "support": 1440.0
+    },
+    "weighted avg": {
+      "precision": 0.7605670695109549,
+      "recall": 0.7631944444444444,
+      "f1-score": 0.7600743433743359,
+      "support": 1440.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      295,
+      176,
+      24
+    ],
+    [
+      123,
+      351,
+      7
+    ],
+    [
+      10,
+      1,
+      453
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "likely_taxonomic_group",
+    "possible_novelty"
+  ],
+  "test_samples": 1440,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/animal_general_v3b/by_dev_acc",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/animal_general/test.csv",
+  "max_length": 256
+}
