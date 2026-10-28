@@ -409,9 +409,23 @@ def test_build_end_to_end_without_indexes(tmp_path, taxdump, midori_zip):
     fasta = (out / "fish" / "ref.fasta").read_text().splitlines()
     assert fasta[0].startswith(">FSH0000001;tax=d:Eukaryota,k:Metazoa,p:Chordata,c:Actinopteri,")
     assert manifest["heldout_exclusion"]["unique_sequences"] == 1
-    assert (root / "reference" / "CURRENT").read_text().strip() == "vtest"
+    assert not (root / "reference" / "CURRENT").exists()  # unindexed versions never go live
     with pytest.raises(SystemExit):  # versions are immutable
         brd.main(["--data-dir", str(root), "--version", "vtest", "--skip-indexes"])
+
+
+def test_index_only_skips_udb_over_budget_and_gates_current(tmp_path, taxdump, midori_zip, monkeypatch):
+    root = _fake_root(tmp_path, taxdump, midori_zip)
+    assert brd.main(["--data-dir", str(root), "--version", "vtest", "--skip-indexes",
+                     "--max-route-bases", "250"]) == 0
+    monkeypatch.setattr(brd, "find_tool", lambda name, data_root: None)
+    assert brd.main(["--data-dir", str(root), "--version", "vtest", "--index-only", "--skip-grch38"]) == 0
+    routes = json.loads((root / "reference" / "vtest" / "manifest.json").read_text())["routes"]
+    assert routes["fish"]["bases"] > 250
+    assert routes["fish"]["vsearch_udb"]["reason"].startswith("over_budget")
+    assert routes["bacteria_pathogen"]["vsearch_udb"]["reason"] == "vsearch not found"
+    assert not routes["fish"]["blastdb"]["ok"]
+    assert not (root / "reference" / "CURRENT").exists()  # a failed BLAST DB keeps the old version live
 
 
 def _tool(name):

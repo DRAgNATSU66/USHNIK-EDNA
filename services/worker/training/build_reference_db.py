@@ -881,6 +881,76 @@ BLAST_SOURCES = (
 )
 
 
+def build_indexes(root: Path, out_root: Path, version: str, routes_report: dict, max_route_bases: int,
+                  vsearch: Path | None, makeblastdb: Path | None, threads: int, skip_grch38: bool) -> dict:
+    """vsearch UDB + BLAST DB per route from the ref.fasta files on disk,
+    then the GRCh38 BLAST-only index. Fills routes_report in place and
+    returns the manifest's extra keys. A route over max_route_bases gets no
+    UDB: the lookup's auto mode only runs vsearch on a UDB under
+    reference_vsearch_max_udb_gb (2.5 GB) and BLASTs the rest, and building
+    a ~1 Gb UDB takes ~5 GB RAM (v3 animal_general was OOM-killed there)."""
+    for route, info in routes_report.items():
+        if not info.get("sequences"):
+            continue
+        route_dir = out_root / route
+        fasta = route_dir / "ref.fasta"
+        if info["bases"] > max_route_bases:
+            info["vsearch_udb"] = {"ok": False, "reason": f"over_budget ({info['bases']:,} > "
+                                   f"{max_route_bases:,} bases): BLAST only"}
+        elif vsearch is not None:
+            info["vsearch_udb"] = build_udb(vsearch, fasta, route_dir / "ref.udb", threads)
+            if info["vsearch_udb"]["ok"]:
+                info["vsearch_udb"]["bytes"] = (route_dir / "ref.udb").stat().st_size
+        else:
+            info["vsearch_udb"] = {"ok": False, "reason": "vsearch not found"}
+        if makeblastdb is not None:
+            info["blastdb"] = build_blastdb(makeblastdb, fasta, route_dir / "blast" / "ref",
+                                            f"SynthVeda reference {version} {route}", route_dir / "taxid_map.txt")
+            if info["blastdb"]["ok"]:
+                info["blastdb"]["bytes"] = sum(p.stat().st_size for p in (route_dir / "blast").iterdir())
+        else:
+            info["blastdb"] = {"ok": False, "reason": "makeblastdb not found"}
+        print(f"[{route}] udb={info['vsearch_udb'].get('ok')} ({info['vsearch_udb'].get('seconds')}s)  "
+              f"blast={info['blastdb'].get('ok')} ({info['blastdb'].get('seconds')}s)", flush=True)
+
+    extra: dict = {}
+    grch = root / "raw" / "grch38" / "GRCh38_no_alt_analysis_set.fna.gz"
+    if not skip_grch38 and grch.exists() and makeblastdb is not None:
+        print("== GRCh38 BLAST-only index", flush=True)
+        prefix = out_root / "human_domestic_contamination" / "grch38_blast" / "grch38"
+        res = build_grch38_blastdb(makeblastdb, grch, prefix)
+        if res["ok"]:
+            res["bytes"] = sum(p.stat().st_size for p in prefix.parent.iterdir())
+        res["source"] = {"path": str(grch.relative_to(root)), "bytes": grch.stat().st_size}
+        res["note"] = ("Held-out GRCh38 windows in processed/human_domestic_contamination cannot be excluded "
+                       "from a whole genome: a human-route taxon score from this index is not a "
+                       "generalisation measure.")
+        extra["grch38_blast"] = res
+        print(f"    ok={res['ok']} ({res['seconds']}s)", flush=True)
+    return extra
+
+
+def index_only(root: Path, version: str, threads: int, skip_grch38: bool) -> int:
+    """Second phase of a --skip-indexes build, in a fresh small process, so
+    vsearch/makeblastdb never share a memory cgroup with the accumulators."""
+    out_root = root / "reference" / version
+    manifest = json.loads((out_root / "manifest.json").read_text(encoding="utf-8"))
+    t0 = time.time()
+    extra = build_indexes(root, out_root, version, manifest["routes"],
+                          manifest["parameters"]["max_route_bases"], find_tool("vsearch", root),
+                          find_tool("makeblastdb", root), threads, skip_grch38)
+    manifest.update(extra)
+    manifest["index_seconds"] = round(time.time() - t0, 1)
+    with open(out_root / "manifest.json", "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=2)
+    routes_ok = all(i["blastdb"]["ok"] for i in manifest["routes"].values() if i.get("sequences"))
+    if routes_ok:
+        (root / "reference" / "CURRENT").write_text(version + "\n", encoding="utf-8")
+    print(f"CURRENT -> {version}" if routes_ok else "a BLAST DB failed; CURRENT left unchanged", flush=True)
+    print(f"indexes done in {manifest['index_seconds']}s -> {out_root}", flush=True)
+    return 0
+
+
 def _source_plan(raw: Path, taxonomy: TaxonomyResolver, names: NameResolver, blastdbcmd: Path | None,
                  only: set[str] | None) -> list[tuple[str, Callable[[], Iterator[RefRecord]], list[Path]]]:
     plan: list = []
@@ -951,10 +1021,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-grch38", action="store_true")
     parser.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 2) - 2))
     parser.add_argument("--force", action="store_true", help="overwrite an existing version directory")
+    parser.add_argument("--index-only", action="store_true",
+                        help="build the indexes of an existing --skip-indexes version and update its manifest")
     args = parser.parse_args(argv)
 
     t_start = time.time()
     root = Path(args.data_dir)
+    if args.index_only:
+        return index_only(root, args.version, args.threads, args.skip_grch38)
     raw = root / "raw"
     out_root = root / "reference" / args.version
     if out_root.exists():
@@ -1040,39 +1114,16 @@ def main(argv: list[str] | None = None) -> int:
             "write_seconds": round(time.time() - t0, 1),
         }
         print(f"[{route}] {written['sequences']:,} seqs, {written['bases']:,} bases, cap k={k}", flush=True)
-        if not args.skip_indexes and written["sequences"]:
-            if vsearch is not None:
-                info["vsearch_udb"] = build_udb(vsearch, fasta, route_dir / "ref.udb", args.threads)
-                if info["vsearch_udb"]["ok"]:
-                    info["vsearch_udb"]["bytes"] = (route_dir / "ref.udb").stat().st_size
-            else:
-                info["vsearch_udb"] = {"ok": False, "reason": "vsearch not found"}
-            if makeblastdb is not None:
-                info["blastdb"] = build_blastdb(makeblastdb, fasta, route_dir / "blast" / "ref",
-                                                f"SynthVeda reference {args.version} {route}", map_path)
-                if info["blastdb"]["ok"]:
-                    info["blastdb"]["bytes"] = sum(p.stat().st_size for p in (route_dir / "blast").iterdir())
-            else:
-                info["blastdb"] = {"ok": False, "reason": "makeblastdb not found"}
-            print(f"    udb={info['vsearch_udb'].get('ok')} ({info['vsearch_udb'].get('seconds')}s)  "
-                  f"blast={info['blastdb'].get('ok')} ({info['blastdb'].get('seconds')}s)", flush=True)
         routes_report[route] = info
+        acc.entries = {}  # free this route before the next one is selected
+        acc._heaps = defaultdict(list)
     shutil.rmtree(tmp, ignore_errors=True)
+    del accs
 
     extra: dict = {}
-    grch = raw / "grch38" / "GRCh38_no_alt_analysis_set.fna.gz"
-    if not args.skip_grch38 and not args.skip_indexes and grch.exists() and makeblastdb is not None:
-        print("== GRCh38 BLAST-only index", flush=True)
-        prefix = out_root / "human_domestic_contamination" / "grch38_blast" / "grch38"
-        res = build_grch38_blastdb(makeblastdb, grch, prefix)
-        if res["ok"]:
-            res["bytes"] = sum(p.stat().st_size for p in prefix.parent.iterdir())
-        res["source"] = {"path": str(grch.relative_to(root)), "bytes": grch.stat().st_size}
-        res["note"] = ("Held-out GRCh38 windows in processed/human_domestic_contamination cannot be excluded "
-                       "from a whole genome: a human-route taxon score from this index is not a "
-                       "generalisation measure.")
-        extra["grch38_blast"] = res
-        print(f"    ok={res['ok']} ({res['seconds']}s)", flush=True)
+    if not args.skip_indexes:
+        extra = build_indexes(root, out_root, args.version, routes_report, args.max_route_bases,
+                              vsearch, makeblastdb, args.threads, args.skip_grch38)
 
     manifest = {
         "version": args.version,
@@ -1113,7 +1164,8 @@ def main(argv: list[str] | None = None) -> int:
     }
     with open(out_root / "manifest.json", "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)
-    (root / "reference" / "CURRENT").write_text(args.version + "\n", encoding="utf-8")
+    if not args.skip_indexes:  # an unindexed version must not go live; --index-only moves CURRENT
+        (root / "reference" / "CURRENT").write_text(args.version + "\n", encoding="utf-8")
     print(f"done in {manifest['build_seconds']}s -> {out_root}", flush=True)
     return 0
 
