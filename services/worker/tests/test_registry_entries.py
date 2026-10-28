@@ -86,7 +86,14 @@ def test_notes_are_plain_text(name, data):
 
 # Serving state after the 2026-10-19 promotion (QNA-023): four v2 heads are
 # production and served; plant and bacteria v2 stay candidates and v1 serves.
-PROMOTED_V2 = {"fish", "animal_general", "human_domestic_contamination", "misc_unknown"}
+# The 2026-10-28 promotion (QNA-050) demoted fish and misc v2 to staging.
+PROMOTED_V2 = {"animal_general", "human_domestic_contamination"}
+SUPERSEDED_V2 = {"fish", "misc_unknown"}
+# Served head per route after QNA-050.
+SERVED = {"fish": "dnabert2_fish_v3b", "plant": "dnabert2_plant_v1",
+          "animal_general": "dnabert2_animal_v2", "bacteria_pathogen": "dnabert2_bacteria_v3",
+          "human_domestic_contamination": "dnabert2_human_domestic_v2",
+          "misc_unknown": "dnabert2_misc_unknown_v3"}
 
 
 def test_v2_head_selection_matches_promotion():
@@ -99,6 +106,15 @@ def test_v2_head_selection_matches_promotion():
         if str(e.route) in PROMOTED_V2:
             assert e.status == "production", e.model_id
             assert selected is not None and selected.model_id == e.model_id
+        elif str(e.route) in SUPERSEDED_V2:
+            assert e.status == "staging", e.model_id
+            assert selected is not None and selected.model_id != e.model_id
         else:
             assert e.status == "candidate", e.model_id
             assert selected is None or selected.model_id != e.model_id
+
+
+@pytest.mark.parametrize("route", sorted(SERVED))
+def test_served_head_per_route(route):
+    selected = ModelRegistry(REGISTRY_DIR).best_available(route)
+    assert selected is not None and selected.model_id == SERVED[route]

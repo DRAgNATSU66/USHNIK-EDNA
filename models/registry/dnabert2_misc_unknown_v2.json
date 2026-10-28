@@ -88,9 +88,12 @@
   "checksum": "6a2cd6a2980c630e3a57850831b76642844960b7c37730ef070595aeaacbf4a6",
   "created_at": "2026-10-18",
   "promoted_by": "usr_orchestrator_claude",
-  "status": "production",
+  "status": "staging",
   "notes": "DNABERT-2 117M fully fine-tuned from the base Hub weights (not from v1) on the rebuilt leak-free processed/ (processed-2026-10-18T18:17:55+0530; near-duplicate-grouped splits, QNA-016). 6 epochs, max_length 256, torch.AdamW, best dev loss at epoch 5. Metrics: training/evaluate_checkpoint.py on the new test split. Registered as candidate (Q1, t-1021-1); serving is decided by the B8 promote flow.",
   "trusted_remote_code": true,
   "promoted_at": "2026-10-18T19:06:30+00:00",
-  "promoted_from_status": "candidate"
+  "promoted_from_status": "candidate",
+  "demoted_at": "2026-10-28T11:22:46+00:00",
+  "demoted_by": "local-admin-cli",
+  "demoted_for": "dnabert2_misc_unknown_v3"
 }

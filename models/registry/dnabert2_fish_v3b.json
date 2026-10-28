@@ -1,0 +1,62 @@
+{
+  "model_id": "dnabert2_fish_v3b",
+  "route": "fish",
+  "base_model": "data:checkpoints/fish_v3b/backbone",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v2",
+  "label_set": [
+    "known_species",
+    "possible_novelty",
+    "low_quality_unusable",
+    "likely_taxonomic_group"
+  ],
+  "training_dataset_version": "processed-2026-10-28T00:05:40+0530",
+  "metrics": {
+    "test_accuracy": 0.5669,
+    "test_macro_f1": 0.6424,
+    "test_size": 1002,
+    "acc_on_prod_classes": 0.9323,
+    "n_prod_class_rows": 591,
+    "known_species_recall": 0.9351,
+    "ltg_recall": 0.0414,
+    "ltg_precision": 0.6071,
+    "dev_loss_best": 0.3377,
+    "train_size": 8008,
+    "dev_size": 1003,
+    "epochs": 6,
+    "epoch_saved": 4,
+    "train_seconds": 986.5,
+    "max_length": 256,
+    "decoding": {
+      "type": "hierarchical",
+      "tau": 0.76,
+      "rule": "smallest tau with dev acc_on_prod_classes and known_species recall both >= prod dev",
+      "report": "docs/ml/results/heads_v3b/hier_v3b_fish.json"
+    },
+    "same_test_baseline": {
+      "model_id": "dnabert2_fish_v2",
+      "test_accuracy": 0.5469,
+      "test_macro_f1": 0.5849,
+      "acc_on_prod_classes": 0.9272,
+      "known_species_recall": 0.9148,
+      "test_rows_in_prod_training_data": "86/1002 (8.6%)"
+    }
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.35,
+    "ltg_share_tau": 0.76
+  },
+  "artifact_uri": "data:checkpoints/fish_v3b/head.pt",
+  "checksum": "fdcc047c1be126913e7ba9e15f85409f3587a32f73e833f5b6e0518fbe4d3a6d",
+  "created_at": "2026-10-28",
+  "promoted_by": "local-admin-cli",
+  "status": "production",
+  "notes": "DNABERT-2 117M, dataset v3, finetune --hierarchical (leaf 0.3, class-weight power 0.5, wd 0.01), best dev parent accuracy at epoch 4; decoded hierarchically with tau 0.76 chosen on dev. Same v3 test rows vs dnabert2_fish_v2: old-class acc 0.9272 -> 0.9323, known_species recall 0.9148 -> 0.9351, LTG recall 0.0414. Production trained on 86/1002 (8.6%) of these rows. QNA-048.",
+  "trusted_remote_code": true,
+  "registered_by": "local-admin-cli",
+  "registered_at": "2026-10-28T11:22:42+00:00",
+  "promoted_at": "2026-10-28T11:22:43+00:00",
+  "promoted_from_status": "candidate"
+}

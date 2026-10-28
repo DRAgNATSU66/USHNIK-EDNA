@@ -1,0 +1,68 @@
+{
+  "fish": {
+    "model_id": "dnabert2_fish_v3b",
+    "k_by_class": {
+      "known_species": 1,
+      "likely_taxonomic_group": 1
+    },
+    "n_fit": {
+      "known_species": 3551,
+      "likely_taxonomic_group": 2959
+    },
+    "n_calib": {
+      "known_species": 394,
+      "likely_taxonomic_group": 329
+    },
+    "calib_distance": {
+      "p50": 0.025162339210510254,
+      "p90": 0.13289013504981995,
+      "p99": 0.9895856380462646,
+      "max": 1.150036096572876
+    },
+    "npz_sha256": "b0bb3cf98cb775286e4cddf320e3adc0b77c353319b7baeb4a16e709667ab213",
+    "max_length": 256
+  },
+  "bacteria_pathogen": {
+    "model_id": "dnabert2_bacteria_v3",
+    "k_by_class": {
+      "known_species": 1,
+      "likely_taxonomic_group": 1
+    },
+    "n_fit": {
+      "known_species": 10902,
+      "likely_taxonomic_group": 5747
+    },
+    "n_calib": {
+      "known_species": 1211,
+      "likely_taxonomic_group": 638
+    },
+    "calib_distance": {
+      "p50": 0.05610239505767822,
+      "p90": 0.2595493793487549,
+      "p99": 0.970910906791687,
+      "max": 1.5810219049453735
+    },
+    "npz_sha256": "a58828f523ae6ea8fb87e613289f416837291e294a3ec3ddb7190bb2687b868e",
+    "max_length": 256
+  },
+  "misc_unknown": {
+    "model_id": "dnabert2_misc_unknown_v3",
+    "k_by_class": {
+      "unknown_needs_online_confirmation": 1
+    },
+    "n_fit": {
+      "unknown_needs_online_confirmation": 3537
+    },
+    "n_calib": {
+      "unknown_needs_online_confirmation": 393
+    },
+    "calib_distance": {
+      "p50": 0.022161126136779785,
+      "p90": 0.0641331821680069,
+      "p99": 0.8952911496162415,
+      "max": 1.166055679321289
+    },
+    "npz_sha256": "8b242ec21b5c75b55e76356e8c8dd0e5bf07de249a537d0154142b66f9a1445a",
+    "max_length": 256
+  }
+}
