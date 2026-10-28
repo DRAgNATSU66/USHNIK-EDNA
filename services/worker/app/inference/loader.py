@@ -162,18 +162,23 @@ def _load(entry: ModelRegistryEntry) -> tuple[Any, Any] | None:
         # inference; mixed precision belongs in training (autocast), where
         # it's applied safely op-by-op instead of forced at load time.
         load_kwargs["torch_dtype"] = torch.float32
+        # A local directory needs no revision; a Hub ID must be pinned to a
+        # commit (see ModelRegistryEntry.base_model_revision).
+        revision = None if local_path else hub_revision(entry)
 
-        tokenizer = AutoTokenizer.from_pretrained(local_path or uri, trust_remote_code=load_kwargs["trust_remote_code"])
-        config = AutoConfig.from_pretrained(local_path or uri, trust_remote_code=load_kwargs["trust_remote_code"])
+        tokenizer = AutoTokenizer.from_pretrained(local_path or uri, revision=revision,
+                                                  trust_remote_code=load_kwargs["trust_remote_code"])
+        config = AutoConfig.from_pretrained(local_path or uri, revision=revision,
+                                            trust_remote_code=load_kwargs["trust_remote_code"])
         if "AutoModel" not in getattr(config, "auto_map", {}) and getattr(config, "model_type", None) == "esm":
             # Some ESM-family repos (e.g. Nucleotide Transformer) only map
             # AutoModelForMaskedLM to their custom gated-FFN encoder class,
             # not plain AutoModel — see finetune.py for the full story on
             # why AutoModel silently resolves to the wrong (non-gated)
             # architecture here and fails to load the checkpoint weights.
-            model = AutoModelForMaskedLM.from_pretrained(local_path or uri, **load_kwargs).esm
+            model = AutoModelForMaskedLM.from_pretrained(local_path or uri, revision=revision, **load_kwargs).esm
         else:
-            model = AutoModel.from_pretrained(local_path or uri, **load_kwargs)
+            model = AutoModel.from_pretrained(local_path or uri, revision=revision, **load_kwargs)
         model.eval()
         model.to(device)
 
@@ -183,6 +188,16 @@ def _load(entry: ModelRegistryEntry) -> tuple[Any, Any] | None:
     except Exception as exc:
         logger.error("Failed to load model %s: %s", entry.model_id, exc, exc_info=True)
         return None
+
+
+def hub_revision(entry: ModelRegistryEntry) -> str:
+    """The pinned Hub commit for a non-local base_model; raises if there is none."""
+    rev = (entry.base_model_revision or "").strip().lower()
+    if len(rev) != 40 or any(c not in "0123456789abcdef" for c in rev):
+        raise ValueError(
+            f"{entry.model_id}: base_model {entry.base_model!r} is not a local path and has no "
+            "base_model_revision (a 40-hex Hub commit); refusing an unpinned Hub download")
+    return rev
 
 
 def _resolve_local(uri: str) -> str | None:

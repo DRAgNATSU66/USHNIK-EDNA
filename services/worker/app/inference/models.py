@@ -116,6 +116,10 @@ class ModelRegistryEntry:
     # to False — a registry entry must explicitly opt in per base_model, so
     # trusting one model's repo code never silently extends to another's.
     trusted_remote_code: bool = False
+    # Hub commit (40 hex) a non-local base_model is pinned to. The loader
+    # refuses a Hub download without one: an unpinned repo can change under
+    # a registered head, and with trust_remote_code it runs that code.
+    base_model_revision: str | None = None
     # The labels the head was trained with, in output order (registry
     # "label_set"); empty means "use label_set_version's list".
     label_set: list[str] = field(default_factory=list)
