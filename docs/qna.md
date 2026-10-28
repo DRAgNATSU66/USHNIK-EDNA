@@ -3258,3 +3258,87 @@ The rules that came with it, applied here as written:
   per query (see the module docstring: a 776 Mb UDB measured 4.1 GB RSS per query).
 - Still open: the taxonomy name index costs ~2.2 GB of fixed RAM, and the build needs a 6 GB scope
   because of it.
+
+## QNA-050 — 2026-10-28 — Fish v3b, bacteria v3 and misc v3 promoted; novelty centroids built for them
+
+**Commit:** `9debc76` on `sprint/d18-bold-data`. Executes the promotions QNA-048 decided under the
+user's rules. Nothing else in QNA-048 changes.
+
+**Q1. Mechanism: what ran?**
+1. The user ran `scripts/training/promote.py --entry synthveda-data/logs/promote_v3/<id>.json
+   --approve --promote --yes` for `dnabert2_fish_v3b`, `dnabert2_bacteria_v3` and
+   `dnabert2_misc_unknown_v3`, against the local API on 127.0.0.1:8000.
+   - API log `synthveda-data/logs/api_promote_1028b.log`: three `POST /models/register` 201s, then
+     the dry-run and real `POST /models/<id>/promote` calls, all 200.
+   - Promoted at 11:22:43, 11:22:45 and 11:22:46 UTC.
+2. Registry result:
+   - `dnabert2_fish_v2` and `dnabert2_misc_unknown_v2`: production → staging, with
+     `demoted_for` pointing at the new head.
+   - `dnabert2_bacteria_v1` was `experimental` and is unchanged. The route had no production entry
+     before; it was served through the `best_available` fallback.
+3. Novelty centroids (`synthveda-data/logs/rebuild_v3/centroids_v3.sh`, 5 GB scope):
+   - `training.novelty_centroids embed` then `fit --k 1`, the k every shipped head uses (all six
+     v1/v2 manifests say `k_requested: 1`).
+   - Train-known rows: fish 7,233, bacteria 18,498, misc 3,930. Embed took fish ~45 s, bacteria
+     138 s, misc 24 s.
+   - The batched embedding matched `run_inference` on every route (min cosine 1.000000).
+   - Summary: `docs/ml/results/novelty_centroids_v3_promoted.json`. The artifacts sit beside each
+     head under `synthveda-data/checkpoints/<route>_v3*/novelty_centroids_v1.{npz,json}`.
+
+**Q2. Rationale: why a locally minted admin token, and why build centroids now?**
+- **Token:** the Supabase project is paused (free-tier auto-pause). Login reads the role from
+  `user_profiles`, so no login could produce an admin token. The API only verifies the JWT
+  signature (`app/auth/deps.py`).
+  - The user minted a token from `JWT_SECRET` with `app.auth.jwt.create_access_token`, subject
+    `local-admin-cli`. The registry's `promoted_by` and `demoted_by` show that subject.
+  - Claude did not mint it. That was the user's call, and an earlier session's auto-mode classifier
+    had refused it.
+- **Centroids:** after promotion, `test_served_head_loads_its_centroids` failed for fish, bacteria and
+  misc with `centroids_missing`. Without them the novelty evidence falls back to the L2-norm proxy
+  on exactly the routes that changed, so they were built before committing.
+
+**Q3. Blast radius: what changes at runtime, and what is wrong or missing?**
+- **Served heads now:**
+  - fish: `dnabert2_fish_v3b`, hierarchical decoding, tau 0.76.
+  - plant: `dnabert2_plant_v1`, unchanged.
+  - animal: `dnabert2_animal_v2`, unchanged.
+  - bacteria: `dnabert2_bacteria_v3`.
+  - human: `dnabert2_human_domestic_v2`, unchanged.
+  - misc: `dnabert2_misc_unknown_v3`.
+  - router: `kmer_router_v2`, unchanged.
+- **Label sets:** fish and bacteria v3 use label set v2, so fish results can now say
+  likely_taxonomic_group. Measured LTG recall on the v3 test rows is only 0.0414 (precision 0.6071).
+  The class exists but rarely fires.
+- **Supabase mirror:** failed three times with `SupabaseUnavailableError: Name or service not
+  known`. `model_versions` and `model_eval_metrics` in Supabase do not have these promotions.
+  Nothing backfills them yet (same open issue as QNA-023).
+- **Calibration tails:** the calibration distance tails are wide.
+  - p99 cosine distance: fish 0.9896, bacteria 0.9709, misc 0.8953.
+  - p50: 0.0252, 0.0561, 0.0222.
+  - The scorer maps distances through this ECDF, so the tail only affects how fast isolation
+    saturates. It is not re-evaluated against novelty labels here.
+- **Rollback:** promote the demoted v2 entry back with `promote.py --promote-only --model-id
+  dnabert2_fish_v2` (or the misc one). For bacteria, demote v3; v1 is still registered.
+
+**Q4. Verification: what proves it?**
+- Worker suite: **651 passed**. It was 4 failed / 641 passed right after promotion: 3 missing
+  centroids, plus 1 stale test that pinned misc v2 as production.
+- API suite: **758 passed, 3 skipped**.
+- `test_registry_entries.py` now pins the served head for every route (`test_served_head_per_route`).
+  It also asserts that fish and misc v2 are staging and not selected.
+- One-production-per-route check over `models/registry/*.json`: animal v2, bacteria v3, fish v3b,
+  human v2, misc v3, router v2. Plant has none and is served by v1 experimental, as since QNA-023.
+
+**Q5. Defence: "The promote table showed misc v3 *worse* (0.9309 vs 0.9361) and fish v3b at
+0.5669 vs 0.8986. Why promote?"**
+- That table compares each model's own `test_accuracy`, on different test splits and label sets.
+  `promote.py` warns about this itself: "test splits are not the same, so deltas are indicative
+  only".
+- The decision used the same v3 test rows for both models (QNA-047/048):
+  - misc: 0.8985 → 0.9309.
+  - fish: old-class accuracy 0.9272 → 0.9323, known_species recall 0.9148 → 0.9351.
+  - bacteria: 0.7229 → 0.8647.
+- Those baselines are optimistic for production. Production trained on 21.9% (misc), 8.6% (fish)
+  and 9.7% (bacteria) of those rows.
+- Fish v3b's whole-test accuracy is low because the LTG rows (41% of fish test) are mostly decoded
+  as the parent class, by design of the tau rule.
