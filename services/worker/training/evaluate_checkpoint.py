@@ -76,7 +76,15 @@ def main() -> None:
         help="Write eval_report.json here instead of into the checkpoint dir, and leave "
              "the checkpoint's metrics.json untouched.",
     )
+    parser.add_argument("--split", choices=["test", "dev"], default="test")
+    parser.add_argument(
+        "--dump-probs", default=None,
+        help="Also write per-row softmax probabilities (.npz: probs, labels, head_labels, "
+             "label_names) for decoding experiments such as training/hier_decode.py.",
+    )
     args = parser.parse_args()
+    if args.split != "test" and not args.report_out:
+        raise SystemExit("--split dev needs --report-out: the checkpoint's own report is its test score")
 
     from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, AutoConfig
 
@@ -122,15 +130,16 @@ def main() -> None:
     head.eval()
 
     data_dir = Path(args.data_dir) / "processed" / args.route
-    test_ds = SequenceDataset(data_dir / "test.csv", label_to_idx, tokenizer, args.max_length)
-    print(f"test={len(test_ds)}")
+    split_csv = data_dir / f"{args.split}.csv"
+    test_ds = SequenceDataset(split_csv, label_to_idx, tokenizer, args.max_length)
+    print(f"{args.split}={len(test_ds)}")
 
     loader_kwargs = {"collate_fn": collate}
     if device == "cuda":
         loader_kwargs["pin_memory"] = True
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
 
-    all_preds, all_labels = [], []
+    all_preds, all_labels, all_probs = [], [], []
     with torch.no_grad():
         for batch, batch_labels in test_loader:
             batch = {k: v.to(device) for k, v in batch.items()}
@@ -138,10 +147,19 @@ def main() -> None:
             logits = head(extract_cls(out))
             all_preds.extend(logits.argmax(dim=-1).cpu().tolist())
             all_labels.extend(batch_labels.tolist())
+            all_probs.append(torch.softmax(logits.float(), dim=-1).cpu())
+
+    if args.dump_probs:
+        import numpy as np
+        dump = Path(args.dump_probs)
+        dump.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(dump, probs=torch.cat(all_probs).numpy(), labels=np.array(all_labels),
+                 head_labels=np.array(head_labels), label_names=np.array(label_names))
+        print(f"saved probs: {dump}")
 
     report = build_eval_report(all_labels, all_preds, label_names)
     report["checkpoint_dir"] = str(checkpoint_dir)
-    report["test_csv"] = str(data_dir / "test.csv")
+    report["test_csv"] = str(split_csv)
     report["max_length"] = args.max_length
     print(f"\nTEST  acc={report['accuracy']:.4f}  macro_f1={report['f1_macro']:.4f}")
     from sklearn.metrics import classification_report
