@@ -250,7 +250,7 @@ removed.
 - [x] FieldLog edits and attachments persist; uploads live in object storage — live on the fresh stack: edit history survives an API restart, attachment downloads with the same SHA-256, uploads stored as `s3://synthveda-uploads/…` in MinIO (QNA-043)
 - [x] Partner pages show only computed data or honest empty states — integrity sweep + review fixes, Playwright 90/90 (QNA-039, QNA-040)
 - [x] Abyss offline flow works with the network off — fresh stack moved to an `--internal` Docker network (egress `Errno 101`): `/abyss/analyze` 200, 12 sequences on the offline learned router; reconnected, `/abyss/sync` 200 (QNA-043)
-- [ ] CI is green: pytest (both services), frontend build, Playwright, bandit — **green locally only** (API 758/3 skipped, worker 548, build OK, Playwright 90/90, bandit -ll clean); never run on GitHub because nothing has been pushed (QNA-043)
+- [x] CI is green: pytest (both services), frontend build, Playwright, bandit — first GitHub runs 2026-10-28: push + PR #1 all jobs success at `09ecb14` (worker 593 passed / 39 skipped on the runner, API 755/6, Docker build on push); two first-run failures fixed (bandit B615, one environment-dependent test) (QNA-051). Was: green locally only (QNA-043)
 - [x] The measured accuracy numbers in the paper match `checkpoints/*/eval_report.json` and the Day 14 evaluation — every number traced to a results file; 5 rest on QNA text only and the paper cites them that way (QNA-041)
 
 ## Dependency overview
