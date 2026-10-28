@@ -3342,3 +3342,80 @@ user's rules. Nothing else in QNA-048 changes.
   and 9.7% (bacteria) of those rows.
 - Fish v3b's whole-test accuracy is low because the LTG rows (41% of fish test) are mostly decoded
   as the parent class, by design of the tau rule.
+
+## QNA-051 — 2026-10-28 — CI runs for the first time and is green; sprint branch merged into LATEST_USHNIK
+
+**Commits:**
+- Merge `f60ee7c` (`sprint/d18-bold-data` → `LATEST_USHNIK`, `--no-ff`).
+- Trigger fix `230b728`.
+- Smoke workflow `3436f79`, later removed in `09ecb14`.
+- Fixes `2be0133` (pinned Hub revisions) and `06755ee` (environment-free test).
+- All on `LATEST_USHNIK`, pushed to origin. Tracker t-1031-2 ticked; the tracker is now 57/57.
+
+**Q1. Mechanism: what was wrong, and what changed?**
+1. `ci.yml` triggered on `push` to `main`/`dev` and on `pull_request` to `main`/`dev`. Work is pushed
+   to `LATEST_USHNIK`, so pushes never matched.
+   - PR #1 (`LATEST_USHNIK` → `main`) should have produced `pull_request` runs. It never did.
+   - The repo API showed Actions enabled with all actions allowed. Yet it reported 0 workflows and
+     0 runs, and no github-actions check suite on any commit. The cursor, vercel, supabase and
+     claude suites were present.
+2. `230b728` added `LATEST_USHNIK` to the push branches, plus `workflow_dispatch`. After that push
+   GitHub still showed 0 runs and 0 workflows for about 2 minutes.
+3. `3436f79` added a trivial `smoke.yml` (`on: push`, one `echo`). Within ~30 s, runs appeared for
+   Smoke, **CI push and CI pull_request** (PR #1).
+4. The first real runs: API, Frontend Build, Playwright E2E and Docker Build passed (Docker on push
+   only, `if: github.event_name == 'push'`). **Two jobs failed:**
+   - **Worker Tests:** 1 failed / 592 passed / 38 skipped. `test_unavailable_no_tools` asserts
+     "not found". On the runner (no BLAST+), the `refroot` fixture has no BLAST DB, so
+     `choose_method` (`app/evidence/reference_lookup.py:589`) raises "no BLAST DB" first.
+     - The test now patches `_RouteDB.blast_present` to True, so it tests what it names.
+   - **Security Scan:** bandit 1.9.4 reported B615 (unpinned Hugging Face download), 4 Medium /
+     High-confidence, at `app/inference/loader.py:166,167,174,176`. The later
+     ".env not committed" step was skipped; run locally, it finds nothing.
+     - Fix: a new optional registry field `base_model_revision`.
+     - `loader.hub_revision` requires a 40-hex commit for any non-local `base_model`. Otherwise
+       `_load` refuses before any `from_pretrained` and returns None (logged).
+     - Local backbones pass `revision=None`.
+5. **Result on `09ecb14`:** CI `push` and CI `pull_request` both **success**.
+   - Worker on the runner: 593 passed, 39 skipped.
+   - API on the runner: 755 passed, 6 skipped.
+   - Local: worker 661 (651 + 10 new), API 758 passed / 3 skipped.
+
+**Q2. Rationale: why fix B615 in code instead of `# nosec` or excluding the file?**
+- The finding is true for a reachable path. `_resolve_local` falls back to treating `base_model` as
+  a Hub ID.
+- DNABERT-2 entries set `trusted_remote_code`. An unpinned Hub repo would run whatever modeling code
+  it holds on the day the worker loads it.
+- Every served head loads from a local `data:` backbone, so pinning costs nothing at runtime.
+
+**Q3. Blast radius: what can this break, and what is still open?**
+- `nt_50m_fish_experimental` (`base_model` `InstaDeepAI/nucleotide-transformer-50m-multi-species`,
+  status experimental, never served) now refuses to load until someone pins its commit. Its
+  revision is not in gojo's HF cache, so no pin was added.
+- No other entry uses the Hub (`grep '"base_model"' models/registry/*.json`: 15 `data:` paths, 2
+  k-mer routers, 1 Hub ID).
+- **Not proven:** why CI was silent. The trigger mismatch explains the pushes but not PR #1's
+  missing `pull_request` runs, and the push after `230b728` also produced nothing for ~2 min. Runs
+  started only after a second workflow file was pushed. A GitHub-side delay in registering
+  workflows is plausible; no evidence beyond the timing.
+- CI's worker job skips 39 tests that need tools or data the runner lacks (BLAST+, vsearch,
+  checkpoints). Those paths are covered only by local runs.
+
+**Q4. Verification: what proves it?**
+- GitHub run `40683614299` (push, `09ecb14`) and its `pull_request` twin: every job success, Docker
+  Build skipped on the PR by design.
+- `tests/test_hub_revision.py` (10 tests) covers four cases: malformed or short revisions are
+  refused; a full commit is normalised; `_load` refuses before the tokenizer is called; a local
+  path passes `revision=None`.
+- Real load: `loader._load(best_available("fish"))` loads `dnabert2_fish_v3b` (BertModel) on CPU with
+  the new code.
+- The no-tools test was also run with `HAVE_BLAST = HAVE_VSEARCH = False` to imitate the runner: it
+  passes.
+
+**Q5. Defence: "CI was red for the whole sprint and you only noticed at the end?"**
+- No. CI never ran at all, red or green. The first run in the repo's history is 2026-10-28 (run
+  `40682769126`).
+- Every task in the sprint was verified by the local API and worker suites plus `npm run build`, as
+  the protocol requires. Those counts are in the QNA entries.
+- The two first-run failures were one environment-dependent test and one static-analysis rule.
+  Neither was a regression in behaviour that the local suites missed.
