@@ -34,6 +34,12 @@ choices differ from build_dataset.py:
     route: 3.45 GB UDB, 4.1 GB RSS per query), so the budget is set for it;
     a route that cannot fit even at 1 per group is kept at 1 and marked
     over_budget in the manifest - query it through BLAST, which memory-maps.
+  * --ingest-cap K (off by default) bounds memory: each (lowest taxon,
+    marker) group keeps only its K longest sequences while reading. Every
+    ladder step k <= K selects exactly what an unbounded build would (the
+    final top k were in the running top K all along); only the uncapped step
+    can differ, and the manifest counts the groups that were cut. Needed
+    once BOLD is in: v3 was OOM-killed at 7 GB after 13M unique entries.
 
 Header format (one token, no whitespace, so vsearch keeps it whole):
 
@@ -52,6 +58,7 @@ import csv
 import datetime as _dt
 import gzip
 import hashlib
+import heapq
 import json
 import os
 import shutil
@@ -602,14 +609,24 @@ class RouteStats:
     duplicates_merged: int = 0
     lca_coarsened: int = 0
     heldout_excluded: int = 0
+    ingest_rejected: int = 0
+    ingest_evicted: int = 0
     by_source: Counter = field(default_factory=Counter)
+
+
+def _inv(d: bytes) -> bytes:
+    """Byte-wise complement: orders digests descending, so a min-heap of
+    (length, _inv(d)) has the entry select() would rank last at its root."""
+    return bytes(b ^ 0xFF for b in d)
 
 
 class RouteAccumulator:
     """Unique sequences of one route. Sequences go to a temp file in arrival
-    order; only metadata stays in memory."""
+    order; only metadata stays in memory. With ingest_cap, each (lowest
+    taxon, marker) group holds at most that many entries, longest first."""
 
-    def __init__(self, route: str, tmp_dir: Path, taxonomy: TaxonomyResolver | None):
+    def __init__(self, route: str, tmp_dir: Path, taxonomy: TaxonomyResolver | None,
+                 ingest_cap: int | None = None):
         self.route = route
         self.entries: dict[bytes, _Entry] = {}
         self.tmp_path = tmp_dir / f"{route}.seqs"
@@ -617,6 +634,29 @@ class RouteAccumulator:
         self.stats = RouteStats()
         self.tax = taxonomy
         self._interned: dict = {}
+        self.ingest_cap = ingest_cap
+        self._heaps: dict[tuple, list[tuple[int, bytes]]] = defaultdict(list)
+        self._cut_groups: set[tuple] = set()
+
+    def _admit(self, d: bytes, lin, marker: str, length: int) -> bool:
+        """Bounded per-group heap. The root only ever grows, so an entry
+        evicted or rejected once is never better than the root again."""
+        if self.ingest_cap is None:
+            return True
+        key = (lowest_taxon(lin), marker)
+        heap = self._heaps[key]
+        item = (length, _inv(d))
+        if len(heap) < self.ingest_cap:
+            heapq.heappush(heap, item)
+            return True
+        self._cut_groups.add(key)
+        if item <= heap[0]:
+            self.stats.ingest_rejected += 1
+            return False
+        _, worst = heapq.heapreplace(heap, item)
+        del self.entries[_inv(worst)]
+        self.stats.ingest_evicted += 1
+        return True
 
     def _intern(self, lin):
         return self._interned.setdefault(lin, lin)
@@ -628,6 +668,8 @@ class RouteAccumulator:
         lin = self._intern(lineage_tuple(rec.lineage))
         e = self.entries.get(d)
         if e is None:
+            if not self._admit(d, lin, rec.marker, len(rec.sequence)):
+                return
             self.entries[d] = _Entry(lin, rec.taxid, rec.acc, rec.src, rec.marker, len(rec.sequence))
             self._fh.write(d.hex())
             self._fh.write("\t")
@@ -675,6 +717,13 @@ class RouteAccumulator:
                 "unique_before_cap": len(self.entries), "kept": len(keep),
                 "removed_by_cap": len(self.entries) - len(keep),
                 "bases_after_cap": total, "over_budget": total > max_bases}
+        if self.ingest_cap is not None:
+            # Grouping above uses final (LCA-merged) lineages, the heaps used
+            # arrival lineages; they differ only for lca_coarsened entries.
+            info["ingest_cap"] = {"k": self.ingest_cap, "groups_cut": len(self._cut_groups),
+                                  "rejected": self.stats.ingest_rejected,
+                                  "evicted": self.stats.ingest_evicted,
+                                  "exact": chosen_k is not None or not self._cut_groups}
         return keep, chosen_k, info
 
     def write(self, out_fasta: Path, keep: set[bytes], width: int = 0) -> dict:
@@ -685,12 +734,14 @@ class RouteAccumulator:
         by_marker: Counter = Counter()
         rank_depth: Counter = Counter()
         taxid_map: list[tuple[str, int]] = []
+        pending = set(keep)  # an evicted digest can be re-admitted, so the temp file may repeat it
         with open(self.tmp_path, encoding="ascii") as src, open(out_fasta, "w", encoding="utf-8") as out:
             for line in src:
                 hexd, _, seq = line.rstrip("\n").partition("\t")
                 d = bytes.fromhex(hexd)
-                if d not in keep:
+                if d not in pending:
                     continue
+                pending.discard(d)
                 e = self.entries[d]
                 n += 1
                 seq_id = f"{prefix}{n:07d}"
@@ -892,6 +943,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", default="v1")
     parser.add_argument("--max-per-taxon", type=int, default=DEFAULT_MAX_PER_TAXON)
     parser.add_argument("--max-route-bases", type=int, default=DEFAULT_MAX_ROUTE_BASES)
+    parser.add_argument("--ingest-cap", type=int, default=None,
+                        help="keep at most K longest per (lowest taxon, marker) while reading; bounds RAM")
     parser.add_argument("--only-sources", default=None, help="comma list: midori2,silva,unite,ncbi_blastdb,supplementary,univec,bold")
     parser.add_argument("--no-heldout-exclusion", action="store_true")
     parser.add_argument("--skip-indexes", action="store_true")
@@ -925,7 +978,7 @@ def main(argv: list[str] | None = None) -> int:
 
     only = set(args.only_sources.split(",")) if args.only_sources else None
     tmp = Path(tempfile.mkdtemp(prefix=".build-", dir=out_root))
-    accs = {r: RouteAccumulator(r, tmp, taxonomy) for r in ROUTES}
+    accs = {r: RouteAccumulator(r, tmp, taxonomy, args.ingest_cap) for r in ROUTES}
     source_report: list[dict] = []
     dropped: Counter = Counter()
 
@@ -1032,7 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
         "parameters": {
             "min_len": MIN_LEN, "min_len_vector": MIN_LEN_VECTOR, "max_len": MAX_LEN,
             "max_n_fraction": MAX_N_FRACTION, "max_per_taxon_requested": args.max_per_taxon,
-            "max_route_bases": args.max_route_bases, "midori2_selection": "UNIQ",
+            "max_route_bases": args.max_route_bases, "ingest_cap": args.ingest_cap, "midori2_selection": "UNIQ",
             "heldout_exclusion": not args.no_heldout_exclusion,
         },
         "heldout_exclusion": {

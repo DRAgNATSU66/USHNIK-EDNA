@@ -307,6 +307,38 @@ def test_cap_keeps_longest_per_taxon_and_marker(tmp_path):
     assert k == 1 and info["over_budget"]
 
 
+def test_ingest_cap_selects_exactly_what_unbounded_does(tmp_path):
+    import random
+    rng = random.Random(7)
+    recs = []
+    for _ in range(600):
+        sp = rng.choice(["Perca fluviatilis", "Perca flavescens", "Sander lucioperca"])
+        length = rng.choice([80, 90, 90, 100, 120])  # ties on length break by digest
+        seq = "".join(rng.choice("ACGT") for _ in range(length))
+        recs.append(_rec(seq, sp, marker=rng.choice(["CO1", "srRNA"])))
+    recs += recs[::5]  # exact duplicates, including of entries the cap evicts
+    rng.shuffle(recs)
+    (tmp_path / "full").mkdir()
+    (tmp_path / "cut").mkdir()
+    full = brd.RouteAccumulator("fish", tmp_path / "full", None)
+    cut = brd.RouteAccumulator("fish", tmp_path / "cut", None, ingest_cap=20)
+    for r in recs:
+        full.add(r)
+        cut.add(r)
+    full.close()
+    cut.close()
+    assert len(cut.entries) <= 6 * 20 < len(full.entries)
+    for k in (20, 10, 5, 3, 2, 1):
+        kf, _, _ = full.select(k, 10**9)
+        kc, _, info = cut.select(k, 10**9)
+        assert kc == kf and info["ingest_cap"]["exact"]
+        assert all(cut.entries[d].n == full.entries[d].n for d in kc)
+    _, k, info = cut.select(0, 10**9)
+    assert k is None and not info["ingest_cap"]["exact"] and info["ingest_cap"]["groups_cut"] == 6
+    out = tmp_path / "cut.fasta"
+    assert cut.write(out, set(cut.entries))["sequences"] == len(cut.entries)
+
+
 def test_heldout_exclusion_exact_and_chunked(tmp_path):
     proc = tmp_path / "processed" / "fish"
     proc.mkdir(parents=True)
