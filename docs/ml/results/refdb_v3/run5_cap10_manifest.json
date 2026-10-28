@@ -1,0 +1,1692 @@
+{
+  "version": "v3",
+  "created": "2026-10-28T07:37:34+00:00",
+  "build_seconds": 617.7,
+  "builder": "services/worker/training/build_reference_db.py",
+  "header_format": "<ID>;tax=d:..,k:..,p:..,c:..,o:..,f:..,g:..,s:..;src=..;marker=..;acc=..;[taxid=..;]n=..;",
+  "id_prefixes": {
+    "fish": "FSH",
+    "plant": "PLT",
+    "animal_general": "ANM",
+    "bacteria_pathogen": "BAC",
+    "human_domestic_contamination": "HDC",
+    "misc_unknown": "MSC"
+  },
+  "taxonomy": {
+    "taxdump": "tools/taxdump",
+    "blast_taxdb": "raw/ncbi_blastdb/extracted/taxdb"
+  },
+  "parameters": {
+    "min_len": 50,
+    "min_len_vector": 15,
+    "max_len": 50000,
+    "max_n_fraction": 0.05,
+    "max_per_taxon_requested": 0,
+    "max_route_bases": 400000000,
+    "ingest_cap": 10,
+    "midori2_selection": "UNIQ",
+    "heldout_exclusion": true
+  },
+  "heldout_exclusion": {
+    "enabled": true,
+    "unique_sequences": 20115,
+    "files": {
+      "animal_general/dev.csv": {
+        "rows": 1440,
+        "sha256": "cf39b80dfd4aab01de92fde7558e2f2d5b0dc16096e06ee6ae2cd205e5cee9e4"
+      },
+      "animal_general/test.csv": {
+        "rows": 1440,
+        "sha256": "624fa8e39427a03a9d03f3c62ceadc29f038080efc625862c613703e30dc6fae"
+      },
+      "bacteria_pathogen/dev.csv": {
+        "rows": 4452,
+        "sha256": "b8e8c6d833f17d96dc49dfa6e2b0760fe448d6c0fe2137e50447ee211934dda5"
+      },
+      "bacteria_pathogen/test.csv": {
+        "rows": 4450,
+        "sha256": "5c54239a35f1cee51108555ca1d96b44b25159bbf0b1995df1bc49838f2027a7"
+      },
+      "fish/dev.csv": {
+        "rows": 1003,
+        "sha256": "6eb82183c7270861171f51e8921c74e92b7d72ebb862962851790e962d15250a"
+      },
+      "fish/test.csv": {
+        "rows": 1002,
+        "sha256": "e87fd1fe571b08dc940432a930fba71af2816f2b26987340ac580fdcc3f3a3ee"
+      },
+      "human_domestic_contamination/dev.csv": {
+        "rows": 773,
+        "sha256": "fc0a884d2c9f4a8d8ba6a11da9d42112cbff951bc0d5692b70f4caad0ebfe419"
+      },
+      "human_domestic_contamination/test.csv": {
+        "rows": 773,
+        "sha256": "95b4228a7d660c2883b085eb2ec4fe598039f71c17bc0ef36cbf99140887fa61"
+      },
+      "misc_unknown/dev.csv": {
+        "rows": 1360,
+        "sha256": "d48b7d657718512cc7c85e081c9d1a29b46746ae309728723dbdf520284cda3e"
+      },
+      "misc_unknown/test.csv": {
+        "rows": 1360,
+        "sha256": "7eced68fb72f432159e4340b9931f915d3b9577b642e4e90a8ac9ee824e7e193"
+      },
+      "plant/dev.csv": {
+        "rows": 1080,
+        "sha256": "cb67df09fd762ca1f30e2fce6233194868b4a47a243d0cb89b040c98d6820731"
+      },
+      "plant/test.csv": {
+        "rows": 1079,
+        "sha256": "a4a0e06d54dc675f0f4edc5043432c2cf26e90b2901fafd3a361ebfce1b41dc9"
+      }
+    },
+    "why": "The reference is for taxon lookup. Day 10 evaluates taxon assignment on the held-out splits; a query that is itself in the reference returns a 100% self-hit and measures nothing. dev+test sequences (and long records whose build_dataset chunks are in them) are excluded; train sequences stay. Rebuild when processed/ is rebuilt - the sha256 values here show which splits this build excluded."
+  },
+  "dropped": {
+    "bold:heldout_dev_test": 112097,
+    "bold:n_rich": 83691,
+    "bold:no_usable_taxon": 21,
+    "bold:too_short": 446,
+    "midori2:heldout_dev_test": 3301,
+    "midori2:n_rich": 28443,
+    "ncbi_blastdb:heldout_dev_test": 1046,
+    "ncbi_blastdb:n_rich": 35,
+    "silva:heldout_dev_test": 38128,
+    "silva:n_rich": 3,
+    "supplementary:heldout_dev_test": 1013,
+    "supplementary:n_rich": 31,
+    "unite:heldout_dev_test": 111,
+    "univec:heldout_dev_test": 619,
+    "univec:n_rich": 67,
+    "univec:too_short": 22
+  },
+  "sources": [
+    {
+      "source": "midori2",
+      "name": "MIDORI2_GB273_RAW.zip",
+      "src_tag": "midori2",
+      "records_read": 3975698,
+      "records_kept": 3943954,
+      "kept_by_route": {
+        "misc_unknown": 154818,
+        "animal_general": 3076536,
+        "fish": 591368,
+        "human_domestic_contamination": 70897,
+        "plant": 50335
+      },
+      "seconds": 173.7,
+      "files": [
+        {
+          "path": "raw/midori2/MIDORI2_GB273_RAW.zip",
+          "bytes": 1711339098,
+          "sha256": "305db76c4c8e2c67d582b305ecb3b33153e4dce7f4f1923562d1f20c086dd502"
+        }
+      ],
+      "licence": "CC BY 4.0 (MIDORI2 GB273, doi:10.5281/zenodo.22685701; Leray et al. 2022 Environmental DNA 4:894). Underlying GenBank records: NCBI policy."
+    },
+    {
+      "source": "bold",
+      "name": "BOLD_Public.23-Oct-2026.parquet",
+      "src_tag": "bold",
+      "records_read": 11133239,
+      "records_kept": 10936984,
+      "kept_by_route": {
+        "animal_general": 9519951,
+        "fish": 452517,
+        "misc_unknown": 319436,
+        "plant": 558399,
+        "human_domestic_contamination": 67547,
+        "bacteria_pathogen": 19134
+      },
+      "seconds": 322.6,
+      "files": [
+        {
+          "path": "raw/bold/BOLD_Public.23-Oct-2026.parquet",
+          "bytes": 2440823182,
+          "sha256": "7e29be3480d3b1223573c239df2f1e7ad311c25a7c6bcc462a83ca931870dd93"
+        }
+      ],
+      "licence": "CC BY-SA 4.0 (BOLD Public data package, doi:10.5883/DP-Latest; Ratnasingham et al. 2024, BOLD v4, DNA Barcoding: Methods and Protocols ch. 26)."
+    },
+    {
+      "source": "silva",
+      "name": "SILVA_138.2_LSURef_NR99_tax_silva.fasta.gz",
+      "src_tag": "silva",
+      "records_read": 93065,
+      "records_kept": 63385,
+      "kept_by_route": {
+        "misc_unknown": 4335,
+        "bacteria_pathogen": 45161,
+        "animal_general": 6875,
+        "plant": 6855,
+        "human_domestic_contamination": 21,
+        "fish": 138
+      },
+      "seconds": 8.3,
+      "files": [
+        {
+          "path": "raw/silva/SILVA_138.2_LSURef_NR99_tax_silva.fasta.gz",
+          "bytes": 70566330,
+          "sha256": "25abefa760384984874f4f27afce25f44fbb1aa9a0779b3a5457e064e3422248"
+        }
+      ],
+      "licence": "CC BY 4.0 (SILVA 138.2; Quast et al. 2013 NAR 41:D590)."
+    },
+    {
+      "source": "silva",
+      "name": "SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz",
+      "src_tag": "silva",
+      "records_read": 213642,
+      "records_kept": 205191,
+      "kept_by_route": {
+        "plant": 9618,
+        "bacteria_pathogen": 157097,
+        "misc_unknown": 18125,
+        "human_domestic_contamination": 388,
+        "animal_general": 19458,
+        "fish": 505
+      },
+      "seconds": 15.2,
+      "files": [
+        {
+          "path": "raw/silva/SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz",
+          "bytes": 201107829,
+          "sha256": "c779f51f1c605377f23d240005cbdd96068a77fdf85117f15d9f598b138a2072"
+        }
+      ],
+      "licence": "CC BY 4.0 (SILVA 138.2; Quast et al. 2013 NAR 41:D590)."
+    },
+    {
+      "source": "unite",
+      "name": "sh_general_release_dynamic_04.04.2024.fasta",
+      "src_tag": "unite",
+      "records_read": 93085,
+      "records_kept": 92974,
+      "kept_by_route": {
+        "misc_unknown": 92974
+      },
+      "seconds": 2.4,
+      "files": [
+        {
+          "path": "raw/unite/sh_general_release_dynamic_04.04.2024.fasta",
+          "bytes": 66601770,
+          "sha256": "9d77e87fed5491e45ad8bf6cc53732f92c59449f825d871b5a4d8cf31597a4bb"
+        }
+      ],
+      "licence": "CC BY-SA 4.0 (UNITE general FASTA release 04.04.2024, doi:10.15156/BIO/2959332)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "16S_ribosomal_RNA.ndb",
+      "src_tag": "16S_ribosomal_RNA",
+      "records_read": 28006,
+      "records_kept": 27614,
+      "kept_by_route": {
+        "bacteria_pathogen": 27614
+      },
+      "seconds": 1.4,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.ndb",
+          "bytes": 1478656,
+          "sha256": "d9d5490899a9e5e9dc6e7356be95664d6d689b25b5ae94ffe6e2dfdc7ff987ea"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nhr",
+          "bytes": 4371676,
+          "sha256": "7cbebd8e64b31ff93145c9950bae63c380a86c50cec17e85cad9bdde41c8da80"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nin",
+          "bytes": 331924,
+          "sha256": "351b17d82387c5ce31aeba728629a7eb998a63bd8dd4c78b26242877263de2e7"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nnd",
+          "bytes": 224072,
+          "sha256": "8101ec2a2f7b3fd8b00ef2fe3d6284696e3a9926dcdcb9c91aa917e3843628bf"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nni",
+          "bytes": 924,
+          "sha256": "f5c6ac346ce4304298f7255ed5dfd7878b54cd9b2d2385405896d7dfd9dd01da"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nog",
+          "bytes": 110624,
+          "sha256": "b8cbf565b352571b2b10e44d09aa56bbde011b35f9eb09c3237d26f8191563c1"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nos",
+          "bytes": 557300,
+          "sha256": "c01305274340fd334cc2fc6806713665ed23a953d58387a1d4bbaf37c3fd0ba2"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.not",
+          "bytes": 332196,
+          "sha256": "7a1cbf1fd83d07aae4096d06a44aa14c4e163c666d01f8cdb21c4af4d952affa"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nsq",
+          "bytes": 10141866,
+          "sha256": "a469819a0f0cf721b8afda03a142564356007ffbb79f49e8735160f4a1568b44"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.ntf",
+          "bytes": 679936,
+          "sha256": "b9ca50e9a36432d6a60453f233b2cd8ec238261530baa2895e967faa971df659"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/16S_ribosomal_RNA/16S_ribosomal_RNA.nto",
+          "bytes": 197984,
+          "sha256": "c146bff60546886a5f492874acb2dc6f35c66a760287d86fb7a39fde28023334"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "LSU_prokaryote_rRNA.ndb",
+      "src_tag": "LSU_prokaryote_rRNA",
+      "records_read": 3989,
+      "records_kept": 3686,
+      "kept_by_route": {
+        "bacteria_pathogen": 3686
+      },
+      "seconds": 0.6,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.ndb",
+          "bytes": 249856,
+          "sha256": "302c056fda5278cd940612ccb636ef729062d9c596ebad77a24ea53eb9ce8d00"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nhr",
+          "bytes": 469341,
+          "sha256": "13603ee6b11d0eaa726174a4aa0c3df554c982d24995dfee391413eecb1ec4af"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nin",
+          "bytes": 48712,
+          "sha256": "67a1ca80124bf6121b6b6912da254de2474047517e486aaccd94df69ce779d70"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nog",
+          "bytes": 16220,
+          "sha256": "bfe14b16ab1538554387e181303196f0e5a3a6fb56ace1ab90595239bb154749"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nos",
+          "bytes": 85873,
+          "sha256": "ccffa384d40a4b96d82d7386fdd580b514330a8be0b231a7053db14e71b9ff43"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.not",
+          "bytes": 48572,
+          "sha256": "09874dabc8d8d45a03bd292622f660f1b9b89cf1b34dc5157adbe184e88e5245"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nsq",
+          "bytes": 2966941,
+          "sha256": "35a63af40685cfc9c3c850344501ffe7c2fefb91bc50040b6ab1528f18acbed9"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.ntf",
+          "bytes": 147456,
+          "sha256": "db85abebb078a4bf123bcf074b7a24ad588dcec1aca1bb1c9eafab7390dd8c8f"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_prokaryote_rRNA/LSU_prokaryote_rRNA.nto",
+          "bytes": 31568,
+          "sha256": "daa86ca1f5061732503d93ced48a5f5be692ee6017dea74f3690896cd72408a6"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "SSU_eukaryote_rRNA.ndb",
+      "src_tag": "SSU_eukaryote_rRNA",
+      "records_read": 8620,
+      "records_kept": 8609,
+      "kept_by_route": {
+        "animal_general": 4186,
+        "misc_unknown": 3753,
+        "plant": 572,
+        "fish": 97,
+        "human_domestic_contamination": 1
+      },
+      "seconds": 0.7,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.ndb",
+          "bytes": 442368,
+          "sha256": "4db4f0846a170ba5ef50e7b24c2aa930e99e648aebb7551e07269cb2d8ab609e"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nhr",
+          "bytes": 1173375,
+          "sha256": "4054e31c99f5cbf827166d68104423ed185ccbd72c0be60cb66aa19a739d7fe6"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nin",
+          "bytes": 105556,
+          "sha256": "adabbfc10226762a4461d340ae1ff3e495b08d4997e7cd08b496bf3bd45d4b6f"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nog",
+          "bytes": 35168,
+          "sha256": "e24a3eea0484369a2c304fcbe9585d4ab02f24366f0309a06b06b5eef6b043f9"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nos",
+          "bytes": 166142,
+          "sha256": "5c0999b705223ddd3b821d46b2585db6da18e4892b16ef3fc69116577b06629f"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.not",
+          "bytes": 105416,
+          "sha256": "12ce13fc2e69b956e70343e1106f2837d9e058b25b427ae6dc774a07a0be281b"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nsq",
+          "bytes": 3975875,
+          "sha256": "9011d522ac2c5a92faf4797c6a56b057c7211ca522085b5f99d24ce765c1430a"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.ntf",
+          "bytes": 274432,
+          "sha256": "6686e697ea8c2b9787cfeb38358393553a2907c5d4335c1aa8d6ba57d1c72f5c"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/SSU_eukaryote_rRNA/SSU_eukaryote_rRNA.nto",
+          "bytes": 66944,
+          "sha256": "357e638cd002b936c773c32b3c4f50bbe37ab4e6643d4f3a3d9f76a3ca8bad1f"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "LSU_eukaryote_rRNA.ndb",
+      "src_tag": "LSU_eukaryote_rRNA",
+      "records_read": 6423,
+      "records_kept": 6406,
+      "kept_by_route": {
+        "misc_unknown": 2812,
+        "plant": 751,
+        "fish": 5,
+        "animal_general": 2838
+      },
+      "seconds": 0.7,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.ndb",
+          "bytes": 339968,
+          "sha256": "a6a87cb2af3af1f6f0499f3e71c431aed7234645a938776d3ff4cc6937c46909"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nhr",
+          "bytes": 876589,
+          "sha256": "5e42317531869b4777a8962b02534b192fc83b6dcb4c08f23865cd530008cc8f"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nin",
+          "bytes": 79048,
+          "sha256": "42d1b42f4b0d3826e966251fdf6b5c0fbdfc1e48be596b42f3b0cb3a39f59214"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nog",
+          "bytes": 26332,
+          "sha256": "86b7439cb4261abb680597ac4bfd9705d271aeb6cd9afdb9b70bd1aa7cc4853e"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nos",
+          "bytes": 124893,
+          "sha256": "d7cdd83e0859e30f53c1659f3495f5fdfb11f4176ebaaf81843eb3705917dabe"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.not",
+          "bytes": 78908,
+          "sha256": "7773a3a8d138d0aab4e702770e9f9534cd1e7e476ec7b380cf73fe15733c15e9"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nsq",
+          "bytes": 3528383,
+          "sha256": "aade18dab441daea767d06f0e6966f1e428cb36cda4ddef47ef15f91533d9ec5"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.ntf",
+          "bytes": 229376,
+          "sha256": "ccdbaeb0c8d650e4da0d47a72ce47c301cc44794419dd131e73721c45791b952"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/LSU_eukaryote_rRNA/LSU_eukaryote_rRNA.nto",
+          "bytes": 52596,
+          "sha256": "60d28f6ff8d0b95cf9c2cc9e17b74310e82a7ab07fff77c02536875cbb4b8c24"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "18S_fungal_sequences.ndb",
+      "src_tag": "18S_fungal_sequences",
+      "records_read": 4034,
+      "records_kept": 4026,
+      "kept_by_route": {
+        "misc_unknown": 4026
+      },
+      "seconds": 0.5,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.ndb",
+          "bytes": 237568,
+          "sha256": "724fd67bf619155ffcfa3e0b1cb295cf60eb45ed1fd73d39b7433a0f73885ccd"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nhr",
+          "bytes": 679412,
+          "sha256": "fbe7e016ac94e4ff61fd1e5f28588099e3ce2083856103a9f77213196b08af19"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nin",
+          "bytes": 47032,
+          "sha256": "2660b737c0f160865334b8c9826241a4d0d382338868d90b5c93aea61486cf50"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nnd",
+          "bytes": 32280,
+          "sha256": "abcc83057dc0bcf36e6f6aeb3da8f7084113a2e926dce5d6a84d7fdc60edc197"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nni",
+          "bytes": 172,
+          "sha256": "651061001a46274faeae60151f93c2a880467d4ba34266baa4db232ebaece8d8"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nog",
+          "bytes": 15652,
+          "sha256": "124c090ef7ada3e0c3dba7b55ff2bd3ef30bb45b5a54e075dc510f41f7836456"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nos",
+          "bytes": 79668,
+          "sha256": "02d9c5c077af6c1fe6014fc267a4ce405f359b2996998825ddd5bba29522c5fd"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.not",
+          "bytes": 47388,
+          "sha256": "66d35d8f296c3f44fabd2cc0f6da9f3accdd3a4f393672c21258e47dcded80db"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nsq",
+          "bytes": 1301630,
+          "sha256": "9995ade90d54728b38c642f9bbf9c5991071eb5cae7b04c118c8781b0515e0fe"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.ntf",
+          "bytes": 155648,
+          "sha256": "8cfd9dfff8bb7ba306294b8062435dd7485b884552ff191bf7ae6839c0cebbf6"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/18S_fungal_sequences/18S_fungal_sequences.nto",
+          "bytes": 32260,
+          "sha256": "57a197be8fd5b36f818baf1c8f35851455881d8d3060e27814070100e53c89e4"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "ITS_RefSeq_Fungi.ndb",
+      "src_tag": "ITS_RefSeq_Fungi",
+      "records_read": 20383,
+      "records_kept": 20345,
+      "kept_by_route": {
+        "misc_unknown": 20345
+      },
+      "seconds": 0.9,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.ndb",
+          "bytes": 1093632,
+          "sha256": "021003e6950860699b2592a02692bb7bf3f70e4d10cd9746b9371bf148cf7113"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nhr",
+          "bytes": 3000635,
+          "sha256": "e6701d02dedb03e13505540de08449f46279fa550a7d45bad194079f9ccf5a2d"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nin",
+          "bytes": 242764,
+          "sha256": "0ea5c80df6dcfe542875c0f087fde1e52fbc3a8ca149e530475df79a685b87de"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nnd",
+          "bytes": 163072,
+          "sha256": "657b2390a0ebfbf2c0fd1a512829f6aa72081766f0f013d964ddde22bd150806"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nni",
+          "bytes": 684,
+          "sha256": "b26b87c701bf32ecd96aceb8bfb9ec072dad20f05617a157c5ee2fa9b674e007"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nog",
+          "bytes": 80896,
+          "sha256": "da19ce2e8b9ae4886608314d26f97a28adc766466b72cb51cf2843227c0a7f22"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nos",
+          "bytes": 406344,
+          "sha256": "d5702cbff21e36d32ae4eb4d5e9524a7c9671e0060cbba1cbcadd02bfba0fade"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.not",
+          "bytes": 243248,
+          "sha256": "32f937590b04bdb785be9ae5ff677e73780722fa096756f537389923f6ead0b1"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nsq",
+          "bytes": 3030244,
+          "sha256": "83e3acc693265e86507411d40bff9eb6703d2554c1f6810f335eac4784a279d2"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.ntf",
+          "bytes": 679936,
+          "sha256": "475abdb482c3e412ced238a1eddb85893106594d7c9d918f22745f76f74c3a93"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_RefSeq_Fungi/ITS_RefSeq_Fungi.nto",
+          "bytes": 162520,
+          "sha256": "6971f5b973753358f267dee055e327e1689ebfca01dcf9d0110fae5ea294f00b"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "ITS_eukaryote_sequences.ndb",
+      "src_tag": "ITS_eukaryote_sequences",
+      "records_read": 77064,
+      "records_kept": 76891,
+      "kept_by_route": {
+        "human_domestic_contamination": 5,
+        "animal_general": 7314,
+        "fish": 161,
+        "misc_unknown": 21540,
+        "plant": 47871
+      },
+      "seconds": 2.7,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.ndb",
+          "bytes": 3702784,
+          "sha256": "542e02c7e932139eae78a3d8f048b360d17b42f43b041ecf000e16efc77f841c"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nhr",
+          "bytes": 7814917,
+          "sha256": "6fba6021942631c2cea5ca0bd5b7286809738e3a9f921e1d72d993c1ff80bccf"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nin",
+          "bytes": 931108,
+          "sha256": "f5d7ce5f1db30a5c14a84ea2df6501cfc526430f296346a6f7865b2e9cb327f9"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nog",
+          "bytes": 310360,
+          "sha256": "b47e5238e2abb0ea66b127e10ef43363fa2b6f83ae9b8c6646f2f332a96579bc"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nos",
+          "bytes": 1474261,
+          "sha256": "f21f52570e922d1431bac4f454aebf560d21809559011319aed0743851c8ef4a"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.not",
+          "bytes": 930992,
+          "sha256": "7e9f14dca35bc438cf7f77d124aec850f7d5508bc397bcc61dc65e112d4a3266"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nsq",
+          "bytes": 15343129,
+          "sha256": "0a75c7653c604eabcc2cd8e95865baa3b37286b7dc50a943ca5c5ee2f9e07711"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.ntf",
+          "bytes": 3338240,
+          "sha256": "3d5349a53b1d37aef014d0c8fbea6ac58e6e51eccd60dc88bb53c6207534c71e"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ITS_eukaryote_sequences/ITS_eukaryote_sequences.nto",
+          "bytes": 573044,
+          "sha256": "370a8957fddbd901899241c5734e4695c119a229efa3b9f74c8ac31095e4494c"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "mito.ndb",
+      "src_tag": "mito",
+      "records_read": 16920,
+      "records_kept": 16874,
+      "kept_by_route": {
+        "animal_general": 11789,
+        "human_domestic_contamination": 19,
+        "fish": 4174,
+        "misc_unknown": 837,
+        "plant": 55
+      },
+      "seconds": 4.7,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.ndb",
+          "bytes": 954368,
+          "sha256": "7c0f97328f5ebde847898548bd94d42c92b395915517717fbae0de7612a45cae"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nhr",
+          "bytes": 2491787,
+          "sha256": "e553c38c703cdcecb1172727104412de339f6f694b3eed3d8281e0a58f3246ce"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nin",
+          "bytes": 216348,
+          "sha256": "182555d05970e61a43abdb65d282dd38e3a4bd3c3731cd146dddafba4e82f341"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nnd",
+          "bytes": 144208,
+          "sha256": "b80133f8ea49b045ccced95058e799851c3afa00af3fe98e454feb3ab908dfe2"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nni",
+          "bytes": 612,
+          "sha256": "ab14631c98f91af4942648c9266f3cb210629b8929e510e18bfb8c6c44a05db7"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nog",
+          "bytes": 72104,
+          "sha256": "c4e35753d7949743f46488998a57f90aeac5b513df6c58260101294c1439cb67"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nos",
+          "bytes": 360464,
+          "sha256": "59d5e67c6b2204a70c6acb82644c4d51ad3c1506b3b5531b3ebcb54632558a3b"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.not",
+          "bytes": 216256,
+          "sha256": "53fe7c5de453908b00d4fd1fc0ff7ad937a967fc849eb9ed92e6d965ededc858"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nsq",
+          "bytes": 148560242,
+          "sha256": "fce1719ac1aa8570cf2e4dfff44e9d86a0f9b3a42778001a9f239749177222b8"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.ntf",
+          "bytes": 606208,
+          "sha256": "c5db4e6e5bb0fac09907cf3e5a6d66d33f472a3cd6abd6d1b6c717f5b2223a18"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/mito/mito.nto",
+          "bytes": 144156,
+          "sha256": "630742c64bfce85de9e56ec115f1043a2f8c2c6fd6e74edb5189a1e9bba351d1"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "ncbi_blastdb",
+      "name": "ref_viruses_rep_genomes.ndb",
+      "src_tag": "ref_viruses_rep_genomes",
+      "records_read": 16244,
+      "records_kept": 16151,
+      "kept_by_route": {
+        "misc_unknown": 16151
+      },
+      "seconds": 2.7,
+      "files": [
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.ndb",
+          "bytes": 1032192,
+          "sha256": "ea9afdc6cb82a042e58ca4ccd24d353ef86935d43664f76668ef7a4f31922535"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nhr",
+          "bytes": 2811957,
+          "sha256": "e9255bffc6929c7491fe172629cf6d54fe0afad56c0e6bcb3bb1b9c818b50efe"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nin",
+          "bytes": 234828,
+          "sha256": "bf4c8f84c764e8d7dab63b1f8bbc88c9ff4f490590c5a765f4d8d54e04ccbabc"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nnd",
+          "bytes": 156608,
+          "sha256": "a767b68b39b906a4a8d87dea3833e016d010e1b27877675dfae9260d891c53c1"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nni",
+          "bytes": 660,
+          "sha256": "c8359b8b92a39dabb4ec50b3a32ce910a128c607d8a4286ff490c0dad449ce6b"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nog",
+          "bytes": 78264,
+          "sha256": "c9a2d5881a8cb030031f85e3034dba4cf4b2cc1de75c3c095f0f6ff5e1118dbb"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nos",
+          "bytes": 391384,
+          "sha256": "890ab72b78f6c7668c00a083eca07c3b7be896bbeedf7c78a31f430650b55b3d"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.not",
+          "bytes": 234748,
+          "sha256": "e2e8dd8b66289bd9198da270cc2a0054c330721da5fc40124bb7f694e924420c"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nsq",
+          "bytes": 144913626,
+          "sha256": "2dec47d90561a526bc9901b3871c4360976e1131ee9713e3a1e2ff64021612cd"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.ntf",
+          "bytes": 520192,
+          "sha256": "6d99b6d11647580a84e196f2e95139ca78012deeb33e10bef22c28f3c500cdc5"
+        },
+        {
+          "path": "raw/ncbi_blastdb/extracted/ref_viruses_rep_genomes/ref_viruses_rep_genomes.nto",
+          "bytes": 139688,
+          "sha256": "dfc457b40dd2dbd569c8e5f9d4b7430fba9b985b15bea1791137141917cd3f84"
+        }
+      ],
+      "licence": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/)."
+    },
+    {
+      "source": "supplementary",
+      "name": "ena_animal_env_any.fasta",
+      "src_tag": "supplementary:ncbi_cloning_vectors",
+      "records_read": 2814,
+      "records_kept": 1770,
+      "kept_by_route": {
+        "human_domestic_contamination": 1770
+      },
+      "seconds": 0.2,
+      "files": [
+        {
+          "path": "raw/supplementary/ena/ena_animal_env_any.fasta",
+          "bytes": 586293,
+          "sha256": "07971fb8c996d1a0ca9d5c06dd1b9a0f58137d6520856b368d1d14ab2a7d4ad9"
+        },
+        {
+          "path": "raw/supplementary/ena/ena_animal_env_any.manifest.csv",
+          "bytes": 1136182,
+          "sha256": "98f93d80f6800d68f58aaddc33f4fd9dda180b77ada2a4c9bf1cc1491c19a9a2"
+        },
+        {
+          "path": "raw/supplementary/ena/ena_fish_env.fasta",
+          "bytes": 2282,
+          "sha256": "7999934ad3a400ef93f1609b305c054fa8793b34c80c89088466f0ac80e02837"
+        },
+        {
+          "path": "raw/supplementary/ena/ena_fish_env.manifest.csv",
+          "bytes": 3633,
+          "sha256": "a88b31c6d9b22303e3e918fb00eae54b7d23ee42bf431c8a48d56ebefe7d56df"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_16s.fasta",
+          "bytes": 88951,
+          "sha256": "4c306e25e65c9391d442b0e2ab6c24af7f202068638257bbc50a03b3f1141edc"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_16s.manifest.csv",
+          "bytes": 218266,
+          "sha256": "808d715a97d8034c4335de934807e4bf36fe66202f19285a502cc4f977a9d0e8"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_18s.fasta",
+          "bytes": 1174510,
+          "sha256": "028e828abebb77258e3b747a6b56f9b25884f53e0b141b42d71c7eda1d0eabe0"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_18s.manifest.csv",
+          "bytes": 1295845,
+          "sha256": "fc0318acc03efdf3cf0974f256fb509162160f71678e7b17ab15f710c0e74be6"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_coi.fasta",
+          "bytes": 832805,
+          "sha256": "1480c2e9a2942bcc12e792405d852fe80302cf4a2625aff3d682c576e9a4c61d"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_animal_env_coi.manifest.csv",
+          "bytes": 1875573,
+          "sha256": "e31c5339faaadab44ec824fc4f675fd7b31645d0273deabdfc8a0bc99a4399e9"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_cloning_vectors.fasta",
+          "bytes": 9113421,
+          "sha256": "d2afd0909df0794de02da7f490795e8013f4c2e97103aaf1aedb161900a49dbe"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_cloning_vectors.manifest.csv",
+          "bytes": 1095668,
+          "sha256": "b23090437699ee17864a6b235e5fc40598cd36a9f4154632b326d536fdae88b9"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_fish_env.fasta",
+          "bytes": 410906,
+          "sha256": "da837bb57ac11d784a186469f0ab8dba34362758da7a7614eea1eec8482677db"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_fish_env.manifest.csv",
+          "bytes": 808060,
+          "sha256": "bfea374fd8a192130e7e019421340b259ffa8a59dd1202884c9d9a96ed5bac21"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_human_mito_control_region.fasta",
+          "bytes": 589707,
+          "sha256": "3813dd11f15ad97816fee94c8aaceb912b702c6ea1620a0f3f0a166ad3b1b4c9"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_human_mito_control_region.manifest.csv",
+          "bytes": 731502,
+          "sha256": "46bd915d9ac3d41275a79bf8e62b49840294944a2b751f86a7fc14f204fad8ea"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_human_nuclear_rrna.fasta",
+          "bytes": 476842,
+          "sha256": "1f6ba4355b5637c9319d34aed9e73a06d9fa48439f9cce18466eb477d7d84d59"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_human_nuclear_rrna.manifest.csv",
+          "bytes": 331522,
+          "sha256": "bdcaf5294e7a6b204cbedf0feed418fa804338afc1cc836b95354c2b66429902"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_phix174.fasta",
+          "bytes": 859695,
+          "sha256": "7c888802ceb65ee750c0db8fc394c1c126a1fa7917a54551e2ff1a3dce087af9"
+        },
+        {
+          "path": "raw/supplementary/ncbi/ncbi_phix174.manifest.csv",
+          "bytes": 111322,
+          "sha256": "b32e3bc5db4c009326e07a5854a262e56381de64161410d03f80d866bea1d6ad"
+        }
+      ],
+      "licence": "Per-record licence in raw/supplementary/*/*.manifest.csv (INSDC/GenBank, ENA terms)."
+    },
+    {
+      "source": "univec",
+      "name": "UniVec",
+      "src_tag": "univec",
+      "records_read": 6111,
+      "records_kept": 5403,
+      "kept_by_route": {
+        "human_domestic_contamination": 5403
+      },
+      "seconds": 0.1,
+      "files": [
+        {
+          "path": "raw/univec/UniVec",
+          "bytes": 1703918,
+          "sha256": "2fb50fd9749e3c31b77107e902ba81eed87a55fd2f32b99a708a6172d168a1c9"
+        }
+      ],
+      "licence": "NCBI UniVec: public, NCBI policy."
+    }
+  ],
+  "sources_absent": [],
+  "sources_skipped": {
+    "nt_others": "99% uncultured/synthetic/unidentified (measured top taxids), no taxon to report",
+    "env_nt": "0 of 479,996 records have a usable taxon (all '<habitat> metagenome' taxids, measured 2026-10-18)",
+    "nt_viruses": "tier-2 download in progress; partial volumes not read",
+    "ref_prok_rep_genomes": "tier-2 download in progress; whole genomes, BLAST-only candidate for v2"
+  },
+  "licences": {
+    "midori2": "CC BY 4.0 (MIDORI2 GB273, doi:10.5281/zenodo.22685701; Leray et al. 2022 Environmental DNA 4:894). Underlying GenBank records: NCBI policy.",
+    "silva": "CC BY 4.0 (SILVA 138.2; Quast et al. 2013 NAR 41:D590).",
+    "unite": "CC BY-SA 4.0 (UNITE general FASTA release 04.04.2024, doi:10.15156/BIO/2959332).",
+    "ncbi_blastdb": "NCBI preformatted BLAST DBs: no NCBI restrictions; submitters may claim IP in records (https://www.ncbi.nlm.nih.gov/home/about/policies/).",
+    "univec": "NCBI UniVec: public, NCBI policy.",
+    "grch38": "GRCh38 (GCA_000001405.15): Genome Reference Consortium, public.",
+    "supplementary": "Per-record licence in raw/supplementary/*/*.manifest.csv (INSDC/GenBank, ENA terms).",
+    "bold": "CC BY-SA 4.0 (BOLD Public data package, doi:10.5883/DP-Latest; Ratnasingham et al. 2024, BOLD v4, DNA Barcoding: Methods and Protocols ch. 26)."
+  },
+  "routes": {
+    "fish": {
+      "candidates": 1048965,
+      "duplicates_merged": 214631,
+      "lca_coarsened": 16226,
+      "heldout_excluded": 11637,
+      "candidates_by_source": {
+        "midori2": 591368,
+        "bold": 452517,
+        "mito": 4174,
+        "silva": 643,
+        "ITS_eukaryote_sequences": 161,
+        "SSU_eukaryote_rRNA": 97,
+        "LSU_eukaryote_rRNA": 5
+      },
+      "cap": {
+        "max_per_taxon_marker": 5,
+        "groups": 173912,
+        "unique_before_cap": 472876,
+        "kept": 382075,
+        "removed_by_cap": 90801,
+        "bases_after_cap": 386055768,
+        "over_budget": false,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 12582,
+          "rejected": 251725,
+          "evicted": 109733,
+          "exact": true
+        }
+      },
+      "sequences": 382075,
+      "bases": 386055768,
+      "by_source": {
+        "midori2": 303208,
+        "bold": 74072,
+        "mito": 4161,
+        "silva": 448,
+        "ITS_eukaryote_sequences": 155,
+        "SSU_eukaryote_rRNA": 30,
+        "LSU_eukaryote_rRNA": 1
+      },
+      "by_marker": {
+        "CO1": 65888,
+        "COI-5P": 50791,
+        "Cytb": 41023,
+        "lrRNA": 34060,
+        "srRNA": 31067,
+        "ND2": 20232,
+        "ND4": 15294,
+        "ND1": 13928,
+        "A6": 13586,
+        "ND5": 12608,
+        "ND6": 12499,
+        "ND3": 11985,
+        "ND4L": 11131,
+        "CO3": 10566,
+        "CO2": 10140,
+        "A8": 9858,
+        "mitogenome": 4161,
+        "CYTB": 2343,
+        "COXIII": 2045,
+        "COII": 1994,
+        "ND5-0": 1980,
+        "12S": 1503,
+        "Rho": 1424,
+        "COI-3P": 534,
+        "SSU": 355,
+        "RAG1": 226,
+        "ITS": 177,
+        "D-loop": 164,
+        "16S": 155,
+        "LSU": 124,
+        "atp6": 71,
+        "16S-ND2": 47,
+        "ITS2": 22,
+        "atp6-atp8": 20,
+        "RNF213": 16,
+        "S7": 10,
+        "18S": 9,
+        "MYH6": 9,
+        "ENC1": 9,
+        "18S-V4": 8,
+        "PLAGL2": 6,
+        "28S": 4,
+        "COI-5P3P": 2,
+        "matK": 1
+      },
+      "lowest_rank": {
+        "species": 366731,
+        "genus": 13557,
+        "family": 1543,
+        "order": 192,
+        "class": 49,
+        "phylum": 3
+      },
+      "with_taxid": 381055,
+      "fasta": {
+        "path": "reference/v3/fish/ref.fasta",
+        "bytes": 456753355,
+        "sha256": "06d94fda599eb3b8e242b1e79ffa51559e28a7ec7d84399f8d725cedc79fe59e"
+      },
+      "write_seconds": 11.2
+    },
+    "plant": {
+      "candidates": 674456,
+      "duplicates_merged": 192320,
+      "lca_coarsened": 45268,
+      "heldout_excluded": 7763,
+      "candidates_by_source": {
+        "bold": 558399,
+        "midori2": 50335,
+        "ITS_eukaryote_sequences": 47871,
+        "silva": 16473,
+        "LSU_eukaryote_rRNA": 751,
+        "SSU_eukaryote_rRNA": 572,
+        "mito": 55
+      },
+      "cap": {
+        "max_per_taxon_marker": null,
+        "groups": 247193,
+        "unique_before_cap": 437943,
+        "kept": 437943,
+        "removed_by_cap": 0,
+        "bases_after_cap": 332887771,
+        "over_budget": false,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 3014,
+          "rejected": 28728,
+          "evicted": 15465,
+          "exact": false
+        }
+      },
+      "sequences": 437943,
+      "bases": 332887771,
+      "by_source": {
+        "bold": 373421,
+        "midori2": 32040,
+        "ITS_eukaryote_sequences": 23942,
+        "silva": 7875,
+        "LSU_eukaryote_rRNA": 390,
+        "SSU_eukaryote_rRNA": 220,
+        "mito": 55
+      },
+      "by_marker": {
+        "ITS": 106980,
+        "matK": 92098,
+        "ITS2": 73945,
+        "rbcL": 67557,
+        "rbcLa": 28550,
+        "trnH-psbA": 12419,
+        "trnL-F": 5613,
+        "SSU": 5162,
+        "lrRNA": 4082,
+        "ND5": 3510,
+        "LSU": 3323,
+        "CO1": 3194,
+        "Cytb": 2757,
+        "ND1": 2636,
+        "CO2": 2295,
+        "ND4": 2071,
+        "CO3": 2009,
+        "A6": 2007,
+        "ITS1": 1922,
+        "ND2": 1853,
+        "ND6": 1730,
+        "A8": 1346,
+        "COI-5P": 1345,
+        "trnL": 1341,
+        "ND3": 1327,
+        "rpoC1": 1126,
+        "ND4L": 1050,
+        "atpF-atpH": 961,
+        "tufA": 681,
+        "psbK-psbI": 606,
+        "rpoB": 565,
+        "ycf1": 198,
+        "18S": 176,
+        "srRNA": 173,
+        "cp-trnL-intron": 154,
+        "atpB-rbcL": 99,
+        "PsbA-like": 94,
+        "ETS-1": 94,
+        "UPA": 82,
+        "matR": 68,
+        "rpL32-trnL": 56,
+        "mitogenome": 55,
+        "rps16-trnK": 51,
+        "atpF-intron": 51,
+        "28S-D2": 41,
+        "16S": 38,
+        "ndhK-ndhC": 38,
+        "trnD-trnY-trnE": 35,
+        "rbcL-like": 34,
+        "COII": 34,
+        "matK-like": 30,
+        "psbE-petL": 30,
+        "COXIII": 30,
+        "atp6": 29,
+        "matK-trnK": 29,
+        "28S": 28,
+        "cp-RPS16-intron": 28,
+        "18S-3P": 18,
+        "trnK": 17,
+        "COI-3P": 10,
+        "PY-IGS": 10,
+        "18S-V4": 9,
+        "RpS4-trnS": 8,
+        "18S-5P": 7,
+        "PSBA": 6,
+        "CYTB": 5,
+        "petD-intron": 5,
+        "NBC-COI-5P": 4,
+        "28S-D2-D3": 2,
+        "12S": 2,
+        "nucLSU": 1,
+        "ndhF": 1,
+        "rpl16-rps3": 1,
+        "psbB": 1
+      },
+      "lowest_rank": {
+        "species": 395943,
+        "genus": 37641,
+        "family": 2966,
+        "kingdom": 665,
+        "class": 475,
+        "order": 220,
+        "phylum": 33
+      },
+      "with_taxid": 429114,
+      "fasta": {
+        "path": "reference/v3/plant/ref.fasta",
+        "bytes": 415919994,
+        "sha256": "c2f6e81469bdb52ffeb81e202c58fa718ec9e3c43ee05f366740725d2573f536"
+      },
+      "write_seconds": 10.2
+    },
+    "bacteria_pathogen": {
+      "candidates": 252692,
+      "duplicates_merged": 49574,
+      "lca_coarsened": 1618,
+      "heldout_excluded": 40081,
+      "candidates_by_source": {
+        "silva": 202258,
+        "16S_ribosomal_RNA": 27614,
+        "bold": 19134,
+        "LSU_prokaryote_rRNA": 3686
+      },
+      "cap": {
+        "max_per_taxon_marker": null,
+        "groups": 46802,
+        "unique_before_cap": 94426,
+        "kept": 94426,
+        "removed_by_cap": 0,
+        "bases_after_cap": 160535643,
+        "over_budget": false,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 1834,
+          "rejected": 87419,
+          "evicted": 21273,
+          "exact": false
+        }
+      },
+      "sequences": 94426,
+      "bases": 160535643,
+      "by_source": {
+        "silva": 72109,
+        "16S_ribosomal_RNA": 11208,
+        "bold": 8673,
+        "LSU_prokaryote_rRNA": 2436
+      },
+      "by_marker": {
+        "SSU": 54571,
+        "LSU": 19974,
+        "16S": 11561,
+        "COI-5P": 8199,
+        "rbcL": 31,
+        "WSP": 16,
+        "fbpA": 15,
+        "hcpA": 10,
+        "CYTB": 10,
+        "gatB": 10,
+        "coxA": 10,
+        "ftsZ": 8,
+        "ntcA": 8,
+        "Msp4": 3
+      },
+      "lowest_rank": {
+        "species": 82152,
+        "genus": 11409,
+        "family": 463,
+        "order": 142,
+        "phylum": 139,
+        "class": 83,
+        "kingdom": 31,
+        "superkingdom": 7
+      },
+      "with_taxid": 90664,
+      "fasta": {
+        "path": "reference/v3/bacteria_pathogen/ref.fasta",
+        "bytes": 180086218,
+        "sha256": "cd616017e65c79031d8ed125a5e73b6d4cf22c63fc901a88b6602cef628d12c4"
+      },
+      "write_seconds": 3.3
+    },
+    "animal_general": {
+      "candidates": 12648947,
+      "duplicates_merged": 2217656,
+      "lca_coarsened": 99836,
+      "heldout_excluded": 75848,
+      "candidates_by_source": {
+        "bold": 9519951,
+        "midori2": 3076536,
+        "silva": 26333,
+        "mito": 11789,
+        "ITS_eukaryote_sequences": 7314,
+        "SSU_eukaryote_rRNA": 4186,
+        "LSU_eukaryote_rRNA": 2838
+      },
+      "cap": {
+        "max_per_taxon_marker": 1,
+        "groups": 1039281,
+        "unique_before_cap": 2914179,
+        "kept": 1039281,
+        "removed_by_cap": 1874898,
+        "bases_after_cap": 996118213,
+        "over_budget": true,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 94131,
+          "rejected": 6576351,
+          "evicted": 940761,
+          "exact": true
+        }
+      },
+      "sequences": 1039281,
+      "bases": 996118213,
+      "by_source": {
+        "midori2": 691367,
+        "bold": 309175,
+        "silva": 20678,
+        "mito": 11661,
+        "ITS_eukaryote_sequences": 4433,
+        "LSU_eukaryote_rRNA": 1192,
+        "SSU_eukaryote_rRNA": 775
+      },
+      "by_marker": {
+        "COI-5P": 218962,
+        "CO1": 212819,
+        "lrRNA": 91556,
+        "Cytb": 50109,
+        "srRNA": 49858,
+        "CO2": 37909,
+        "ND2": 34841,
+        "ND1": 30998,
+        "ND4": 27757,
+        "ND3": 25283,
+        "ND5": 24186,
+        "A6": 23691,
+        "CO3": 23081,
+        "ND6": 22591,
+        "ND4L": 22359,
+        "A8": 20331,
+        "18S-5P": 19316,
+        "SSU": 15766,
+        "mitogenome": 11661,
+        "COI-3P": 10442,
+        "CYTB": 7511,
+        "LSU": 6879,
+        "18S-3P": 5673,
+        "ITS": 4901,
+        "COII": 4601,
+        "COXIII": 4492,
+        "16S": 4335,
+        "ND5-0": 3751,
+        "28S": 3630,
+        "18S": 2311,
+        "ITS2": 2292,
+        "ITS1": 1873,
+        "EF1-alpha": 1688,
+        "Wnt1": 995,
+        "atp6": 962,
+        "H3": 890,
+        "CAD": 886,
+        "28S-D2": 854,
+        "12S": 779,
+        "MT-NADH5": 646,
+        "ATP8": 610,
+        "RpS5": 438,
+        "MDH": 386,
+        "GAPDH": 357,
+        "28S-D2-D3": 313,
+        "CAD4": 260,
+        "28S-D1-D2": 243,
+        "AATS": 239,
+        "COI-LIKE": 235,
+        "PGD": 212,
+        "COI-PSEUDO": 208,
+        "ArgK": 189,
+        "28S-D3": 178,
+        "IDH": 166,
+        "RpS2": 153,
+        "28S-D9-D10": 146,
+        "TPI": 111,
+        "18S-V4": 109,
+        "28S-D3-D5": 98,
+        "H4": 86,
+        "ENO": 85,
+        "CADH": 62,
+        "D-loop": 56,
+        "RAG1": 53,
+        "RPB2": 53,
+        "COI-5PNMT1": 48,
+        "RBM15": 42,
+        "CAD1": 41,
+        "PER": 40,
+        "COII-COI": 38,
+        "TYR": 35,
+        "EPRS": 35,
+        "16S-ND2": 34,
+        "CHOLC": 34,
+        "MutS-like": 34,
+        "COI-5P3P": 29,
+        "ND6-ND3": 27,
+        "LWRHO": 25,
+        "ND4L-MSH": 24,
+        "rbcL": 23,
+        "CK1": 23,
+        "matK": 22,
+        "TULP": 21,
+        "DDC": 21,
+        "IRBP": 14,
+        "RAG2": 13,
+        "MC1R": 10,
+        "DBY-EX7-8": 9,
+        "ATP1A": 9,
+        "R35": 9,
+        "fbpA": 9,
+        "rbcLa": 8,
+        "c-mos": 7,
+        "NGFB": 7,
+        "coxA": 6,
+        "MB2-EX2-3": 6,
+        "CAD-5P": 5,
+        "COI-NUMT": 4,
+        "LOC108744249": 4,
+        "rpl15": 4,
+        "RpS4": 4,
+        "CHD-Z": 4,
+        "trnH-psbA": 4,
+        "Ca-ATPase": 4,
+        "EF1-alpha-5P": 3,
+        "ORF": 3,
+        "DDX23": 3,
+        "28S-D7": 3,
+        "ADR": 2,
+        "TOP1": 2,
+        "HfIV": 1,
+        "CsIV": 1,
+        "H3-NUMT": 1,
+        "CYTB-NUMT": 1,
+        "PaxC": 1,
+        "DYN": 1,
+        "VDAC": 1,
+        "CQ11": 1,
+        "RPL37": 1,
+        "psbK-psbI": 1,
+        "rpoC1": 1,
+        "rpoB": 1,
+        "WSP": 1,
+        "COI-5PNMT2": 1,
+        "5-8S": 1,
+        "R35-intron": 1,
+        "CAD-3P": 1,
+        "ACE2": 1
+      },
+      "lowest_rank": {
+        "species": 971769,
+        "genus": 63709,
+        "family": 3135,
+        "order": 498,
+        "class": 122,
+        "phylum": 39,
+        "kingdom": 9
+      },
+      "with_taxid": 1021462,
+      "fasta": {
+        "path": "reference/v3/animal_general/ref.fasta",
+        "bytes": 1182706986,
+        "sha256": "1d74d7d6a6baeed2b8d0419e4d4461f1776e89979d6b0593cd6a61f05b468267"
+      },
+      "write_seconds": 31.8
+    },
+    "human_domestic_contamination": {
+      "candidates": 146051,
+      "duplicates_merged": 2595,
+      "lca_coarsened": 187,
+      "heldout_excluded": 14066,
+      "candidates_by_source": {
+        "midori2": 70897,
+        "bold": 67547,
+        "univec": 5403,
+        "supplementary:ncbi_human_mito_control_region": 775,
+        "supplementary:ncbi_cloning_vectors": 612,
+        "silva": 409,
+        "supplementary:ncbi_human_nuclear_rrna": 349,
+        "supplementary:ncbi_phix174": 34,
+        "mito": 19,
+        "ITS_eukaryote_sequences": 5,
+        "SSU_eukaryote_rRNA": 1
+      },
+      "cap": {
+        "max_per_taxon_marker": null,
+        "groups": 3240,
+        "unique_before_cap": 7729,
+        "kept": 7729,
+        "removed_by_cap": 0,
+        "bases_after_cap": 8045223,
+        "over_budget": false,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 209,
+          "rejected": 130586,
+          "evicted": 5141,
+          "exact": false
+        }
+      },
+      "sequences": 7729,
+      "bases": 8045223,
+      "by_source": {
+        "univec": 4953,
+        "midori2": 1566,
+        "supplementary:ncbi_cloning_vectors": 612,
+        "bold": 476,
+        "silva": 68,
+        "mito": 19,
+        "supplementary:ncbi_human_nuclear_rrna": 10,
+        "supplementary:ncbi_human_mito_control_region": 10,
+        "supplementary:ncbi_phix174": 10,
+        "ITS_eukaryote_sequences": 5
+      },
+      "by_marker": {
+        "vector": 4953,
+        "complete_vector_sequence": 612,
+        "COI-5P": 114,
+        "Cytb": 110,
+        "lrRNA": 110,
+        "CO1": 110,
+        "srRNA": 110,
+        "ND1": 105,
+        "ND5": 105,
+        "ND2": 105,
+        "CO2": 105,
+        "A6": 104,
+        "ND6": 104,
+        "ND4": 104,
+        "CO3": 103,
+        "ND3": 101,
+        "ND4L": 99,
+        "A8": 97,
+        "CYTB": 72,
+        "SSU": 52,
+        "COXIII": 50,
+        "COII": 48,
+        "18S-5P": 48,
+        "atp6": 46,
+        "16S": 25,
+        "COI-3P": 22,
+        "mitogenome": 19,
+        "D-loop": 18,
+        "LSU": 16,
+        "ND5-0": 14,
+        "nuclear_rRNA_(18S/28S/5.8S/45S)": 10,
+        "mtDNA_control_region_(D-loop_/_HVR)": 10,
+        "complete_genome": 10,
+        "12S": 7,
+        "ITS": 5,
+        "18S-3P": 4,
+        "COI-PSEUDO": 1,
+        "IRBP": 1
+      },
+      "lowest_rank": {
+        "species": 7658,
+        "genus": 70,
+        "class": 1
+      },
+      "with_taxid": 2776,
+      "fasta": {
+        "path": "reference/v3/human_domestic_contamination/ref.fasta",
+        "bytes": 9215256,
+        "sha256": "d7ca4b2ab29c4fafcbffbc8de2258635f30ccc35390fe098a3f4ba7edeb3432a"
+      },
+      "write_seconds": 0.2
+    },
+    "misc_unknown": {
+      "candidates": 659152,
+      "duplicates_merged": 151342,
+      "lca_coarsened": 12447,
+      "heldout_excluded": 6920,
+      "candidates_by_source": {
+        "bold": 319436,
+        "midori2": 154818,
+        "unite": 92974,
+        "silva": 22460,
+        "ITS_eukaryote_sequences": 21540,
+        "ITS_RefSeq_Fungi": 20345,
+        "ref_viruses_rep_genomes": 16151,
+        "18S_fungal_sequences": 4026,
+        "SSU_eukaryote_rRNA": 3753,
+        "LSU_eukaryote_rRNA": 2812,
+        "mito": 837
+      },
+      "cap": {
+        "max_per_taxon_marker": 3,
+        "groups": 143591,
+        "unique_before_cap": 318225,
+        "kept": 231783,
+        "removed_by_cap": 86442,
+        "bases_after_cap": 384502389,
+        "over_budget": false,
+        "ingest_cap": {
+          "k": 10,
+          "groups_cut": 6205,
+          "rejected": 142557,
+          "evicted": 47028,
+          "exact": true
+        }
+      },
+      "sequences": 231783,
+      "bases": 384502389,
+      "by_source": {
+        "bold": 78583,
+        "midori2": 69341,
+        "unite": 27709,
+        "silva": 14989,
+        "ITS_RefSeq_Fungi": 14567,
+        "ref_viruses_rep_genomes": 14335,
+        "ITS_eukaryote_sequences": 5176,
+        "18S_fungal_sequences": 2886,
+        "LSU_eukaryote_rRNA": 2142,
+        "SSU_eukaryote_rRNA": 1219,
+        "mito": 836
+      },
+      "by_marker": {
+        "ITS": 90569,
+        "lrRNA": 18398,
+        "viral_genome": 14335,
+        "SSU": 13555,
+        "CO1": 13262,
+        "ITS1": 12884,
+        "rbcL": 6590,
+        "COI-5P": 6400,
+        "Cytb": 5512,
+        "srRNA": 5061,
+        "LSU": 4795,
+        "CO3": 4098,
+        "CO2": 4093,
+        "A6": 3890,
+        "18S": 3241,
+        "ND1": 2839,
+        "ND4": 2065,
+        "ITS2": 2040,
+        "ND6": 2036,
+        "ND3": 1997,
+        "ND5": 1819,
+        "28S-D1-D2": 1806,
+        "ND4L": 1773,
+        "28S": 1476,
+        "A8": 1265,
+        "ND2": 1233,
+        "28S-D2": 1064,
+        "mitogenome": 836,
+        "PSBA": 542,
+        "5-8S": 334,
+        "UPA": 296,
+        "nucLSU": 223,
+        "mtSSU": 174,
+        "PSA": 137,
+        "COII-COIII": 111,
+        "CYTB": 104,
+        "EF1-alpha": 103,
+        "Beta-tubulin": 101,
+        "EF2": 94,
+        "psaB": 75,
+        "RPB1": 71,
+        "psbC": 59,
+        "COII": 59,
+        "18S-V4": 56,
+        "COXIII": 55,
+        "atp6": 49,
+        "16S": 45,
+        "28S-D2-D3": 37,
+        "NBC-COI-5P": 35,
+        "AOX-fmt": 26,
+        "RPB2": 17,
+        "FL-COI": 13,
+        "psbA-3P": 9,
+        "rbcLa": 8,
+        "COI-5P3P": 6,
+        "e-gene": 3,
+        "matK": 3,
+        "18S-3P": 2,
+        "MCM7": 2,
+        "RBCL-5P": 1,
+        "COI-3P": 1
+      },
+      "lowest_rank": {
+        "species": 211328,
+        "genus": 17491,
+        "family": 1850,
+        "order": 688,
+        "class": 258,
+        "phylum": 137,
+        "kingdom": 19,
+        "superkingdom": 12
+      },
+      "with_taxid": 223883,
+      "fasta": {
+        "path": "reference/v3/misc_unknown/ref.fasta",
+        "bytes": 428386180,
+        "sha256": "f9e42ad7bbad4384321b801a9acad0fce2069379665098933c91acaf60b217bc"
+      },
+      "write_seconds": 11.7
+    }
+  }
+}

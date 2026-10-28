@@ -1015,6 +1015,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-route-bases", type=int, default=DEFAULT_MAX_ROUTE_BASES)
     parser.add_argument("--ingest-cap", type=int, default=None,
                         help="keep at most K longest per (lowest taxon, marker) while reading; bounds RAM")
+    parser.add_argument("--ingest-cap-exempt", default="",
+                        help="comma list of routes read uncapped (small routes the cap would only cut)")
     parser.add_argument("--only-sources", default=None, help="comma list: midori2,silva,unite,ncbi_blastdb,supplementary,univec,bold")
     parser.add_argument("--no-heldout-exclusion", action="store_true")
     parser.add_argument("--skip-indexes", action="store_true")
@@ -1052,7 +1054,10 @@ def main(argv: list[str] | None = None) -> int:
 
     only = set(args.only_sources.split(",")) if args.only_sources else None
     tmp = Path(tempfile.mkdtemp(prefix=".build-", dir=out_root))
-    accs = {r: RouteAccumulator(r, tmp, taxonomy, args.ingest_cap) for r in ROUTES}
+    exempt = {r for r in args.ingest_cap_exempt.split(",") if r}
+    if exempt - set(ROUTES):
+        raise SystemExit(f"unknown routes in --ingest-cap-exempt: {sorted(exempt - set(ROUTES))}")
+    accs = {r: RouteAccumulator(r, tmp, taxonomy, None if r in exempt else args.ingest_cap) for r in ROUTES}
     source_report: list[dict] = []
     dropped: Counter = Counter()
 
@@ -1136,7 +1141,8 @@ def main(argv: list[str] | None = None) -> int:
         "parameters": {
             "min_len": MIN_LEN, "min_len_vector": MIN_LEN_VECTOR, "max_len": MAX_LEN,
             "max_n_fraction": MAX_N_FRACTION, "max_per_taxon_requested": args.max_per_taxon,
-            "max_route_bases": args.max_route_bases, "ingest_cap": args.ingest_cap, "midori2_selection": "UNIQ",
+            "max_route_bases": args.max_route_bases, "ingest_cap": args.ingest_cap,
+            "ingest_cap_exempt": sorted(exempt), "midori2_selection": "UNIQ",
             "heldout_exclusion": not args.no_heldout_exclusion,
         },
         "heldout_exclusion": {
