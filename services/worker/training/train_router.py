@@ -194,14 +194,36 @@ def build_heldout(data, routes_of, splits_of, split: str):
 # Models, calibration, metrics
 # ---------------------------------------------------------------------------
 
-def make_model(kind: str, C: float, seed: int):
+def make_model(kind: str, C: float, seed: int, class_weight="balanced"):
     if kind == "svm":
         from sklearn.svm import LinearSVC
-        return LinearSVC(C=C, class_weight="balanced", random_state=seed, max_iter=5000)
+        return LinearSVC(C=C, class_weight=class_weight, random_state=seed, max_iter=5000)
     if kind == "logreg":
         from sklearn.linear_model import LogisticRegression
-        return LogisticRegression(C=C, class_weight="balanced", max_iter=1000)
+        return LogisticRegression(C=C, class_weight=class_weight, max_iter=1000)
     raise ValueError(kind)
+
+
+def route_class_weights(y: np.ndarray, multipliers: dict[str, float]):
+    """"balanced" weights, times a per-route multiplier. v3's human route
+    (4,812 training rows, BOLD domestic-mammal COI) lost 234 test rows to
+    fish at balanced weights alone (QNA-047); a multiplier chosen on dev
+    trades fish/animal precision for human recall (QNA-048)."""
+    if not multipliers:
+        return "balanced"
+    unknown = set(multipliers) - set(ROUTES)
+    if unknown:
+        raise ValueError(f"unknown routes in --route-weight: {sorted(unknown)}")
+    classes, counts = np.unique(y, return_counts=True)
+    return {int(c): len(y) / (len(classes) * n) * multipliers.get(ROUTES[c], 1.0) for c, n in zip(classes, counts)}
+
+
+def parse_route_weights(items: list[str] | None) -> dict[str, float]:
+    out = {}
+    for item in items or []:
+        route, _, mult = item.partition("=")
+        out[route] = float(mult)
+    return out
 
 
 def softmax(z: np.ndarray, T: float = 1.0) -> np.ndarray:
@@ -513,6 +535,8 @@ def main(argv=None) -> int:
     ap.add_argument("--canonical", action="store_true", help="same as --strand canonical (kept for v1 commands)")
     ap.add_argument("--cap", type=int, default=8000, help="max training rows per route")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--route-weight", action="append", metavar="ROUTE=MULT",
+                    help="multiply a route's balanced class weight (repeatable); choose it on dev")
     ap.add_argument("--protocol-n", type=int, default=300, help="test rows per route for the QNA-001 protocol")
     ap.add_argument("--sweep", action="store_true", help="dev-only sweep over k/strand/model/C; no artifact written")
     ap.add_argument("--sweep-k", default="4,5,6,7,8", help="comma-separated k values for --sweep")
@@ -598,7 +622,8 @@ def main(argv=None) -> int:
     A, yA = train_matrix(Xtr, ytr, args.k, strand)
     feat_s = time.time() - t0
     t0 = time.time()
-    model = make_model(args.model, args.C, args.seed).fit(A, yA)
+    route_weights = parse_route_weights(args.route_weight)
+    model = make_model(args.model, args.C, args.seed, route_class_weights(yA, route_weights)).fit(A, yA)
     fit_s = time.time() - t0
     del A
     W = np.ascontiguousarray(model.coef_.T.astype(np.float32))      # (4**k, C)
@@ -635,6 +660,7 @@ def main(argv=None) -> int:
         "features": "exact k-mer counts, non-ACGT windows skipped, L2-normalised (app/model_router/kmer.py)",
         "model": args.model,
         "C": args.C,
+        "route_weight_multipliers": route_weights or None,
         "temperature": T,
         "min_kmers": 1,
     }
@@ -702,6 +728,7 @@ def main(argv=None) -> int:
         "strand": strand,
         "model": args.model,
         "C": args.C,
+        "route_weight_multipliers": route_weights or None,
         "temperature": T,
         "test_accuracy": tf["accuracy"],
         "test_macro_f1": tf["macro_f1"],

@@ -1,0 +1,128 @@
+{
+ "fish": {
+  "prod": {
+   "acc": 0.5469,
+   "macro_f1": 0.5849,
+   "acc_on_prod_classes": 0.9272,
+   "n_prod_class_rows": 591,
+   "known_species_recall": 0.9148,
+   "known_species_f1": 0.6885
+  },
+  "v3": {
+   "acc": 0.6587,
+   "macro_f1": 0.7288,
+   "acc_on_prod_classes": 0.5059,
+   "n_prod_class_rows": 591,
+   "known_species_recall": 0.4158,
+   "known_species_f1": 0.5726
+  },
+  "prod_trained_on_test_rows": "86/1002 (8.6%)",
+  "prod_label_classes": 3,
+  "v3_label_classes": 4
+ },
+ "plant": {
+  "prod": {
+   "acc": 0.5255,
+   "macro_f1": 0.4575,
+   "acc_on_prod_classes": 0.9058,
+   "n_prod_class_rows": 626,
+   "known_species_recall": 0.9897,
+   "known_species_f1": 0.6557
+  },
+  "v3": {
+   "acc": 0.6441,
+   "macro_f1": 0.7703,
+   "acc_on_prod_classes": 0.6198,
+   "n_prod_class_rows": 626,
+   "known_species_recall": 0.5175,
+   "known_species_f1": 0.5731
+  },
+  "prod_trained_on_test_rows": "48/1079 (4.4%)",
+  "prod_label_classes": 4,
+  "v3_label_classes": 5
+ },
+ "human_domestic_contamination": {
+  "prod": {
+   "acc": 0.9871,
+   "macro_f1": 0.987,
+   "acc_on_prod_classes": 0.9871,
+   "n_prod_class_rows": 773,
+   "known_species_recall": 0.9859,
+   "known_species_f1": 0.9859
+  },
+  "v3": {
+   "acc": 0.9884,
+   "macro_f1": 0.9883,
+   "acc_on_prod_classes": 0.9884,
+   "n_prod_class_rows": 773,
+   "known_species_recall": 0.9802,
+   "known_species_f1": 0.9872
+  },
+  "prod_trained_on_test_rows": "162/773 (21.0%)",
+  "prod_label_classes": 2,
+  "v3_label_classes": 2
+ },
+ "animal_general": {
+  "prod": {
+   "acc": 0.6118,
+   "macro_f1": 0.5238,
+   "acc_on_prod_classes": 0.6118,
+   "n_prod_class_rows": 1440,
+   "known_species_recall": 0.9071,
+   "known_species_f1": 0.6275
+  },
+  "v3": {
+   "acc": 0.7667,
+   "macro_f1": 0.767,
+   "acc_on_prod_classes": 0.7667,
+   "n_prod_class_rows": 1440,
+   "known_species_recall": 0.6424,
+   "known_species_f1": 0.6604
+  },
+  "prod_trained_on_test_rows": "364/1440 (25.3%)",
+  "prod_label_classes": 3,
+  "v3_label_classes": 3
+ },
+ "misc_unknown": {
+  "prod": {
+   "acc": 0.8985,
+   "macro_f1": 0.9065,
+   "acc_on_prod_classes": 0.8985,
+   "n_prod_class_rows": 1360,
+   "known_species_recall": null,
+   "known_species_f1": null
+  },
+  "v3": {
+   "acc": 0.9309,
+   "macro_f1": 0.9364,
+   "acc_on_prod_classes": 0.9309,
+   "n_prod_class_rows": 1360,
+   "known_species_recall": null,
+   "known_species_f1": null
+  },
+  "prod_trained_on_test_rows": "298/1360 (21.9%)",
+  "prod_label_classes": 3,
+  "v3_label_classes": 3
+ },
+ "bacteria_pathogen": {
+  "prod": {
+   "acc": 0.7229,
+   "macro_f1": 0.607,
+   "acc_on_prod_classes": 0.7229,
+   "n_prod_class_rows": 4450,
+   "known_species_recall": 0.7675,
+   "known_species_f1": 0.7272
+  },
+  "v3": {
+   "acc": 0.8647,
+   "macro_f1": 0.8753,
+   "acc_on_prod_classes": 0.8647,
+   "n_prod_class_rows": 4450,
+   "known_species_recall": 0.7906,
+   "known_species_f1": 0.8397
+  },
+  "prod_trained_on_test_rows": "432/4450 (9.7%)",
+  "prod_label_classes": 4,
+  "v3_label_classes": 4
+ }
+}

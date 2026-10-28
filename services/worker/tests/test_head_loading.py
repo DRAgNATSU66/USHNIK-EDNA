@@ -23,14 +23,16 @@ torch = pytest.importorskip("torch")
 from app.inference import heads  # noqa: E402
 from app.inference.heads import HeadUnavailableError, clear_head_cache, get_head  # noqa: E402
 from app.inference.models import (  # noqa: E402
-    ROUTE_LABEL_SETS,
+    LABEL_SETS_BY_VERSION,
     InferenceMode,
     ModelRegistryEntry,
 )
 from app.inference.predictor import run_inference  # noqa: E402
 
 EMB_DIM = 768
-NUM_CLASSES = len(ROUTE_LABEL_SETS["fish"])
+# _entry() is a v1 fish head: 3 outputs, not the 4 of the current (v2) list.
+V1_FISH = LABEL_SETS_BY_VERSION["v1"]["fish"]
+NUM_CLASSES = len(V1_FISH)
 
 
 @pytest.fixture(autouse=True)
@@ -54,9 +56,9 @@ def _entry(artifact_uri: str | None) -> ModelRegistryEntry:
     )
 
 
-def _save_trained_head(path, favour: int = 0) -> None:
+def _save_trained_head(path, favour: int = 0, num_classes: int = NUM_CLASSES) -> None:
     """Write a valid head state_dict whose output strongly favours one label."""
-    head = heads.DNAClassifierHead(EMB_DIM, NUM_CLASSES)
+    head = heads.DNAClassifierHead(EMB_DIM, num_classes)
     with torch.no_grad():
         head.classifier.weight.zero_()
         head.classifier.bias.zero_()
@@ -103,13 +105,13 @@ class TestGetHead:
         p = tmp_path / "head.pt"
         torch.save(heads.DNAClassifierHead(EMB_DIM, NUM_CLASSES + 2).state_dict(), p)
         with pytest.raises(HeadUnavailableError) as ei:
-            get_head("fish", "m", EMB_DIM, head_weights_path=str(p))
+            get_head("fish", "m", EMB_DIM, head_weights_path=str(p), labels=V1_FISH)
         assert ei.value.reason == "head_load_failed"
 
     def test_valid_file_loads_trained_weights(self, tmp_path):
         p = tmp_path / "head.pt"
         _save_trained_head(p, favour=1)
-        head = get_head("fish", "m", EMB_DIM, head_weights_path=str(p))
+        head = get_head("fish", "m", EMB_DIM, head_weights_path=str(p), labels=V1_FISH)
         assert head is not None
         assert float(head.classifier.bias[1].detach()) == pytest.approx(10.0)
 
@@ -159,7 +161,7 @@ class TestPredictorHeadPaths:
         result = _run_with_mocked_backbone(_entry(str(p)))
         assert result.inference_mode == InferenceMode.model
         assert result.stub_reason is None
-        assert result.result_class == ROUTE_LABEL_SETS["fish"][0]
+        assert result.result_class == V1_FISH[0]
         assert result.confidence > 0.99
 
     def test_backbone_missing_gives_stub_with_reason(self, tmp_path):
@@ -186,3 +188,25 @@ class TestPredictorHeadPaths:
             result = run_inference("seq1", "ACGT" * 50, "fish")
         assert result.inference_mode == InferenceMode.stub
         assert result.stub_reason == "inference_error"
+
+    def test_v1_head_is_not_built_at_the_v2_size(self, tmp_path):
+        # Production fish v2 and plant v1 were trained on v1 lists; the v2
+        # label set must not change the head they are loaded into.
+        p = tmp_path / "head.pt"
+        _save_trained_head(p, favour=2)
+        result = _run_with_mocked_backbone(_entry(str(p)))
+        assert result.inference_mode == InferenceMode.model
+        assert list(result.label_scores) == [str(l) for l in V1_FISH]
+        assert result.result_class == "low_quality_unusable"
+
+    def test_v2_head_can_predict_the_genus_level_class(self, tmp_path):
+        v2 = LABEL_SETS_BY_VERSION["v2"]["fish"]
+        p = tmp_path / "head.pt"
+        _save_trained_head(p, favour=3, num_classes=len(v2))
+        entry = _entry(str(p))
+        entry.label_set_version = "v2"
+        entry.model_id = "test_fish_head_v2"
+        result = _run_with_mocked_backbone(entry)
+        assert result.inference_mode == InferenceMode.model
+        assert result.result_class == "likely_taxonomic_group"
+        assert len(result.label_scores) == 4

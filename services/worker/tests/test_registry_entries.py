@@ -1,13 +1,11 @@
 """
 Checks on the checked-in models/registry/*.json files themselves.
 
-The worker builds a route head with len(ROUTE_LABEL_SETS[route]) outputs and
-names the softmax outputs in that order (heads.get_head, predictor._run_model).
-It does not read an entry's "label_set" field. So every route-head entry's
-label_set must equal ROUTE_LABEL_SETS[route], order included, or its
-predictions would be silently mislabelled. If a head is ever trained on a
-different label set, this test fails until the worker reads per-entry label
-sets.
+The worker builds a route head with one output per label the head was trained
+with and names the softmax outputs in that order: models.labels_for() reads
+the entry's "label_set", falling back to its label_set_version's list. So a
+route-head entry's label_set must equal LABEL_SETS_BY_VERSION[version][route],
+order included, or its predictions would be silently mislabelled.
 
 The v2 heads (Q1, t-1021-1) are registered as "candidate": they must not
 change what is served until the B8 promote flow promotes them.
@@ -21,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.inference.models import ROUTE_LABEL_SETS
+from app.inference.models import LABEL_SETS_BY_VERSION, ROUTE_LABEL_SETS, labels_for
 from app.inference.registry import ModelRegistry
 
 REGISTRY_DIR = Path(__file__).resolve().parents[3] / "models" / "registry"
@@ -44,7 +42,39 @@ ENTRIES = _route_head_entries()
 def test_label_set_matches_worker_label_order(name, data):
     if "label_set" not in data:
         pytest.skip(f"{name} declares no label_set")
-    assert data["label_set"] == [str(l) for l in ROUTE_LABEL_SETS[data["route"]]], name
+    version = data.get("label_set_version", "v1")
+    assert version in LABEL_SETS_BY_VERSION, name
+    assert data["label_set"] == [str(l) for l in LABEL_SETS_BY_VERSION[version][data["route"]]], name
+
+
+def test_label_set_versions_only_append():
+    # Older heads index the same classes in newer data only if each older
+    # list is a prefix of the newer one (evaluate_checkpoint relies on it).
+    versions = list(LABEL_SETS_BY_VERSION)
+    for older, newer in zip(versions, versions[1:]):
+        for route, labels in LABEL_SETS_BY_VERSION[older].items():
+            new = LABEL_SETS_BY_VERSION[newer][route]
+            assert new[:len(labels)] == labels, (older, newer, route)
+
+
+def test_v2_adds_genus_level_class_to_fish_and_plant_only():
+    v1, v2 = LABEL_SETS_BY_VERSION["v1"], LABEL_SETS_BY_VERSION["v2"]
+    changed = {r for r in v1 if v1[r] != v2[r]}
+    assert changed == {"fish", "plant"}
+    assert all(v2[r][-1] == "likely_taxonomic_group" for r in changed)
+    assert ROUTE_LABEL_SETS is v2
+
+
+def test_labels_for_prefers_the_entry_label_set():
+    assert labels_for("fish", "v2", ["known_species", "possible_novelty", "low_quality_unusable"]) == [
+        "known_species", "possible_novelty", "low_quality_unusable"]
+    assert len(labels_for("fish", "v1")) == 3 and len(labels_for("fish", "v2")) == 4
+    assert labels_for("fish") == list(ROUTE_LABEL_SETS["fish"])
+
+
+def test_registry_parses_label_set():
+    entry = ModelRegistry(REGISTRY_DIR).get("dnabert2_fish_v2")
+    assert [str(l) for l in entry.label_set] == ["known_species", "possible_novelty", "low_quality_unusable"]
 
 
 @pytest.mark.parametrize("name,data", ENTRIES, ids=[n for n, _ in ENTRIES])
@@ -56,7 +86,14 @@ def test_notes_are_plain_text(name, data):
 
 # Serving state after the 2026-10-19 promotion (QNA-023): four v2 heads are
 # production and served; plant and bacteria v2 stay candidates and v1 serves.
-PROMOTED_V2 = {"fish", "animal_general", "human_domestic_contamination", "misc_unknown"}
+# The 2026-10-28 promotion (QNA-050) demoted fish and misc v2 to staging.
+PROMOTED_V2 = {"animal_general", "human_domestic_contamination"}
+SUPERSEDED_V2 = {"fish", "misc_unknown"}
+# Served head per route after QNA-050.
+SERVED = {"fish": "dnabert2_fish_v3b", "plant": "dnabert2_plant_v1",
+          "animal_general": "dnabert2_animal_v2", "bacteria_pathogen": "dnabert2_bacteria_v3",
+          "human_domestic_contamination": "dnabert2_human_domestic_v2",
+          "misc_unknown": "dnabert2_misc_unknown_v3"}
 
 
 def test_v2_head_selection_matches_promotion():
@@ -69,6 +106,15 @@ def test_v2_head_selection_matches_promotion():
         if str(e.route) in PROMOTED_V2:
             assert e.status == "production", e.model_id
             assert selected is not None and selected.model_id == e.model_id
+        elif str(e.route) in SUPERSEDED_V2:
+            assert e.status == "staging", e.model_id
+            assert selected is not None and selected.model_id != e.model_id
         else:
             assert e.status == "candidate", e.model_id
             assert selected is None or selected.model_id != e.model_id
+
+
+@pytest.mark.parametrize("route", sorted(SERVED))
+def test_served_head_per_route(route):
+    selected = ModelRegistry(REGISTRY_DIR).best_available(route)
+    assert selected is not None and selected.model_id == SERVED[route]

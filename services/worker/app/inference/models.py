@@ -25,9 +25,12 @@ class InferenceMode(StrEnum):
     low_quality = "low_quality"  # skipped — routed as low_quality
 
 
-# Labels available to each route's classifier head.
-# These MUST match the label ordering used when training the head.
-ROUTE_LABEL_SETS: dict[str, list[str]] = {
+# Labels available to each route's classifier head, by label_set_version.
+# A head's outputs MUST match the ordering it was trained with; registry
+# entries carry that list as `label_set`, see labels_for(). New versions only
+# append labels, so every older list is a prefix of the newer one and a head
+# trained on it still indexes the same classes.
+_LABEL_SETS_V1: dict[str, list[str]] = {
     "fish": [
         SequenceResultClass.known_species,
         SequenceResultClass.possible_novelty,
@@ -64,6 +67,32 @@ ROUTE_LABEL_SETS: dict[str, list[str]] = {
     ],
 }
 
+# v2 (2026-10-27): fish and plant gain likely_taxonomic_group. Genus-only
+# identifications ("Perca sp.") were labelled known_species on these routes
+# because the class did not exist there: 10.9% of BOLD fish rows, 5.8% of
+# plant rows.
+LABEL_SETS_BY_VERSION: dict[str, dict[str, list[str]]] = {
+    "v1": _LABEL_SETS_V1,
+    "v2": {
+        **_LABEL_SETS_V1,
+        "fish": [*_LABEL_SETS_V1["fish"], SequenceResultClass.likely_taxonomic_group],
+        "plant": [*_LABEL_SETS_V1["plant"], SequenceResultClass.likely_taxonomic_group],
+    },
+}
+CURRENT_LABEL_SET_VERSION = "v2"
+# What new training data is labelled with and new heads are trained on.
+ROUTE_LABEL_SETS: dict[str, list[str]] = LABEL_SETS_BY_VERSION[CURRENT_LABEL_SET_VERSION]
+
+
+def labels_for(route: str, label_set_version: str | None = None,
+               label_set: list[str] | None = None) -> list[str]:
+    """The labels a given head was trained with: its registry `label_set` when
+    recorded, else its label_set_version's list, else the current list."""
+    if label_set:
+        return list(label_set)
+    by_route = LABEL_SETS_BY_VERSION.get(label_set_version or "", ROUTE_LABEL_SETS)
+    return list(by_route.get(route, []))
+
 
 @dataclass
 class ModelRegistryEntry:
@@ -87,6 +116,9 @@ class ModelRegistryEntry:
     # to False — a registry entry must explicitly opt in per base_model, so
     # trusting one model's repo code never silently extends to another's.
     trusted_remote_code: bool = False
+    # The labels the head was trained with, in output order (registry
+    # "label_set"); empty means "use label_set_version's list".
+    label_set: list[str] = field(default_factory=list)
 
     @property
     def is_runnable(self) -> bool:

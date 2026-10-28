@@ -1,0 +1,474 @@
+{
+  "built_at": "2026-10-28T00:05:40+0530",
+  "wall_seconds": 518.4,
+  "args": {
+    "data_dir": "../../synthveda-data",
+    "cap": 5000,
+    "route_cap": "bacteria_pathogen=20000",
+    "skip_blastdb": false,
+    "exclude_blastdb": "nt_viruses,ref_prok_rep_genomes",
+    "skip_supplementary": false,
+    "only_routes": null,
+    "split_mode": "group",
+    "near_dup_threshold": 0.8
+  },
+  "caps": {
+    "fish": 5000,
+    "plant": 5000,
+    "bacteria_pathogen": 20000,
+    "animal_general": 5000,
+    "human_domestic_contamination": 5000,
+    "misc_unknown": 5000
+  },
+  "sources": [
+    {
+      "source": "bold:BOLD_Public.23-Oct-2026.parquet",
+      "scanned": 11133317,
+      "added_chunks": 11144534,
+      "seconds": 253.9
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:A6",
+      "scanned": 82507,
+      "added_chunks": 82507,
+      "seconds": 3.3
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:A8",
+      "scanned": 49855,
+      "added_chunks": 49855,
+      "seconds": 1.5
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:CO1",
+      "scanned": 1864523,
+      "added_chunks": 1864731,
+      "seconds": 75.7
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:CO2",
+      "scanned": 123558,
+      "added_chunks": 123558,
+      "seconds": 4.7
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:CO3",
+      "scanned": 76102,
+      "added_chunks": 76102,
+      "seconds": 3.1
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:Cytb",
+      "scanned": 488590,
+      "added_chunks": 488590,
+      "seconds": 22.0
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND1",
+      "scanned": 104004,
+      "added_chunks": 104004,
+      "seconds": 4.5
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND2",
+      "scanned": 180036,
+      "added_chunks": 180036,
+      "seconds": 8.5
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND3",
+      "scanned": 62901,
+      "added_chunks": 62901,
+      "seconds": 2.2
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND4",
+      "scanned": 113713,
+      "added_chunks": 113713,
+      "seconds": 6.1
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND4L",
+      "scanned": 50714,
+      "added_chunks": 50714,
+      "seconds": 1.6
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND5",
+      "scanned": 99132,
+      "added_chunks": 99132,
+      "seconds": 5.7
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:ND6",
+      "scanned": 59983,
+      "added_chunks": 59983,
+      "seconds": 2.2
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:lrRNA",
+      "scanned": 414547,
+      "added_chunks": 427894,
+      "seconds": 15.7
+    },
+    {
+      "source": "midori2:MIDORI2_GB273_RAW.zip:srRNA",
+      "scanned": 205533,
+      "added_chunks": 206473,
+      "seconds": 7.7
+    },
+    {
+      "source": "silva:SILVA_138.2_LSURef_NR99_tax_silva.fasta.gz",
+      "scanned": 95279,
+      "added_chunks": 370964,
+      "seconds": 6.7
+    },
+    {
+      "source": "silva:SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz",
+      "scanned": 510495,
+      "added_chunks": 517973,
+      "seconds": 20.4
+    },
+    {
+      "source": "unite:sh_general_release_dynamic_04.04.2024.fasta",
+      "scanned": 93085,
+      "added_chunks": 93121,
+      "seconds": 1.5
+    },
+    {
+      "source": "grch38",
+      "scanned": 20000,
+      "added_chunks": 20000,
+      "seconds": 2.1
+    },
+    {
+      "source": "univec:UniVec_Core",
+      "scanned": 3155,
+      "added_chunks": 3179,
+      "seconds": 0.0
+    },
+    {
+      "source": "univec:UniVec",
+      "scanned": 6111,
+      "added_chunks": 6227,
+      "seconds": 0.0
+    },
+    {
+      "source": "supplementary",
+      "scanned": 8916,
+      "added_chunks": 15167,
+      "seconds": 0.3
+    },
+    {
+      "source": "ncbi_blastdb:16S_ribosomal_RNA",
+      "scanned": 28009,
+      "added_chunks": 28028,
+      "seconds": 9.0
+    },
+    {
+      "source": "ncbi_blastdb:18S_fungal_sequences",
+      "scanned": 4035,
+      "added_chunks": 4169,
+      "seconds": 0.5
+    },
+    {
+      "source": "ncbi_blastdb:ITS_RefSeq_Fungi",
+      "scanned": 20384,
+      "added_chunks": 20384,
+      "seconds": 0.7
+    },
+    {
+      "source": "ncbi_blastdb:ITS_eukaryote_sequences",
+      "scanned": 77582,
+      "added_chunks": 83605,
+      "seconds": 1.9
+    },
+    {
+      "source": "ncbi_blastdb:LSU_eukaryote_rRNA",
+      "scanned": 6575,
+      "added_chunks": 15270,
+      "seconds": 0.6
+    },
+    {
+      "source": "ncbi_blastdb:LSU_prokaryote_rRNA",
+      "scanned": 4047,
+      "added_chunks": 15915,
+      "seconds": 0.5
+    },
+    {
+      "source": "ncbi_blastdb:SSU_eukaryote_rRNA",
+      "scanned": 8784,
+      "added_chunks": 10318,
+      "seconds": 0.6
+    },
+    {
+      "source": "ncbi_blastdb:env_nt",
+      "scanned": 300001,
+      "added_chunks": 315321,
+      "seconds": 4.1
+    },
+    {
+      "source": "ncbi_blastdb:mito",
+      "scanned": 18026,
+      "added_chunks": 90124,
+      "seconds": 3.0
+    },
+    {
+      "source": "ncbi_blastdb:nt_others",
+      "scanned": 300001,
+      "added_chunks": 348576,
+      "seconds": 6.5
+    },
+    {
+      "source": "ncbi_blastdb:ref_viruses_rep_genomes",
+      "scanned": 19576,
+      "added_chunks": 80911,
+      "seconds": 2.9
+    }
+  ],
+  "skipped": {
+    "ncbi_blastdb:nt_viruses": "--exclude-blastdb",
+    "ncbi_blastdb:ref_prok_rep_genomes": "--exclude-blastdb"
+  },
+  "candidates_seen_per_route_label": {
+    "animal_general/known_species": 8715785,
+    "animal_general/likely_taxonomic_group": 4146572,
+    "animal_general/possible_novelty": 5268,
+    "bacteria_pathogen/known_species": 527562,
+    "bacteria_pathogen/likely_taxonomic_group": 9497,
+    "bacteria_pathogen/possible_contamination": 1600,
+    "bacteria_pathogen/possible_novelty": 289411,
+    "fish/known_species": 1027945,
+    "fish/likely_taxonomic_group": 51347,
+    "fish/low_quality_unusable": 155,
+    "fish/possible_novelty": 876,
+    "human_domestic_contamination/known_species": 174908,
+    "human_domestic_contamination/possible_contamination": 17314,
+    "misc_unknown/low_quality_unusable": 4050,
+    "misc_unknown/possible_novelty": 543455,
+    "misc_unknown/unknown_needs_online_confirmation": 950950,
+    "plant/known_species": 649223,
+    "plant/likely_taxonomic_group": 58531,
+    "plant/low_quality_unusable": 437,
+    "plant/possible_contamination": 400,
+    "plant/possible_novelty": 693
+  },
+  "routes": {
+    "fish": {
+      "total": 10013,
+      "by_label": {
+        "known_species": 4932,
+        "possible_novelty": 835,
+        "likely_taxonomic_group": 4110,
+        "low_quality_unusable": 136
+      },
+      "dropped_label_conflicts": 16,
+      "by_split": {
+        "test": {
+          "possible_novelty": 84,
+          "likely_taxonomic_group": 411,
+          "known_species": 493,
+          "low_quality_unusable": 14
+        },
+        "dev": {
+          "known_species": 494,
+          "likely_taxonomic_group": 411,
+          "low_quality_unusable": 14,
+          "possible_novelty": 84
+        },
+        "train": {
+          "known_species": 3945,
+          "likely_taxonomic_group": 3288,
+          "possible_novelty": 667,
+          "low_quality_unusable": 108
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 7839,
+        "rows_in_multi_member_groups": 3238,
+        "largest_group": 47,
+        "seconds": 2.9
+      }
+    },
+    "plant": {
+      "total": 10772,
+      "by_label": {
+        "likely_taxonomic_group": 4524,
+        "low_quality_unusable": 338,
+        "possible_novelty": 693,
+        "known_species": 4852,
+        "possible_contamination": 365
+      },
+      "dropped_label_conflicts": 58,
+      "by_split": {
+        "test": {
+          "known_species": 485,
+          "low_quality_unusable": 34,
+          "likely_taxonomic_group": 453,
+          "possible_novelty": 70,
+          "possible_contamination": 37
+        },
+        "dev": {
+          "low_quality_unusable": 34,
+          "known_species": 486,
+          "possible_novelty": 70,
+          "likely_taxonomic_group": 453,
+          "possible_contamination": 37
+        },
+        "train": {
+          "likely_taxonomic_group": 3618,
+          "possible_novelty": 553,
+          "known_species": 3881,
+          "low_quality_unusable": 270,
+          "possible_contamination": 291
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 8719,
+        "rows_in_multi_member_groups": 2975,
+        "largest_group": 35,
+        "seconds": 3.4
+      }
+    },
+    "bacteria_pathogen": {
+      "total": 44504,
+      "by_label": {
+        "known_species": 15142,
+        "possible_novelty": 20000,
+        "likely_taxonomic_group": 7982,
+        "possible_contamination": 1380
+      },
+      "dropped_label_conflicts": 33,
+      "by_split": {
+        "test": {
+          "known_species": 1514,
+          "possible_novelty": 2000,
+          "likely_taxonomic_group": 798,
+          "possible_contamination": 138
+        },
+        "dev": {
+          "possible_novelty": 2000,
+          "known_species": 1515,
+          "likely_taxonomic_group": 799,
+          "possible_contamination": 138
+        },
+        "train": {
+          "known_species": 12113,
+          "possible_novelty": 16000,
+          "likely_taxonomic_group": 6385,
+          "possible_contamination": 1104
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 34422,
+        "rows_in_multi_member_groups": 12063,
+        "largest_group": 472,
+        "seconds": 19.7
+      }
+    },
+    "animal_general": {
+      "total": 14395,
+      "by_label": {
+        "possible_novelty": 4641,
+        "known_species": 4948,
+        "likely_taxonomic_group": 4806
+      },
+      "dropped_label_conflicts": 5,
+      "by_split": {
+        "test": {
+          "known_species": 495,
+          "possible_novelty": 464,
+          "likely_taxonomic_group": 481
+        },
+        "dev": {
+          "possible_novelty": 464,
+          "likely_taxonomic_group": 481,
+          "known_species": 495
+        },
+        "train": {
+          "possible_novelty": 3713,
+          "likely_taxonomic_group": 3844,
+          "known_species": 3958
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 12514,
+        "rows_in_multi_member_groups": 2753,
+        "largest_group": 28,
+        "seconds": 3.8
+      }
+    },
+    "human_domestic_contamination": {
+      "total": 7719,
+      "by_label": {
+        "known_species": 3533,
+        "possible_contamination": 4186
+      },
+      "dropped_label_conflicts": 0,
+      "by_split": {
+        "test": {
+          "possible_contamination": 419,
+          "known_species": 354
+        },
+        "dev": {
+          "possible_contamination": 419,
+          "known_species": 354
+        },
+        "train": {
+          "known_species": 2825,
+          "possible_contamination": 3348
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 4623,
+        "rows_in_multi_member_groups": 3327,
+        "largest_group": 505,
+        "seconds": 4.7
+      }
+    },
+    "misc_unknown": {
+      "total": 13591,
+      "by_label": {
+        "possible_novelty": 4996,
+        "unknown_needs_online_confirmation": 4914,
+        "low_quality_unusable": 3681
+      },
+      "dropped_label_conflicts": 0,
+      "by_split": {
+        "test": {
+          "low_quality_unusable": 368,
+          "unknown_needs_online_confirmation": 492,
+          "possible_novelty": 500
+        },
+        "dev": {
+          "possible_novelty": 500,
+          "unknown_needs_online_confirmation": 492,
+          "low_quality_unusable": 368
+        },
+        "train": {
+          "possible_novelty": 3996,
+          "unknown_needs_online_confirmation": 3930,
+          "low_quality_unusable": 2945
+        }
+      },
+      "split_mode": "group",
+      "near_dup": {
+        "near_dup_threshold": 0.8,
+        "groups": 12874,
+        "rows_in_multi_member_groups": 1040,
+        "largest_group": 30,
+        "seconds": 3.2
+      }
+    }
+  }
+}

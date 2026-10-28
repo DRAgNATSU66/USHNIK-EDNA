@@ -1,0 +1,97 @@
+{
+  "accuracy": 0.5254865616311399,
+  "f1_macro": 0.45754461474910135,
+  "per_class": {
+    "known_species": {
+      "precision": 0.4902962206332993,
+      "recall": 0.9896907216494846,
+      "f1-score": 0.6557377049180327,
+      "support": 485.0
+    },
+    "possible_novelty": {
+      "precision": 0.9523809523809523,
+      "recall": 0.8571428571428571,
+      "f1-score": 0.9022556390977443,
+      "support": 70.0
+    },
+    "possible_contamination": {
+      "precision": 0.7297297297297297,
+      "recall": 0.7297297297297297,
+      "f1-score": 0.7297297297297297,
+      "support": 37.0
+    },
+    "low_quality_unusable": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 34.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 453.0
+    },
+    "accuracy": 0.5254865616311399,
+    "macro avg": {
+      "precision": 0.43448138054879626,
+      "recall": 0.5153126617044144,
+      "f1-score": 0.45754461474910135,
+      "support": 1079.0
+    },
+    "weighted avg": {
+      "precision": 0.3071921535438525,
+      "recall": 0.5254865616311399,
+      "f1-score": 0.37830461688794065,
+      "support": 1079.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      480,
+      2,
+      3,
+      0,
+      0
+    ],
+    [
+      10,
+      60,
+      0,
+      0,
+      0
+    ],
+    [
+      10,
+      0,
+      27,
+      0,
+      0
+    ],
+    [
+      32,
+      0,
+      2,
+      0,
+      0
+    ],
+    [
+      447,
+      1,
+      5,
+      0,
+      0
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "possible_novelty",
+    "possible_contamination",
+    "low_quality_unusable",
+    "likely_taxonomic_group"
+  ],
+  "test_samples": 1079,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/plant",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/plant/test.csv",
+  "max_length": 256
+}

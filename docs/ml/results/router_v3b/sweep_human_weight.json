@@ -1,0 +1,96 @@
+{
+  "dev_rows": 9692,
+  "rule": "smallest mult with dev human recall >= 0.891",
+  "rows": [
+    {
+      "human_mult": 1.0,
+      "dev_acc": 0.9321,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9321,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.8745,
+        "misc_unknown": 0.8982
+      },
+      "dev_human_precision": 0.7673,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 9.2
+    },
+    {
+      "human_mult": 1.5,
+      "dev_acc": 0.9327,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9312,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.8849,
+        "misc_unknown": 0.8972
+      },
+      "dev_human_precision": 0.7668,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 8.8
+    },
+    {
+      "human_mult": 2.0,
+      "dev_acc": 0.9327,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9312,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.8862,
+        "misc_unknown": 0.8962
+      },
+      "dev_human_precision": 0.7645,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 9.3
+    },
+    {
+      "human_mult": 3.0,
+      "dev_acc": 0.9327,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9312,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.8875,
+        "misc_unknown": 0.8952
+      },
+      "dev_human_precision": 0.7631,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 9.6
+    },
+    {
+      "human_mult": 4.0,
+      "dev_acc": 0.9326,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9312,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.89,
+        "misc_unknown": 0.8921
+      },
+      "dev_human_precision": 0.7611,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 10.0
+    },
+    {
+      "human_mult": 6.0,
+      "dev_acc": 0.9327,
+      "dev_per_route_recall": {
+        "fish": 0.9929,
+        "plant": 0.9312,
+        "bacteria_pathogen": 0.9313,
+        "animal_general": 0.9472,
+        "human_domestic_contamination": 0.8939,
+        "misc_unknown": 0.8901
+      },
+      "dev_human_precision": 0.7593,
+      "dev_human_to_fish": 2,
+      "fit_seconds": 10.7
+    }
+  ]
+}

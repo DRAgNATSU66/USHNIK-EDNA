@@ -41,7 +41,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from app.inference.heads import DNAClassifierHead
-from app.inference.models import ROUTE_LABEL_SETS
+from app.inference.models import CURRENT_LABEL_SET_VERSION, ROUTE_LABEL_SETS
 
 
 class SequenceDataset(Dataset):
@@ -81,6 +81,55 @@ def collate(batch):
     return batched, torch.tensor(ys, dtype=torch.long)
 
 
+class HierarchicalLoss(nn.Module):
+    """known_species and likely_taxonomic_group as one parent class.
+
+    LTG comes from the record's name ("Genus sp."), not the sequence, so a
+    flat 4-way CE spends the backbone on a split the sequence barely carries
+    and LTG takes known_species rows (fish v3, QNA-047). Here the parent
+    logit is logsumexp(ks, ltg) and the class-weighted CE runs over the
+    parent classes, as the production head without LTG; leaf_weight * CE
+    over (ks, ltg) on parent rows learns the split. training/hier_decode.py
+    decodes the same factorisation."""
+
+    def __init__(self, ks: int, ltg: int, num_labels: int, parent_weight: torch.Tensor, leaf_weight: float):
+        super().__init__()
+        self.ks, self.ltg, self.leaf_weight = ks, ltg, leaf_weight
+        self.keep = [i for i in range(num_labels) if i != ltg]
+        self.register_buffer("weight", parent_weight)  # over self.keep
+
+    def _parent(self, logits, labels):
+        merged = logits.clone()
+        merged[:, self.ks] = torch.logsumexp(logits[:, [self.ks, self.ltg]].float(), dim=1).to(logits.dtype)
+        parent_labels = torch.where(labels == self.ltg, torch.full_like(labels, self.ks), labels)
+        remap = torch.tensor([self.keep.index(i) if i in self.keep else -1 for i in range(logits.size(1))],
+                             device=labels.device)
+        return merged[:, self.keep], remap[parent_labels]
+
+    def per_example(self, logits, labels):
+        parent_logits, parent_labels = self._parent(logits, labels)
+        loss = nn.functional.cross_entropy(parent_logits, parent_labels, weight=self.weight, reduction="none")
+        leaf_rows = (labels == self.ks) | (labels == self.ltg)
+        leaf = nn.functional.cross_entropy(logits[:, [self.ks, self.ltg]], (labels == self.ltg).long(),
+                                           reduction="none")
+        return loss + self.leaf_weight * leaf * leaf_rows
+
+    def example_weights(self, labels):
+        return self.weight[self._parent(torch.zeros(labels.size(0), len(self.keep) + 1, device=labels.device),
+                                        labels)[1]]
+
+    def forward(self, logits, labels):
+        return self.per_example(logits, labels).sum() / self.example_weights(labels).sum()
+
+    def parent_preds(self, logits):
+        """argmax over parent classes, reported as known_species: what a
+        tau=1 hier_decode emits, and what dev selection scores."""
+        merged = logits.clone()
+        merged[:, self.ks] = torch.logsumexp(logits[:, [self.ks, self.ltg]].float(), dim=1).to(logits.dtype)
+        merged[:, self.ltg] = float("-inf")
+        return merged.argmax(dim=-1)
+
+
 def run_eval(backbone, head, loader, device, criterion):
     from sklearn.metrics import accuracy_score, f1_score
 
@@ -95,6 +144,7 @@ def run_eval(backbone, head, loader, device, criterion):
     # the saved checkpoint. Accumulate the true weighted sum instead and
     # divide by the total weight, matching what the criterion actually means.
     class_w = getattr(criterion, "weight", None)
+    hier = isinstance(criterion, HierarchicalLoss)
     loss_sum = 0.0
     weight_sum = 0.0
     with torch.no_grad():
@@ -104,15 +154,26 @@ def run_eval(backbone, head, loader, device, criterion):
             out = backbone(**batch)
             cls_emb = extract_cls(out)
             logits = head(cls_emb)
-            per_example = nn.functional.cross_entropy(
-                logits, labels, weight=class_w, reduction="none"
-            )
+            if hier:
+                per_example = criterion.per_example(logits, labels)
+                weight_sum += criterion.example_weights(labels).sum().item()
+                all_preds.extend(criterion.parent_preds(logits).cpu().tolist())
+            else:
+                per_example = nn.functional.cross_entropy(
+                    logits, labels, weight=class_w, reduction="none"
+                )
+                weight_sum += (class_w[labels].sum().item() if class_w is not None else labels.size(0))
+                all_preds.extend(logits.argmax(dim=-1).cpu().tolist())
             loss_sum += per_example.sum().item()
-            weight_sum += (class_w[labels].sum().item() if class_w is not None else labels.size(0))
-            all_preds.extend(logits.argmax(dim=-1).cpu().tolist())
             all_labels.extend(labels.cpu().tolist())
     avg_loss = loss_sum / max(weight_sum, 1e-12)
-    acc = accuracy_score(all_labels, all_preds) if all_labels else 0.0
+    if hier:
+        # Selection accuracy on parent classes: an LTG row answered
+        # known_species is right at this level (hier_decode splits it later).
+        parent = [criterion.ks if y == criterion.ltg else y for y in all_labels]
+        acc = accuracy_score(parent, all_preds) if all_labels else 0.0
+    else:
+        acc = accuracy_score(all_labels, all_preds) if all_labels else 0.0
     f1 = f1_score(all_labels, all_preds, average="macro", zero_division=0) if all_labels else 0.0
     return avg_loss, acc, f1, all_labels, all_preds
 
@@ -204,10 +265,19 @@ def save_checkpoint(
         "base_model": args.base_model,
         "route": args.route,
         "num_classes": len(labels),
+        # The head's output order; registry entries copy these, and the
+        # worker builds the head from them (models.labels_for).
+        "label_set_version": CURRENT_LABEL_SET_VERSION,
+        "label_set": [str(label) for label in labels],
         "train_size": len(train_ds),
         "dev_size": len(dev_ds),
         "test_size": len(test_ds),
+        "training_args": {k: getattr(args, k, None) for k in (
+            "epochs", "lr", "weight_decay", "batch_size", "grad_accum", "seed", "hierarchical",
+            "leaf_weight", "class_weight_power")},
     }
+    if getattr(args, "hierarchical", False):
+        metrics["decoding"] = "hierarchical: see training/hier_decode.py for the dev-chosen tau"
     if extra_metrics:
         metrics.update(extra_metrics)
     (save_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -257,6 +327,12 @@ def main() -> None:
     # Free-text dataset build id (e.g. processed/build_report.json built_at),
     # recorded in metrics.json so a checkpoint names the data it was fit on.
     parser.add_argument("--dataset-version", default=None)
+    # Label set v2 routes with likely_taxonomic_group: see HierarchicalLoss.
+    parser.add_argument("--hierarchical", action="store_true")
+    parser.add_argument("--leaf-weight", type=float, default=0.3)
+    # Exponent on the inverse-frequency class weights: 1 = as before, 0.5 =
+    # square root (fish v3 at 1 called 173 of 1002 test rows novelty, 84 true).
+    parser.add_argument("--class-weight-power", type=float, default=1.0)
     args = parser.parse_args()
     run_start = time.time()
 
@@ -365,12 +441,28 @@ def main() -> None:
     # class's F1 in an earlier run despite decent overall accuracy.
     num_labels = len(labels)
     class_counts = [max(train_ds.label_counts.get(i, 0), 1) for i in range(num_labels)]
-    total_examples = sum(class_counts)
+    names = [str(l) for l in labels]
+    if args.hierarchical:
+        if "known_species" not in names or "likely_taxonomic_group" not in names:
+            raise SystemExit(f"--hierarchical needs known_species and likely_taxonomic_group in {names}")
+        ks, ltg = names.index("known_species"), names.index("likely_taxonomic_group")
+        class_counts[ks] += class_counts[ltg]
+        keep = [i for i in range(num_labels) if i != ltg]
+        counts = [class_counts[i] for i in keep]
+        weight_names = [names[i] for i in keep]
+    else:
+        counts, weight_names = class_counts, names
+    total_examples = sum(counts)
     class_weights = torch.tensor(
-        [total_examples / (num_labels * c) for c in class_counts], dtype=torch.float32, device=device,
+        [(total_examples / (len(counts) * c)) ** args.class_weight_power for c in counts],
+        dtype=torch.float32, device=device,
     )
-    print("class weights:", {str(l): round(w, 3) for l, w in zip(labels, class_weights.cpu().tolist())})
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    print("class weights:", {n: round(w, 3) for n, w in zip(weight_names, class_weights.cpu().tolist())})
+    if args.hierarchical:
+        criterion = HierarchicalLoss(ks, ltg, num_labels, class_weights, args.leaf_weight).to(device)
+        print(f"hierarchical: parent known_species+likely_taxonomic_group, leaf_weight={args.leaf_weight}")
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
     scaler = torch.amp.GradScaler("cuda", enabled=(device == "cuda"))
 
     best_dev_loss = float("inf")

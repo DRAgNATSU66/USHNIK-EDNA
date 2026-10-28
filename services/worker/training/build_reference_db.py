@@ -34,6 +34,12 @@ choices differ from build_dataset.py:
     route: 3.45 GB UDB, 4.1 GB RSS per query), so the budget is set for it;
     a route that cannot fit even at 1 per group is kept at 1 and marked
     over_budget in the manifest - query it through BLAST, which memory-maps.
+  * --ingest-cap K (off by default) bounds memory: each (lowest taxon,
+    marker) group keeps only its K longest sequences while reading. Every
+    ladder step k <= K selects exactly what an unbounded build would (the
+    final top k were in the running top K all along); only the uncapped step
+    can differ, and the manifest counts the groups that were cut. Needed
+    once BOLD is in: v3 was OOM-killed at 7 GB after 13M unique entries.
 
 Header format (one token, no whitespace, so vsearch keeps it whole):
 
@@ -52,6 +58,7 @@ import csv
 import datetime as _dt
 import gzip
 import hashlib
+import heapq
 import json
 import os
 import shutil
@@ -480,39 +487,55 @@ def iter_univec_ref(univec_path: Path) -> Iterator[RefRecord]:
                             forced_route="human_domestic_contamination")
 
 
-def bold_rows_to_records(rows: Iterable[dict]) -> Iterator[RefRecord]:
-    """BOLD hook. BOLD is not downloaded yet (owner login); when
-    raw/bold/*.parquet appears it is read through this. Rows are dicts with
-    the BOLD_Public column names (kingdom..species, nuc, processid,
-    marker_code)."""
+def bold_rows_to_records(rows: Iterable[dict], names: NameResolver | None = None) -> Iterator[RefRecord]:
+    """BOLD rows from raw/bold/BOLD_Public.<date>.parquet (owner download,
+    login required), normalised by sources.bold_lineage. Rows are dicts with
+    the BOLD_Public column names (kingdom..species, identification_rank,
+    nuc, processid, marker_code).
+
+    With `names`, the accepted name (species, else genus) is looked up in
+    NCBI taxonomy and the NCBI lineage replaces BOLD's, as for SILVA/UNITE.
+    BOLD's orders and families differ from NCBI's (Eupercaria_incertae_sedis
+    vs Lutjaniformes, Cyprinidae vs Leuciscidae), and lca_lineage cuts a
+    merged entry at the first disagreeing rank, so a sequence present in
+    both MIDORI2 and BOLD lost its genus and species. Names NCBI does not
+    know keep the normalised BOLD lineage."""
     for row in rows:
-        seq = sources._clean_sequence(row.get("nuc") or "")
+        seq = sources.bold_sequence(row.get("nuc"))
         if not seq:
             continue
-        lineage = {r: row[r] for r in ("kingdom", "phylum", "class", "order", "family", "genus", "species") if row.get(r)}
-        if lineage.get("kingdom") in ("Animalia",):
-            lineage["kingdom"] = "Metazoa"
-        if lineage.get("kingdom") == "Plantae":
-            lineage["kingdom"] = "Viridiplantae"
-        if lineage:
-            lineage.setdefault("superkingdom", "Eukaryota")
-        organism = row.get("species") or row.get("genus") or ""
+        parsed = sources.bold_lineage(row)
+        if parsed is None:
+            continue
+        lineage, _ = parsed
+        taxid = None
+        if names is not None:
+            domain = lineage["superkingdom"]
+            species = lineage.get("species")
+            taxid = (names.resolve(species, domain) if species else None) or names.resolve(lineage["genus"], domain)
+            if taxid is not None:
+                ncbi = dict(names.tax.lineage(taxid))
+                if species and "species" not in ncbi:
+                    ncbi["species"] = species
+                lineage = ncbi
+        organism = lineage.get("species") or lineage.get("genus") or ""
         if not organism:
             continue
-        yield RefRecord(seq, lineage, None, row.get("processid") or "NA", "bold",
+        yield RefRecord(seq, lineage, taxid, row.get("processid") or "NA", "bold",
                         row.get("marker_code") or "barcode", organism)
 
 
-def iter_bold_ref(parquet_path: Path, batch_size: int = 50_000) -> Iterator[RefRecord]:
-    import pyarrow.parquet as pq  # only needed once BOLD exists
+def iter_bold_ref(parquet_path: Path, names: NameResolver | None = None,
+                  batch_size: int = 50_000) -> Iterator[RefRecord]:
+    import pyarrow.parquet as pq  # only needed for BOLD
 
     pf = pq.ParquetFile(parquet_path)
-    wanted = ["kingdom", "phylum", "class", "order", "family", "genus", "species", "nuc", "processid", "marker_code"]
+    wanted = [*sources.BOLD_RANKS, "identification_rank", "nuc", "processid", "marker_code"]
     cols = [c for c in wanted if c in pf.schema_arrow.names]
     for batch in pf.iter_batches(columns=cols, batch_size=batch_size):
         d = batch.to_pydict()
         n = len(d["nuc"])
-        yield from bold_rows_to_records({c: d[c][i] for c in cols} for i in range(n))
+        yield from bold_rows_to_records(({c: d[c][i] for c in cols} for i in range(n)), names)
 
 
 # ---------------------------------------------------------------------------
@@ -586,14 +609,24 @@ class RouteStats:
     duplicates_merged: int = 0
     lca_coarsened: int = 0
     heldout_excluded: int = 0
+    ingest_rejected: int = 0
+    ingest_evicted: int = 0
     by_source: Counter = field(default_factory=Counter)
+
+
+def _inv(d: bytes) -> bytes:
+    """Byte-wise complement: orders digests descending, so a min-heap of
+    (length, _inv(d)) has the entry select() would rank last at its root."""
+    return bytes(b ^ 0xFF for b in d)
 
 
 class RouteAccumulator:
     """Unique sequences of one route. Sequences go to a temp file in arrival
-    order; only metadata stays in memory."""
+    order; only metadata stays in memory. With ingest_cap, each (lowest
+    taxon, marker) group holds at most that many entries, longest first."""
 
-    def __init__(self, route: str, tmp_dir: Path, taxonomy: TaxonomyResolver | None):
+    def __init__(self, route: str, tmp_dir: Path, taxonomy: TaxonomyResolver | None,
+                 ingest_cap: int | None = None):
         self.route = route
         self.entries: dict[bytes, _Entry] = {}
         self.tmp_path = tmp_dir / f"{route}.seqs"
@@ -601,6 +634,29 @@ class RouteAccumulator:
         self.stats = RouteStats()
         self.tax = taxonomy
         self._interned: dict = {}
+        self.ingest_cap = ingest_cap
+        self._heaps: dict[tuple, list[tuple[int, bytes]]] = defaultdict(list)
+        self._cut_groups: set[tuple] = set()
+
+    def _admit(self, d: bytes, lin, marker: str, length: int) -> bool:
+        """Bounded per-group heap. The root only ever grows, so an entry
+        evicted or rejected once is never better than the root again."""
+        if self.ingest_cap is None:
+            return True
+        key = (lowest_taxon(lin), marker)
+        heap = self._heaps[key]
+        item = (length, _inv(d))
+        if len(heap) < self.ingest_cap:
+            heapq.heappush(heap, item)
+            return True
+        self._cut_groups.add(key)
+        if item <= heap[0]:
+            self.stats.ingest_rejected += 1
+            return False
+        _, worst = heapq.heapreplace(heap, item)
+        del self.entries[_inv(worst)]
+        self.stats.ingest_evicted += 1
+        return True
 
     def _intern(self, lin):
         return self._interned.setdefault(lin, lin)
@@ -612,6 +668,8 @@ class RouteAccumulator:
         lin = self._intern(lineage_tuple(rec.lineage))
         e = self.entries.get(d)
         if e is None:
+            if not self._admit(d, lin, rec.marker, len(rec.sequence)):
+                return
             self.entries[d] = _Entry(lin, rec.taxid, rec.acc, rec.src, rec.marker, len(rec.sequence))
             self._fh.write(d.hex())
             self._fh.write("\t")
@@ -659,6 +717,13 @@ class RouteAccumulator:
                 "unique_before_cap": len(self.entries), "kept": len(keep),
                 "removed_by_cap": len(self.entries) - len(keep),
                 "bases_after_cap": total, "over_budget": total > max_bases}
+        if self.ingest_cap is not None:
+            # Grouping above uses final (LCA-merged) lineages, the heaps used
+            # arrival lineages; they differ only for lca_coarsened entries.
+            info["ingest_cap"] = {"k": self.ingest_cap, "groups_cut": len(self._cut_groups),
+                                  "rejected": self.stats.ingest_rejected,
+                                  "evicted": self.stats.ingest_evicted,
+                                  "exact": chosen_k is not None or not self._cut_groups}
         return keep, chosen_k, info
 
     def write(self, out_fasta: Path, keep: set[bytes], width: int = 0) -> dict:
@@ -669,12 +734,14 @@ class RouteAccumulator:
         by_marker: Counter = Counter()
         rank_depth: Counter = Counter()
         taxid_map: list[tuple[str, int]] = []
+        pending = set(keep)  # an evicted digest can be re-admitted, so the temp file may repeat it
         with open(self.tmp_path, encoding="ascii") as src, open(out_fasta, "w", encoding="utf-8") as out:
             for line in src:
                 hexd, _, seq = line.rstrip("\n").partition("\t")
                 d = bytes.fromhex(hexd)
-                if d not in keep:
+                if d not in pending:
                     continue
+                pending.discard(d)
                 e = self.entries[d]
                 n += 1
                 seq_id = f"{prefix}{n:07d}"
@@ -797,7 +864,7 @@ LICENCES = {
     "univec": "NCBI UniVec: public, NCBI policy.",
     "grch38": "GRCh38 (GCA_000001405.15): Genome Reference Consortium, public.",
     "supplementary": "Per-record licence in raw/supplementary/*/*.manifest.csv (INSDC/GenBank, ENA terms).",
-    "bold": "CC BY-SA 4.0 (BOLD Public data package) - not present in this build.",
+    "bold": "CC BY-SA 4.0 (BOLD Public data package, doi:10.5883/DP-Latest; Ratnasingham et al. 2024, BOLD v4, DNA Barcoding: Methods and Protocols ch. 26).",
 }
 
 # (directory name, marker label); nt_others and partial nt_viruses are left out.
@@ -814,6 +881,76 @@ BLAST_SOURCES = (
 )
 
 
+def build_indexes(root: Path, out_root: Path, version: str, routes_report: dict, max_route_bases: int,
+                  vsearch: Path | None, makeblastdb: Path | None, threads: int, skip_grch38: bool) -> dict:
+    """vsearch UDB + BLAST DB per route from the ref.fasta files on disk,
+    then the GRCh38 BLAST-only index. Fills routes_report in place and
+    returns the manifest's extra keys. A route over max_route_bases gets no
+    UDB: the lookup's auto mode only runs vsearch on a UDB under
+    reference_vsearch_max_udb_gb (2.5 GB) and BLASTs the rest, and building
+    a ~1 Gb UDB takes ~5 GB RAM (v3 animal_general was OOM-killed there)."""
+    for route, info in routes_report.items():
+        if not info.get("sequences"):
+            continue
+        route_dir = out_root / route
+        fasta = route_dir / "ref.fasta"
+        if info["bases"] > max_route_bases:
+            info["vsearch_udb"] = {"ok": False, "reason": f"over_budget ({info['bases']:,} > "
+                                   f"{max_route_bases:,} bases): BLAST only"}
+        elif vsearch is not None:
+            info["vsearch_udb"] = build_udb(vsearch, fasta, route_dir / "ref.udb", threads)
+            if info["vsearch_udb"]["ok"]:
+                info["vsearch_udb"]["bytes"] = (route_dir / "ref.udb").stat().st_size
+        else:
+            info["vsearch_udb"] = {"ok": False, "reason": "vsearch not found"}
+        if makeblastdb is not None:
+            info["blastdb"] = build_blastdb(makeblastdb, fasta, route_dir / "blast" / "ref",
+                                            f"SynthVeda reference {version} {route}", route_dir / "taxid_map.txt")
+            if info["blastdb"]["ok"]:
+                info["blastdb"]["bytes"] = sum(p.stat().st_size for p in (route_dir / "blast").iterdir())
+        else:
+            info["blastdb"] = {"ok": False, "reason": "makeblastdb not found"}
+        print(f"[{route}] udb={info['vsearch_udb'].get('ok')} ({info['vsearch_udb'].get('seconds')}s)  "
+              f"blast={info['blastdb'].get('ok')} ({info['blastdb'].get('seconds')}s)", flush=True)
+
+    extra: dict = {}
+    grch = root / "raw" / "grch38" / "GRCh38_no_alt_analysis_set.fna.gz"
+    if not skip_grch38 and grch.exists() and makeblastdb is not None:
+        print("== GRCh38 BLAST-only index", flush=True)
+        prefix = out_root / "human_domestic_contamination" / "grch38_blast" / "grch38"
+        res = build_grch38_blastdb(makeblastdb, grch, prefix)
+        if res["ok"]:
+            res["bytes"] = sum(p.stat().st_size for p in prefix.parent.iterdir())
+        res["source"] = {"path": str(grch.relative_to(root)), "bytes": grch.stat().st_size}
+        res["note"] = ("Held-out GRCh38 windows in processed/human_domestic_contamination cannot be excluded "
+                       "from a whole genome: a human-route taxon score from this index is not a "
+                       "generalisation measure.")
+        extra["grch38_blast"] = res
+        print(f"    ok={res['ok']} ({res['seconds']}s)", flush=True)
+    return extra
+
+
+def index_only(root: Path, version: str, threads: int, skip_grch38: bool) -> int:
+    """Second phase of a --skip-indexes build, in a fresh small process, so
+    vsearch/makeblastdb never share a memory cgroup with the accumulators."""
+    out_root = root / "reference" / version
+    manifest = json.loads((out_root / "manifest.json").read_text(encoding="utf-8"))
+    t0 = time.time()
+    extra = build_indexes(root, out_root, version, manifest["routes"],
+                          manifest["parameters"]["max_route_bases"], find_tool("vsearch", root),
+                          find_tool("makeblastdb", root), threads, skip_grch38)
+    manifest.update(extra)
+    manifest["index_seconds"] = round(time.time() - t0, 1)
+    with open(out_root / "manifest.json", "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=2)
+    routes_ok = all(i["blastdb"]["ok"] for i in manifest["routes"].values() if i.get("sequences"))
+    if routes_ok:
+        (root / "reference" / "CURRENT").write_text(version + "\n", encoding="utf-8")
+    print(f"CURRENT -> {version}" if routes_ok else "a BLAST DB failed; CURRENT left unchanged", flush=True)
+    print(f"indexes done in {manifest['index_seconds']}s -> {out_root}", flush=True)
+    return 0
+
+
 def _source_plan(raw: Path, taxonomy: TaxonomyResolver, names: NameResolver, blastdbcmd: Path | None,
                  only: set[str] | None) -> list[tuple[str, Callable[[], Iterator[RefRecord]], list[Path]]]:
     plan: list = []
@@ -827,7 +964,7 @@ def _source_plan(raw: Path, taxonomy: TaxonomyResolver, names: NameResolver, bla
             plan.append(("midori2", lambda z=z: iter_midori2_ref(z, taxonomy), [z]))
     for p in sorted((raw / "bold").glob("*.parquet")) if (raw / "bold").exists() else []:
         if want("bold"):
-            plan.append(("bold", lambda p=p: iter_bold_ref(p), [p]))
+            plan.append(("bold", lambda p=p: iter_bold_ref(p, names), [p]))
     for p in sorted((raw / "silva").glob("*.fasta.gz")):
         marker = "LSU" if "LSU" in p.name else "SSU"
         if want("silva"):
@@ -876,16 +1013,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", default="v1")
     parser.add_argument("--max-per-taxon", type=int, default=DEFAULT_MAX_PER_TAXON)
     parser.add_argument("--max-route-bases", type=int, default=DEFAULT_MAX_ROUTE_BASES)
+    parser.add_argument("--ingest-cap", type=int, default=None,
+                        help="keep at most K longest per (lowest taxon, marker) while reading; bounds RAM")
+    parser.add_argument("--ingest-cap-exempt", default="",
+                        help="comma list of routes read uncapped (small routes the cap would only cut)")
     parser.add_argument("--only-sources", default=None, help="comma list: midori2,silva,unite,ncbi_blastdb,supplementary,univec,bold")
     parser.add_argument("--no-heldout-exclusion", action="store_true")
     parser.add_argument("--skip-indexes", action="store_true")
     parser.add_argument("--skip-grch38", action="store_true")
     parser.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 2) - 2))
     parser.add_argument("--force", action="store_true", help="overwrite an existing version directory")
+    parser.add_argument("--index-only", action="store_true",
+                        help="build the indexes of an existing --skip-indexes version and update its manifest")
     args = parser.parse_args(argv)
 
     t_start = time.time()
     root = Path(args.data_dir)
+    if args.index_only:
+        return index_only(root, args.version, args.threads, args.skip_grch38)
     raw = root / "raw"
     out_root = root / "reference" / args.version
     if out_root.exists():
@@ -909,7 +1054,10 @@ def main(argv: list[str] | None = None) -> int:
 
     only = set(args.only_sources.split(",")) if args.only_sources else None
     tmp = Path(tempfile.mkdtemp(prefix=".build-", dir=out_root))
-    accs = {r: RouteAccumulator(r, tmp, taxonomy) for r in ROUTES}
+    exempt = {r for r in args.ingest_cap_exempt.split(",") if r}
+    if exempt - set(ROUTES):
+        raise SystemExit(f"unknown routes in --ingest-cap-exempt: {sorted(exempt - set(ROUTES))}")
+    accs = {r: RouteAccumulator(r, tmp, taxonomy, None if r in exempt else args.ingest_cap) for r in ROUTES}
     source_report: list[dict] = []
     dropped: Counter = Counter()
 
@@ -971,39 +1119,16 @@ def main(argv: list[str] | None = None) -> int:
             "write_seconds": round(time.time() - t0, 1),
         }
         print(f"[{route}] {written['sequences']:,} seqs, {written['bases']:,} bases, cap k={k}", flush=True)
-        if not args.skip_indexes and written["sequences"]:
-            if vsearch is not None:
-                info["vsearch_udb"] = build_udb(vsearch, fasta, route_dir / "ref.udb", args.threads)
-                if info["vsearch_udb"]["ok"]:
-                    info["vsearch_udb"]["bytes"] = (route_dir / "ref.udb").stat().st_size
-            else:
-                info["vsearch_udb"] = {"ok": False, "reason": "vsearch not found"}
-            if makeblastdb is not None:
-                info["blastdb"] = build_blastdb(makeblastdb, fasta, route_dir / "blast" / "ref",
-                                                f"SynthVeda reference {args.version} {route}", map_path)
-                if info["blastdb"]["ok"]:
-                    info["blastdb"]["bytes"] = sum(p.stat().st_size for p in (route_dir / "blast").iterdir())
-            else:
-                info["blastdb"] = {"ok": False, "reason": "makeblastdb not found"}
-            print(f"    udb={info['vsearch_udb'].get('ok')} ({info['vsearch_udb'].get('seconds')}s)  "
-                  f"blast={info['blastdb'].get('ok')} ({info['blastdb'].get('seconds')}s)", flush=True)
         routes_report[route] = info
+        acc.entries = {}  # free this route before the next one is selected
+        acc._heaps = defaultdict(list)
     shutil.rmtree(tmp, ignore_errors=True)
+    del accs
 
     extra: dict = {}
-    grch = raw / "grch38" / "GRCh38_no_alt_analysis_set.fna.gz"
-    if not args.skip_grch38 and not args.skip_indexes and grch.exists() and makeblastdb is not None:
-        print("== GRCh38 BLAST-only index", flush=True)
-        prefix = out_root / "human_domestic_contamination" / "grch38_blast" / "grch38"
-        res = build_grch38_blastdb(makeblastdb, grch, prefix)
-        if res["ok"]:
-            res["bytes"] = sum(p.stat().st_size for p in prefix.parent.iterdir())
-        res["source"] = {"path": str(grch.relative_to(root)), "bytes": grch.stat().st_size}
-        res["note"] = ("Held-out GRCh38 windows in processed/human_domestic_contamination cannot be excluded "
-                       "from a whole genome: a human-route taxon score from this index is not a "
-                       "generalisation measure.")
-        extra["grch38_blast"] = res
-        print(f"    ok={res['ok']} ({res['seconds']}s)", flush=True)
+    if not args.skip_indexes:
+        extra = build_indexes(root, out_root, args.version, routes_report, args.max_route_bases,
+                              vsearch, makeblastdb, args.threads, args.skip_grch38)
 
     manifest = {
         "version": args.version,
@@ -1016,7 +1141,8 @@ def main(argv: list[str] | None = None) -> int:
         "parameters": {
             "min_len": MIN_LEN, "min_len_vector": MIN_LEN_VECTOR, "max_len": MAX_LEN,
             "max_n_fraction": MAX_N_FRACTION, "max_per_taxon_requested": args.max_per_taxon,
-            "max_route_bases": args.max_route_bases, "midori2_selection": "UNIQ",
+            "max_route_bases": args.max_route_bases, "ingest_cap": args.ingest_cap,
+            "ingest_cap_exempt": sorted(exempt), "midori2_selection": "UNIQ",
             "heldout_exclusion": not args.no_heldout_exclusion,
         },
         "heldout_exclusion": {
@@ -1044,7 +1170,8 @@ def main(argv: list[str] | None = None) -> int:
     }
     with open(out_root / "manifest.json", "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)
-    (root / "reference" / "CURRENT").write_text(args.version + "\n", encoding="utf-8")
+    if not args.skip_indexes:  # an unindexed version must not go live; --index-only moves CURRENT
+        (root / "reference" / "CURRENT").write_text(args.version + "\n", encoding="utf-8")
     print(f"done in {manifest['build_seconds']}s -> {out_root}", flush=True)
     return 0
 

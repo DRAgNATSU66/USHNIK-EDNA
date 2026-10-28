@@ -1,0 +1,79 @@
+{
+  "accuracy": 0.6999002991026919,
+  "f1_macro": 0.7933813100164707,
+  "per_class": {
+    "known_species": {
+      "precision": 0.9294605809128631,
+      "recall": 0.4534412955465587,
+      "f1-score": 0.6095238095238096,
+      "support": 494.0
+    },
+    "possible_novelty": {
+      "precision": 0.7623762376237624,
+      "recall": 0.9166666666666666,
+      "f1-score": 0.8324324324324325,
+      "support": 84.0
+    },
+    "low_quality_unusable": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 14.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.598145285935085,
+      "recall": 0.9416058394160584,
+      "f1-score": 0.7315689981096408,
+      "support": 411.0
+    },
+    "accuracy": 0.6999002991026919,
+    "macro avg": {
+      "precision": 0.8224955261179276,
+      "recall": 0.827928450407321,
+      "f1-score": 0.7933813100164707,
+      "support": 1003.0
+    },
+    "weighted avg": {
+      "precision": 0.7806887771193124,
+      "recall": 0.6999002991026919,
+      "f1-score": 0.6836529854956616,
+      "support": 1003.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      224,
+      17,
+      0,
+      253
+    ],
+    [
+      0,
+      77,
+      0,
+      7
+    ],
+    [
+      0,
+      0,
+      14,
+      0
+    ],
+    [
+      17,
+      7,
+      0,
+      387
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "possible_novelty",
+    "low_quality_unusable",
+    "likely_taxonomic_group"
+  ],
+  "test_samples": 1003,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/fish_v3b/by_dev_acc",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/fish/dev.csv",
+  "max_length": 256
+}

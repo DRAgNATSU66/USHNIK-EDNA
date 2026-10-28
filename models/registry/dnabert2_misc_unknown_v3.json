@@ -1,0 +1,98 @@
+{
+  "model_id": "dnabert2_misc_unknown_v3",
+  "route": "misc_unknown",
+  "base_model": "data:checkpoints/misc_unknown_v3/backbone",
+  "head_type": "sequence_classification",
+  "embedding_dim": 768,
+  "label_set_version": "v2",
+  "label_set": [
+    "unknown_needs_online_confirmation",
+    "possible_novelty",
+    "low_quality_unusable"
+  ],
+  "training_dataset_version": "processed-2026-10-28T00:05:40+0530",
+  "metrics": {
+    "test_accuracy": 0.9309,
+    "test_macro_f1": 0.9364,
+    "test_size": 1360,
+    "dev_loss_best": 0.1677,
+    "train_size": 10871,
+    "dev_size": 1360,
+    "epochs": 6,
+    "epoch_saved": 5,
+    "train_seconds": 1211.5,
+    "max_length": 256,
+    "per_class": {
+      "unknown_needs_online_confirmation": {
+        "f1": 0.9085,
+        "support": 492
+      },
+      "possible_novelty": {
+        "f1": 0.9046,
+        "support": 500
+      },
+      "low_quality_unusable": {
+        "f1": 0.9959,
+        "support": 368
+      }
+    },
+    "confusion_matrix": [
+      [
+        457,
+        34,
+        1
+      ],
+      [
+        57,
+        441,
+        2
+      ],
+      [
+        0,
+        0,
+        368
+      ]
+    ],
+    "confusion_label_order": [
+      "unknown_needs_online_confirmation",
+      "possible_novelty",
+      "low_quality_unusable"
+    ],
+    "same_test_baseline": {
+      "model_id": "dnabert2_misc_unknown_v2",
+      "test_accuracy": 0.8985,
+      "test_macro_f1": 0.9065,
+      "per_class": {
+        "unknown_needs_online_confirmation": {
+          "f1": 0.8568,
+          "support": 492
+        },
+        "possible_novelty": {
+          "f1": 0.8682,
+          "support": 500
+        },
+        "low_quality_unusable": {
+          "f1": 0.9946,
+          "support": 368
+        }
+      },
+      "test_rows_in_prod_training_data": "298/1360 (21.9%)",
+      "note": "production head scored on the same v3 test rows with training/evaluate_checkpoint.py (max_length 256): docs/ml/results/heads_v3/prod_misc_unknown_on_v3test.json. Optimistic for production, which trained on 298/1360 (21.9%) of these rows."
+    }
+  },
+  "thresholds": {
+    "high_confidence": 0.7,
+    "low_confidence": 0.35
+  },
+  "artifact_uri": "data:checkpoints/misc_unknown_v3/head.pt",
+  "checksum": "03a1a73fd585b3c4c534bc5b670930787cd2cde863a1c517620184ca6c78fd2d",
+  "created_at": "2026-10-28",
+  "promoted_by": "local-admin-cli",
+  "status": "production",
+  "notes": "DNABERT-2 117M fine-tuned from base Hub weights on dataset v3 (processed-2026-10-28T00:05:40+0530; BOLD added, label set v2; QNA-045/046/047). 6 epochs, max_length 256, best dev loss at epoch 5. Same v3 test rows vs dnabert2_misc_unknown_v2: acc 0.8985 -> 0.9309, macro-F1 0.9065 -> 0.9364, known_species recall None -> None. Promoted under the user's 2026-10-28 rule (old-class metrics must not regress), QNA-048.",
+  "trusted_remote_code": true,
+  "registered_by": "local-admin-cli",
+  "registered_at": "2026-10-28T11:22:45+00:00",
+  "promoted_at": "2026-10-28T11:22:46+00:00",
+  "promoted_from_status": "candidate"
+}

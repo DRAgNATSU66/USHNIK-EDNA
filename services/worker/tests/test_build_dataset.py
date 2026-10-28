@@ -92,6 +92,31 @@ def test_build_runs_without_bold_and_logs_skip(tmp_path: Path, capsys):
     assert total == report["routes"]["misc_unknown"]["total"] == 40
 
 
+def test_build_reads_bold_with_its_own_scan_cap(tmp_path: Path, monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    root = tmp_path / "data"
+    raw = root / "raw"
+    for d in ("bold", "midori2", "silva"):
+        (raw / d).mkdir(parents=True)
+    _unite_fixture(raw)
+    rng = random.Random(3)
+    n = 6
+    cols = {"kingdom": ["Fungi"] * n, "phylum": ["Ascomycota"] * n, "class": [None] * n, "order": [None] * n,
+            "family": [None] * n, "genus": [f"Bgen{chr(97 + i)}" for i in range(n)],
+            "species": [f"Bgen{chr(97 + i)} bspecies" for i in range(n)], "identification_rank": ["species"] * n,
+            "nuc": ["--" + rand_seq(300, rng) + "--" for _ in range(n)]}
+    pq.write_table(pa.table(cols), raw / "bold" / "BOLD_Public.01-Jan-2026.parquet")
+    # BOLD is scanned against BOLD_MAX_SCAN, not the 2M per-source cap.
+    monkeypatch.setattr(bd, "BOLD_MAX_SCAN", 4)
+    bd.main(["--data-dir", str(root), "--only-routes", "misc_unknown", "--skip-blastdb",
+             "--skip-supplementary"])
+    report = json.loads((root / "processed" / "build_report.json").read_text())
+    bold = [s for s in report["sources"] if s["source"].startswith("bold:")]
+    assert len(bold) == 1 and bold[0]["added_chunks"] == 4
+    assert "bold" not in report["skipped"]
+
+
 # ---------------------------------------------------------------------------
 # caps
 # ---------------------------------------------------------------------------

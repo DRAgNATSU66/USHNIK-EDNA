@@ -26,11 +26,11 @@ from .heads import HeadUnavailableError, get_cls_embedding, get_head, tokenize_d
 from .loader import get_or_load, torch_available
 from .max_length import resolve_max_length
 from .models import (
-    ROUTE_LABEL_SETS,
     InferenceMode,
     ModelRegistryEntry,
     PredictionResult,
     SequenceResultClass,
+    labels_for,
 )
 from .registry import get_registry
 
@@ -146,6 +146,26 @@ def _stub_prediction(
     )
 
 
+def hierarchical_best(label_scores: dict[str, float], ltg_share_tau: float | None) -> tuple[str, float]:
+    """(label, probability) the head stands behind. Without a tau: argmax.
+    With one (a head trained with finetune --hierarchical; tau chosen on dev
+    by training/hier_decode.py), known_species and likely_taxonomic_group
+    first compete as one parent class, P(ks) + P(ltg); the row is LTG only
+    when P(ltg) / (P(ks) + P(ltg)) > tau, and the parent probability is the
+    confidence either way (QNA-048)."""
+    ks, ltg = SequenceResultClass.known_species.value, SequenceResultClass.likely_taxonomic_group.value
+    if ltg_share_tau is None or ks not in label_scores or ltg not in label_scores:
+        best = max(label_scores, key=label_scores.__getitem__)
+        return best, label_scores[best]
+    parent = label_scores[ks] + label_scores[ltg]
+    others = {k: v for k, v in label_scores.items() if k not in (ks, ltg)}
+    best_other = max(others, key=others.__getitem__) if others else None
+    if best_other is not None and others[best_other] > parent:
+        return best_other, others[best_other]
+    share = label_scores[ltg] / parent if parent > 0 else 0.0
+    return (ltg if share > ltg_share_tau else ks), parent
+
+
 def _run_model(
     sequence_id: str,
     sequence: str,
@@ -158,6 +178,7 @@ def _run_model(
     try:
         # Classifier head first: without trained head weights there is no
         # model prediction to make, so don't spend a backbone forward pass.
+        labels = labels_for(route, entry.label_set_version, entry.label_set)
         try:
             head = get_head(
                 route=route,
@@ -165,6 +186,7 @@ def _run_model(
                 embedding_dim=entry.embedding_dim,
                 head_weights_path=entry.artifact_uri if entry.artifact_uri and
                                   entry.artifact_uri.endswith((".pt", ".bin")) else None,
+                labels=labels,
             )
         except HeadUnavailableError as exc:
             # Already logged (once per route) by get_head.
@@ -187,17 +209,15 @@ def _run_model(
             logits = head(cls_emb)  # (1, num_classes)
             probs = torch.softmax(logits, dim=-1).squeeze(0).tolist()
 
-        labels = ROUTE_LABEL_SETS.get(route, [])
         label_scores = dict(zip(labels, probs))
 
         # Determine result_class and confidence from probabilities.
         if not label_scores:
             return _stub_prediction(sequence_id, route, entry, "no_label_set")
 
-        best_label = max(label_scores, key=label_scores.__getitem__)
-        best_prob = label_scores[best_label]
-
         thresholds = entry.thresholds
+        best_label, best_prob = hierarchical_best(label_scores, thresholds.get("ltg_share_tau"))
+
         high_threshold = thresholds.get("high_confidence", _HIGH_CONF)
         low_threshold = thresholds.get("low_confidence", _LOW_CONF)
 

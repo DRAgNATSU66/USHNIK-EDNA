@@ -67,25 +67,98 @@ def _iter_fasta(lines: Iterator[str]) -> Iterator[tuple[str, str]]:
 # BOLD (Parquet, already-structured taxonomy columns)
 # ---------------------------------------------------------------------------
 
+# BOLD kingdom -> (superkingdom, NCBI-style kingdom). routing.lineage_to_route
+# only knows NCBI names, so raw "Animalia" sent every non-chordate animal to
+# misc_unknown. "Mixture" (mixed-sample records) and anything unlisted are
+# dropped: there is no single organism to label.
+_BOLD_KINGDOMS: dict[str, tuple[str, str | None]] = {
+    "Animalia": ("Eukaryota", "Metazoa"),
+    "Plantae": ("Eukaryota", "Viridiplantae"),
+    "Fungi": ("Eukaryota", "Fungi"),
+    "Protista": ("Eukaryota", None),
+    "Bacteria": ("Bacteria", None),
+    "Viruses": ("Viruses", None),
+}
+# BOLD fish classes -> the NCBI class names routing.FISH_CLASSES knows.
+# Without this, 446,683 Teleostei rows routed to animal_general.
+_BOLD_FISH_CLASSES = {
+    "Teleostei": "Actinopteri", "Chondrostei": "Actinopteri", "Holostei": "Actinopteri",
+    "Cladistii": "Actinopteri", "Elasmobranchii": "Chondrichthyes", "Holocephali": "Chondrichthyes",
+    "Petromyzonti": "Hyperoartia", "Coelacanthi": "Coelacanthimorpha", "Dipneusti": "Sarcopterygii",
+}
+_BOLD_SPECIES_RANKS = {"species", "subspecies"}
+# BOLD names are accepted by shape rather than by spotting provisional forms:
+# interim names come in too many shapes ("Eupselia sp. ANICMK59", "Ichneutes
+# sp. BOLD:ADI5313", "Brevicornu JKJ-spB", "Megaselia pulicaria complex",
+# "Simulium exiguum s.l.", hybrids "A b x A c"). A genus is one capitalised
+# Latin word ("EntomobryidaeGEN", "Galumnidae_incertae_sedis" are family-level
+# placeholders); a species is that genus plus one or two lowercase epithets.
+_BOLD_GENUS = re.compile(r"^[A-Z][a-z]+(-[a-z]+)?$")
+_BOLD_EPITHET = re.compile(r"^[a-z][a-z\-]+$")
+_BOLD_NOT_EPITHETS = {"sp", "spp", "cf", "aff", "nr", "complex", "group", "grp", "agg", "sl"}
+BOLD_RANKS = ("kingdom", "phylum", "class", "order", "family", "genus", "species")
+
+
+def _bold_species_ok(species: str, genus: str) -> bool:
+    words = species.split()
+    return (words[0] == genus and len(words) in (2, 3)
+            and all(_BOLD_EPITHET.match(w) and w not in _BOLD_NOT_EPITHETS for w in words[1:]))
+
+
+def bold_lineage(row: dict) -> tuple[dict[str, str], str] | None:
+    """(lineage, organism_name) for one BOLD_Public row, or None to drop it.
+    Shared by iter_bold (training set) and build_reference_db (reference DB)
+    so both read BOLD the same way. Genus-level identifications come back as
+    "Genus sp." with no species in the lineage, so assign_label gives them
+    likely_taxonomic_group; rows without a real genus are dropped."""
+    mapped = _BOLD_KINGDOMS.get(row.get("kingdom") or "")
+    if mapped is None:
+        return None
+    genus = row.get("genus")
+    if not genus or not _BOLD_GENUS.match(genus):
+        return None
+    superkingdom, kingdom = mapped
+    lineage = {"superkingdom": superkingdom}
+    if kingdom:
+        lineage["kingdom"] = kingdom
+    for rank in BOLD_RANKS[1:6]:
+        if row.get(rank):
+            lineage[rank] = row[rank]
+    if lineage.get("class") in _BOLD_FISH_CLASSES:
+        lineage["class"] = _BOLD_FISH_CLASSES[lineage["class"]]
+    species = row.get("species")
+    id_rank = row.get("identification_rank")
+    if species and (id_rank is None or id_rank in _BOLD_SPECIES_RANKS) and _bold_species_ok(species, genus):
+        lineage["species"] = species
+        return lineage, species
+    return lineage, f"{genus} sp."
+
+
+def bold_sequence(nuc: str | None) -> str | None:
+    """BOLD `nuc` is alignment-padded ("---ACGT-ACGT---"); drop the gaps
+    before the usual cleaning, else 3,836,703 rows are rejected whole."""
+    if not nuc:
+        return None
+    return _clean_sequence(nuc.replace("-", ""))
+
+
 def iter_bold(parquet_path: Path, batch_size: int = 50_000) -> Iterator[Record]:
     import pyarrow.parquet as pq
 
-    cols = ["kingdom", "phylum", "class", "order", "family", "genus", "species", "nuc"]
     pf = pq.ParquetFile(parquet_path)
+    wanted = [*BOLD_RANKS, "identification_rank", "nuc"]
+    cols = [c for c in wanted if c in pf.schema_arrow.names]
     for batch in pf.iter_batches(columns=cols, batch_size=batch_size):
         d = batch.to_pydict()
         n = len(d["nuc"])
         for i in range(n):
-            raw_seq = d["nuc"][i]
-            seq = _clean_sequence(raw_seq) if raw_seq else None
+            seq = bold_sequence(d["nuc"][i])
             if not seq:
                 continue
-            lineage: dict[str, str] = {}
-            for rank in ("kingdom", "phylum", "class", "order", "family", "genus", "species"):
-                v = d[rank][i]
-                if v:
-                    lineage[rank] = v
-            organism_name = d["species"][i] or d["genus"][i] or ""
+            parsed = bold_lineage({c: d[c][i] for c in cols})
+            if parsed is None:
+                continue
+            lineage, organism_name = parsed
             yield Record(sequence=seq, organism_name=organism_name, lineage=lineage, source="bold")
 
 

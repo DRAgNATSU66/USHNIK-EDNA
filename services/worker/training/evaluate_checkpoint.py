@@ -42,8 +42,26 @@ import torch
 from torch.utils.data import DataLoader
 
 from app.inference.heads import DNAClassifierHead
-from app.inference.models import ROUTE_LABEL_SETS
+from app.inference.models import LABEL_SETS_BY_VERSION, ROUTE_LABEL_SETS
 from training.finetune import SequenceDataset, build_eval_report, collate, extract_cls
+
+
+def checkpoint_labels(route: str, saved_metrics: dict, current: list[str]) -> list[str]:
+    """The labels a checkpoint's head outputs, in order: metrics.json
+    "label_set" (written since label set v2), else the label_set_version
+    list whose length matches "num_classes" (older checkpoints recorded only
+    that). Label sets only ever append, so the result must be a prefix of
+    `current`: output i of an older head is still class i of the test data."""
+    found = saved_metrics.get("label_set")
+    if not found:
+        n = saved_metrics.get("num_classes", len(current))
+        found = next((v[route] for v in LABEL_SETS_BY_VERSION.values() if len(v.get(route, ())) == n), None)
+        if found is None:
+            raise SystemExit(f"no {route} label set has {n} classes")
+    found = [str(label) for label in found]
+    if current[:len(found)] != found:
+        raise SystemExit(f"checkpoint labels {found} are not a prefix of the current {current}")
+    return found
 
 
 def main() -> None:
@@ -58,13 +76,23 @@ def main() -> None:
         help="Write eval_report.json here instead of into the checkpoint dir, and leave "
              "the checkpoint's metrics.json untouched.",
     )
+    parser.add_argument("--split", choices=["test", "dev"], default="test")
+    parser.add_argument(
+        "--dump-probs", default=None,
+        help="Also write per-row softmax probabilities (.npz: probs, labels, head_labels, "
+             "label_names) for decoding experiments such as training/hier_decode.py.",
+    )
     args = parser.parse_args()
+    if args.split != "test" and not args.report_out:
+        raise SystemExit("--split dev needs --report-out: the checkpoint's own report is its test score")
 
     from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, AutoConfig
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"device: {device}")
 
+    # Test rows are labelled with the current label set; the head may have
+    # been trained on an older one (see checkpoint_labels below).
     labels = ROUTE_LABEL_SETS[args.route]
     label_names = [str(l) for l in labels]
     label_to_idx = {name: i for i, name in enumerate(label_names)}
@@ -93,20 +121,25 @@ def main() -> None:
     if embedding_dim is None:
         embedding_dim = backbone.config.hidden_size
 
-    head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(labels)).to(device)
+    head_labels = checkpoint_labels(args.route, saved_metrics, label_names)
+    if head_labels != label_names:
+        print(f"head trained on {len(head_labels)} labels {head_labels}; scoring on {label_names}. "
+              f"Rows of the newer labels count as errors for this head.")
+    head = DNAClassifierHead(embedding_dim=embedding_dim, num_classes=len(head_labels)).to(device)
     head.load_state_dict(torch.load(head_path, map_location=device, weights_only=True))
     head.eval()
 
     data_dir = Path(args.data_dir) / "processed" / args.route
-    test_ds = SequenceDataset(data_dir / "test.csv", label_to_idx, tokenizer, args.max_length)
-    print(f"test={len(test_ds)}")
+    split_csv = data_dir / f"{args.split}.csv"
+    test_ds = SequenceDataset(split_csv, label_to_idx, tokenizer, args.max_length)
+    print(f"{args.split}={len(test_ds)}")
 
     loader_kwargs = {"collate_fn": collate}
     if device == "cuda":
         loader_kwargs["pin_memory"] = True
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
 
-    all_preds, all_labels = [], []
+    all_preds, all_labels, all_probs = [], [], []
     with torch.no_grad():
         for batch, batch_labels in test_loader:
             batch = {k: v.to(device) for k, v in batch.items()}
@@ -114,10 +147,19 @@ def main() -> None:
             logits = head(extract_cls(out))
             all_preds.extend(logits.argmax(dim=-1).cpu().tolist())
             all_labels.extend(batch_labels.tolist())
+            all_probs.append(torch.softmax(logits.float(), dim=-1).cpu())
+
+    if args.dump_probs:
+        import numpy as np
+        dump = Path(args.dump_probs)
+        dump.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(dump, probs=torch.cat(all_probs).numpy(), labels=np.array(all_labels),
+                 head_labels=np.array(head_labels), label_names=np.array(label_names))
+        print(f"saved probs: {dump}")
 
     report = build_eval_report(all_labels, all_preds, label_names)
     report["checkpoint_dir"] = str(checkpoint_dir)
-    report["test_csv"] = str(data_dir / "test.csv")
+    report["test_csv"] = str(split_csv)
     report["max_length"] = args.max_length
     print(f"\nTEST  acc={report['accuracy']:.4f}  macro_f1={report['f1_macro']:.4f}")
     from sklearn.metrics import classification_report

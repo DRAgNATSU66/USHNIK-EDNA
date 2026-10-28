@@ -1,0 +1,97 @@
+{
+  "accuracy": 0.633920296570899,
+  "f1_macro": 0.778914334867183,
+  "per_class": {
+    "known_species": {
+      "precision": 0.6182266009852216,
+      "recall": 0.5175257731958763,
+      "f1-score": 0.5634118967452301,
+      "support": 485.0
+    },
+    "possible_novelty": {
+      "precision": 0.7441860465116279,
+      "recall": 0.9142857142857143,
+      "f1-score": 0.8205128205128205,
+      "support": 70.0
+    },
+    "possible_contamination": {
+      "precision": 0.9705882352941176,
+      "recall": 0.8918918918918919,
+      "f1-score": 0.9295774647887324,
+      "support": 37.0
+    },
+    "low_quality_unusable": {
+      "precision": 0.918918918918919,
+      "recall": 1.0,
+      "f1-score": 0.9577464788732394,
+      "support": 34.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.5852713178294574,
+      "recall": 0.6666666666666666,
+      "f1-score": 0.6233230134158927,
+      "support": 453.0
+    },
+    "accuracy": 0.633920296570899,
+    "macro avg": {
+      "precision": 0.7674382239078688,
+      "recall": 0.7980740092080298,
+      "f1-score": 0.778914334867183,
+      "support": 1079.0
+    },
+    "weighted avg": {
+      "precision": 0.6341203333267064,
+      "recall": 0.633920296570899,
+      "f1-score": 0.6302258933397652,
+      "support": 1079.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      251,
+      19,
+      1,
+      0,
+      214
+    ],
+    [
+      6,
+      64,
+      0,
+      0,
+      0
+    ],
+    [
+      3,
+      0,
+      33,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      34,
+      0
+    ],
+    [
+      146,
+      3,
+      0,
+      2,
+      302
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "possible_novelty",
+    "possible_contamination",
+    "low_quality_unusable",
+    "likely_taxonomic_group"
+  ],
+  "test_samples": 1079,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/plant_v3b/by_dev_acc",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/plant/test.csv",
+  "max_length": 256
+}

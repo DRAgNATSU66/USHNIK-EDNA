@@ -67,3 +67,17 @@ def test_sweep_selects_only_strand_invariant_configs():
                                                                r["dev_rc_balanced_accuracy"])
         if r["strand"] == "canonical":
             assert r["dev_fwd_balanced_accuracy"] == r["dev_rc_balanced_accuracy"]
+
+
+def test_route_class_weights_scale_balanced_weights():
+    from sklearn.utils.class_weight import compute_class_weight
+    y = np.array([0] * 6 + [4] * 2 + [5] * 4)          # fish, human, misc
+    assert tr.route_class_weights(y, {}) == "balanced"
+    w = tr.route_class_weights(y, {"human_domestic_contamination": 6.0})
+    balanced = compute_class_weight("balanced", classes=np.array([0, 4, 5]), y=y)
+    assert w[0] == pytest.approx(balanced[0]) and w[5] == pytest.approx(balanced[2])
+    assert w[4] == pytest.approx(6.0 * balanced[1])
+    with pytest.raises(ValueError):
+        tr.route_class_weights(y, {"humans": 2.0})
+    assert tr.parse_route_weights(["human_domestic_contamination=6", "fish=0.5"]) == {
+        "human_domestic_contamination": 6.0, "fish": 0.5}

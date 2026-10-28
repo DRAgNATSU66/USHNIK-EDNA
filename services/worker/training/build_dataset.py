@@ -32,6 +32,10 @@ CHUNK_LEN = 400
 CHUNK_STRIDE = 800
 MAX_PER_LABEL = 5000    # cap per (route, label) combination
 MAX_SCAN_PER_SOURCE = 2_000_000  # safety valve so one huge DB can't run forever
+# BOLD_Public is sorted by processid (project code), so a 2M cap would sample
+# only the first few projects alphabetically. The whole 24.5M-row file
+# streams in about 3 min, so scan all of it.
+BOLD_MAX_SCAN = 50_000_000
 SPLITS = ("train", "dev", "test")
 
 
@@ -333,7 +337,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  WARNING: skipping BOLD: {skipped['bold']}")
     else:
         print(f"  {bold.name}")
-        run(f"bold:{bold.name}", sources.iter_bold(bold))
+        run(f"bold:{bold.name}", sources.iter_bold(bold), max_scan=BOLD_MAX_SCAN)
 
     print("== MIDORI2 ==")
     # GB273 is one MIDORI2_GB273_RAW.zip (15 genes); older releases were

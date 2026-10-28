@@ -203,6 +203,7 @@ def _parse_entry(data: dict, source: Path) -> ModelRegistryEntry:
         created_at=data.get("created_at", ""),
         promoted_by=data.get("promoted_by"),
         trusted_remote_code=data.get("trusted_remote_code", False),
+        label_set=list(data.get("label_set") or []),
     )
 
 
