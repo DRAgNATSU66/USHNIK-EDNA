@@ -9,8 +9,9 @@ known_species recall .915 -> .416, QNA-047). Decoded hierarchically, known
 and LTG first compete as one class, P(known) + P(LTG), against the other
 classes, exactly as the production 3-class head's known_species does; the
 row is called LTG only when P(LTG | known or LTG) > tau. tau is chosen on dev,
-the smallest value whose dev known_species recall is >= production's dev
-recall (tau = 1 never emits LTG), and test is scored once with it.
+the smallest value whose dev known_species recall and old-class accuracy are
+both >= production's (tau = 1 never emits LTG), and test is scored once
+with it.
 
 Inputs are evaluate_checkpoint --dump-probs files:
     python -m training.hier_decode --route fish \
@@ -69,13 +70,19 @@ def metrics(d: dict, pred: np.ndarray, old_labels: list[str]) -> dict:
     return out
 
 
-def choose_tau(cand_dev: dict, target_ks_recall: float, old_labels: list[str]) -> tuple[float, list[dict]]:
+def choose_tau(cand_dev: dict, prod_dev: dict, old_labels: list[str]) -> tuple[float, list[dict]]:
+    """Smallest tau whose dev scores meet both halves of the ship rule
+    against production's dev scores; 1.0 (never LTG) when none does. The
+    first version checked known_species recall only and picked fish v3b
+    tau .75, which gave up old-class accuracy (QNA-048)."""
     sweep = []
     chosen = 1.0
     for tau in TAUS:
         m = metrics(cand_dev, decode(cand_dev, tau), old_labels)
         sweep.append({"tau": tau, **m})
-        if chosen == 1.0 and m["known_species_recall"] is not None and m["known_species_recall"] >= target_ks_recall:
+        if (chosen == 1.0 and m["known_species_recall"] is not None
+                and m["known_species_recall"] >= prod_dev["known_species_recall"]
+                and m["acc_on_prod_classes"] >= prod_dev["acc_on_prod_classes"]):
             chosen = tau
     return chosen, sweep
 
@@ -91,13 +98,13 @@ def main(argv: list[str] | None = None) -> int:
     pd, pt, cd, ct = (load(p) for p in (args.prod_dev, args.prod_test, args.cand_dev, args.cand_test))
     old_labels = pt["head_labels"]  # production's classes
     prod_dev, prod_test = metrics(pd, decode(pd, None), old_labels), metrics(pt, decode(pt, None), old_labels)
-    tau, sweep = choose_tau(cd, prod_dev["known_species_recall"], old_labels)
+    tau, sweep = choose_tau(cd, prod_dev, old_labels)
     cand_test = metrics(ct, decode(ct, tau), old_labels)
     flat_test = metrics(ct, decode(ct, None), old_labels)
     ship = (cand_test["acc_on_prod_classes"] >= prod_test["acc_on_prod_classes"]
             and cand_test["known_species_recall"] >= prod_test["known_species_recall"])
     report = {"route": args.route, "prod_labels": old_labels, "cand_labels": ct["head_labels"],
-              "tau_chosen_on_dev": tau, "tau_rule": "smallest tau with dev known_species recall >= prod dev",
+              "tau_chosen_on_dev": tau, "tau_rule": "smallest tau with dev acc_on_prod_classes and known_species recall both >= prod dev",
               "prod": {"dev": prod_dev, "test": prod_test},
               "cand_flat_argmax": {"test": flat_test},
               "cand_hier": {"dev": next(s for s in sweep if s["tau"] == tau), "test": cand_test},

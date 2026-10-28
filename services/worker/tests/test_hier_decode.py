@@ -33,7 +33,19 @@ def test_prefix_head_without_ltg_is_plain_argmax_and_ltg_rows_count_wrong():
 def test_choose_tau_is_smallest_meeting_the_dev_recall_target():
     # row 0 known with LTG share .7; row 1 LTG with share .9
     d = _d([[0.3, 0.0, 0.0, 0.7], [0.1, 0.0, 0.0, 0.9]], [0, 3])
-    tau, sweep = hd.choose_tau(d, 1.0, NAMES[:3])
+    tau, sweep = hd.choose_tau(d, {"known_species_recall": 1.0, "acc_on_prod_classes": 1.0}, NAMES[:3])
     assert tau == 0.7                         # .70 keeps row 0 known, still calls row 1 LTG
     row = next(s for s in sweep if s["tau"] == tau)
     assert row["known_species_recall"] == 1.0 and row["ltg_recall"] == 1.0
+
+
+def test_choose_tau_needs_old_class_accuracy_too():
+    # two known rows (LTG shares .7 and .4) and a correct novelty row. Production's dev
+    # targets: known_species recall .5, old-class accuracy 1.0. At tau .5 row 0 becomes LTG:
+    # recall .5 meets its target, accuracy 2/3 does not; tau .7 keeps row 0 known.
+    d = _d([[0.3, 0.0, 0.0, 0.7], [0.6, 0.0, 0.0, 0.4], [0.0, 1.0, 0.0, 0.0]], [0, 0, 1])
+    target = {"known_species_recall": 0.5, "acc_on_prod_classes": 1.0}
+    tau, _ = hd.choose_tau(d, target, NAMES[:3])
+    assert tau == 0.7
+    tau, _ = hd.choose_tau(d, {**target, "acc_on_prod_classes": 0.0}, NAMES[:3])
+    assert tau == 0.5

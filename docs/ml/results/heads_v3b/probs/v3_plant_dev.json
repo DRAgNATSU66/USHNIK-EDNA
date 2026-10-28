@@ -1,0 +1,97 @@
+{
+  "accuracy": 0.6305555555555555,
+  "f1_macro": 0.7470266564550465,
+  "per_class": {
+    "known_species": {
+      "precision": 0.6139534883720931,
+      "recall": 0.5432098765432098,
+      "f1-score": 0.5764192139737991,
+      "support": 486.0
+    },
+    "possible_novelty": {
+      "precision": 0.8313253012048193,
+      "recall": 0.9857142857142858,
+      "f1-score": 0.9019607843137255,
+      "support": 70.0
+    },
+    "possible_contamination": {
+      "precision": 0.5833333333333334,
+      "recall": 0.9459459459459459,
+      "f1-score": 0.7216494845360825,
+      "support": 37.0
+    },
+    "low_quality_unusable": {
+      "precision": 0.9142857142857143,
+      "recall": 0.9411764705882353,
+      "f1-score": 0.927536231884058,
+      "support": 34.0
+    },
+    "likely_taxonomic_group": {
+      "precision": 0.5953389830508474,
+      "recall": 0.6203090507726269,
+      "f1-score": 0.6075675675675676,
+      "support": 453.0
+    },
+    "accuracy": 0.6305555555555555,
+    "macro avg": {
+      "precision": 0.7076473640493615,
+      "recall": 0.8072711259128607,
+      "f1-score": 0.7470266564550465,
+      "support": 1080.0
+    },
+    "weighted avg": {
+      "precision": 0.6286405309020889,
+      "recall": 0.6305555555555555,
+      "f1-score": 0.6266132998270634,
+      "support": 1080.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      264,
+      13,
+      17,
+      1,
+      191
+    ],
+    [
+      0,
+      69,
+      0,
+      1,
+      0
+    ],
+    [
+      2,
+      0,
+      35,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      1,
+      32,
+      0
+    ],
+    [
+      163,
+      1,
+      7,
+      1,
+      281
+    ]
+  ],
+  "label_order": [
+    "known_species",
+    "possible_novelty",
+    "possible_contamination",
+    "low_quality_unusable",
+    "likely_taxonomic_group"
+  ],
+  "test_samples": 1080,
+  "checkpoint_dir": "/home/natsu/dev/synth-veda/synthveda-data/checkpoints/plant_v3",
+  "test_csv": "/home/natsu/dev/synth-veda/synthveda-data/processed/plant/dev.csv",
+  "max_length": 256
+}
