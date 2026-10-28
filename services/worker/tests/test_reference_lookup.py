@@ -361,6 +361,9 @@ def test_unavailable_unknown_route(refroot):
 
 def test_unavailable_no_tools(refroot, monkeypatch):
     monkeypatch.setattr(rl, "_find_tool", lambda name, tools_dir, data_root: None)
+    # The index check runs before the tool check, and refroot only has a BLAST
+    # DB where makeblastdb is installed (not on CI): pretend it is there.
+    monkeypatch.setattr(rl._RouteDB, "blast_present", staticmethod(lambda prefix: True))
     ev = provider(refroot).lookup(TWO, "fish")
     _assert_unavailable(ev, "not found")
     assert ev[0].reference_db_version == "vtest"  # provenance still reported
