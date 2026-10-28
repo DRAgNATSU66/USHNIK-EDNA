@@ -3188,3 +3188,73 @@ The rules that came with it, applied here as written:
 - Plant and animal were held to the same rule and **fail**, by .033 and .006 of known_species recall,
   although both beat production on old-class accuracy. They stay on production.
 - A process searching for passes would not have left those two failing.
+
+## QNA-049 — 2026-10-28 — Reference DB v3 (MIDORI2 + BOLD) built on the sixth attempt; CURRENT moved v2 → v3
+
+**Commits:** the fixes are `b5cadc6`, `7fb955e`, `2815243` and `b1b8455`, plus this entry, on
+`sprint/d18-bold-data`.
+- Manifest: `docs/ml/results/refdb_v3/v3_manifest.json`.
+- The stopped run-5 manifest: `run5_cap10_manifest.json`.
+- Runner: `synthveda-data/logs/rebuild_v3/refdb.sh`.
+
+**Q1. Mechanism: what ran?**
+1. **Phase 1:** `build_reference_db --version v3 --force --ingest-cap 10 --ingest-cap-exempt
+   plant,bacteria_pathogen,human_domestic_contamination --skip-indexes`, in a `MemoryMax=6G` scope.
+   - Reading and writing the FASTA files took **620.4 s**.
+   - BOLD: 11,133,239 records read, 10,936,984 kept.
+   - Held-out exclusion uses the v3 `processed/` dev and test splits: 20,115 unique sequences.
+2. **Phase 2:** `--index-only`, in a fresh 4.5 GB scope, took **103.2 s**.
+   - Every route got a UDB and a BLAST DB, except animal: it is over budget, so it gets BLAST only.
+   - The GRCh38 BLAST index was rebuilt (ok, 775 MB).
+   - `CURRENT` was written only after every BLAST DB reported ok.
+
+| Route | seqs v2 → v3 | bases v3 | per-group cap chosen | ingest cap | UDB |
+|---|---|---|---|---|---|
+| fish | 375,184 → 382,075 | 386.1 Mb | k=5 | 10, exact | 1.91 GB |
+| plant | 95,867 → **473,447** | 368.0 Mb | none | exempt | 1.87 GB |
+| bacteria | 163,454 → 174,444 | 294.5 Mb | none | exempt | 1.48 GB |
+| animal | 731,396 → 1,039,281 | 996.1 Mb | k=1, over budget | 10, exact | none (BLAST only) |
+| human | 76,756 → 84,798 | 92.9 Mb | none | exempt | 0.46 GB |
+| misc | 239,062 → 231,783 | 384.5 Mb | k=3 (v2: k=50) | 10, exact | 1.67 GB |
+
+**Q2. Rationale: why the cap is exact, and why some routes are exempt.**
+- Each (lowest taxon, marker) group keeps its K longest sequences in a bounded heap (`_admit`).
+- The heap's root only grows, so the final top k ≤ K were always in the running top K.
+- Every ladder step k ≤ K therefore selects exactly what an unbounded build selects. This is tested
+  against an unbounded accumulator in `test_ingest_cap_selects_exactly_what_unbounded_does`, and a
+  mutated tie-break fails that test.
+- Only the uncapped step can differ, and the manifest reports `exact`.
+- Run 5 (cap 10 on every route) showed the cost on routes that end uncapped. Human dropped to **7,729**
+  sequences, about 10 per (taxon, marker) for a one-species route, and bacteria to 94,426.
+  - I stopped run 5 after phase 1 and killed the indexer by PID before it could move `CURRENT`.
+  - The fix was to exempt those three routes, which are small. Every route in v3 is now exact.
+
+**Q3. Blast radius.**
+- Every reference lookup now reads v3, through the provider's `CURRENT` resolution.
+- Plant has 4.9× the sequences of v2 (BOLD rbcL, matK and ITS).
+- misc is capped at k=3 per group, against k=50 in v2, because the route budget is 400 Mb.
+- Animal remains over budget at k=1 (996 Mb) and is BLAST only. The runtime already did that: auto mode
+  skips UDBs over 2.5 GB.
+- **Rollback:** write `v2` to `synthveda-data/reference/CURRENT`. v2 is untouched.
+- The worker was not running when `CURRENT` moved, so no analysis mixes the two versions.
+
+**Q4. Verification.**
+- The worker's own `lookup_reference` on 3 known_species test rows each from fish, animal and human
+  returned `assigned` from **v3** via BLAST, in 2.8 / 3.8 / 1.4 s per batch of 3.
+- Worker suite: 636 passed after the fixes (QNA-048).
+- The six attempts, for the record:
+  1. OOM at 5 GB (00:32);
+  2. OOM at 7 GB (03:37);
+  3. OOM at 7 GB (10:15, vsearch on the animal UDB);
+  4. OOM at 4.5 GB, cap 10 (≈11:50);
+  5. stopped by me (13:08, cuts);
+  6. this build.
+
+**Q5. Defence: "You capped the reference; lookups lose sequences."**
+- Fish, animal and misc lose nothing to the ingest cap. The budget's own cap (k=5 / 1 / 3) is below 10,
+  and selection at those k is identical to an unbounded build.
+- Plant, bacteria and human are read uncapped.
+- The v2-era budget, not the new memory fix, is what limits misc and animal; it is set by vsearch RAM
+  per query (see the module docstring: a 776 Mb UDB measured 4.1 GB RSS per query).
+- Still open: the taxonomy name index costs ~2.2 GB of fixed RAM, and the build needs a 6 GB scope
+  because of it.
