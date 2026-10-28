@@ -56,7 +56,10 @@ def decode(d: dict, tau: float | None) -> np.ndarray:
 def metrics(d: dict, pred: np.ndarray, old_labels: list[str]) -> dict:
     names, y = d["label_names"], d["labels"]
     old = np.isin(y, [names.index(n) for n in old_labels])
+    from sklearn.metrics import f1_score
     out = {"n": int(len(y)), "acc": round(float((pred == y).mean()), 4),
+           "macro_f1": round(float(f1_score(y, pred, labels=list(range(len(names))), average="macro",
+                                            zero_division=0)), 4),
            "acc_on_prod_classes": round(float((pred[old] == y[old]).mean()), 4),
            "n_prod_class_rows": int(old.sum())}
     for name, key in ((KS, "known_species"), (LTG, "ltg")):
